@@ -1,0 +1,1924 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FantaManager</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--verde:#00ff87;--nero:#0a0a0a;--grigio-scuro:#111111;--grigio:#1a1a1a;--grigio-medio:#2a2a2a;--grigio-chiaro:#3a3a3a;--testo:#e8e8e8;--testo-dim:#888;--oro:#ffd700;--argento:#c0c0c0;--rosso:#ff4444;--blu:#4488ff;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden;}
+#home{position:fixed;inset:0;background:var(--nero);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}
+#home.hide{animation:fadeOut 0.6s forwards;}
+@keyframes fadeOut{to{opacity:0;pointer-events:none;}}
+.home-bg{position:absolute;inset:0;overflow:hidden;}
+.home-bg-circle{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.15;}
+.home-bg-circle:nth-child(1){width:600px;height:600px;background:var(--verde);top:-200px;left:-200px;animation:float1 8s ease-in-out infinite;}
+.home-bg-circle:nth-child(2){width:400px;height:400px;background:var(--blu);bottom:-100px;right:-100px;animation:float2 10s ease-in-out infinite;}
+.home-bg-circle:nth-child(3){width:300px;height:300px;background:var(--oro);top:50%;left:60%;animation:float3 7s ease-in-out infinite;}
+@keyframes float1{0%,100%{transform:translate(0,0);}50%{transform:translate(30px,20px);}}
+@keyframes float2{0%,100%{transform:translate(0,0);}50%{transform:translate(-20px,-30px);}}
+@keyframes float3{0%,100%{transform:translate(0,0);}50%{transform:translate(20px,-20px);}}
+.home-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(0,255,135,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,135,0.03) 1px,transparent 1px);background-size:40px 40px;}
+.home-content{position:relative;z-index:1;text-align:center;padding:20px;}
+.home-badge{display:inline-block;background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);border-radius:20px;padding:6px 16px;font-size:12px;letter-spacing:2px;color:var(--verde);text-transform:uppercase;margin-bottom:24px;animation:fadeUp 0.8s 0.2s both;}
+.home-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(60px,15vw,120px);letter-spacing:4px;line-height:0.9;margin-bottom:8px;animation:fadeUp 0.8s 0.4s both;}
+.home-title .fanta{color:var(--testo);}
+.home-title .manager{color:var(--verde);text-shadow:0 0 40px rgba(0,255,135,0.4);}
+.home-sub{font-size:clamp(14px,2vw,18px);color:var(--testo-dim);margin-bottom:48px;letter-spacing:1px;animation:fadeUp 0.8s 0.6s both;}
+.home-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:700px;margin:0 auto 40px;animation:fadeUp 0.8s 0.8s both;}
+@media(max-width:500px){.home-cards{grid-template-columns:repeat(2,1fr);}}
+.home-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px 14px;cursor:pointer;transition:all 0.3s;text-align:center;}
+.home-card:hover{background:rgba(0,255,135,0.08);border-color:rgba(0,255,135,0.3);transform:translateY(-4px);}
+.home-card-icon{font-size:32px;margin-bottom:10px;}
+.home-card-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--testo);margin-bottom:4px;}
+.home-card-sub{font-size:11px;color:var(--testo-dim);}
+.home-enter{display:inline-flex;align-items:center;gap:10px;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;padding:14px 36px;border-radius:12px;cursor:pointer;border:none;transition:all 0.3s;animation:fadeUp 0.8s 1s both;}
+.home-enter:hover{transform:scale(1.05);box-shadow:0 8px 30px rgba(0,255,135,0.3);}
+.home-stats{display:flex;gap:32px;justify-content:center;margin-top:32px;animation:fadeUp 0.8s 1.2s both;}
+.home-stat-val{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--verde);}
+.home-stat-label{font-size:11px;color:var(--testo-dim);margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+#app{display:none;}
+#app.show{display:block;}
+.header{background:var(--grigio-scuro);border-bottom:2px solid var(--verde);padding:0 16px;position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:12px;height:56px;}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--verde);letter-spacing:2px;white-space:nowrap;cursor:pointer;}
+.logo span{color:var(--testo);}
+.nav{display:flex;gap:4px;flex:1;overflow-x:auto;scrollbar-width:none;}
+.nav::-webkit-scrollbar{display:none;}
+.nav-btn{background:none;border:none;color:var(--testo-dim);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;padding:6px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;transition:all 0.2s;}
+.nav-btn:hover{background:var(--grigio-medio);color:var(--testo);}
+.nav-btn.active{background:var(--verde);color:var(--nero);font-weight:700;}
+.admin-btn{background:var(--grigio-medio);border:1px solid var(--grigio-chiaro);color:var(--oro);font-family:'Space Mono',monospace;font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;transition:all 0.2s;flex-shrink:0;}
+.admin-btn:hover{border-color:var(--oro);}
+.main{padding:20px 16px;max-width:1400px;margin:0 auto;}
+.section{display:none;}
+.section.active{display:block;}
+.page-title{font-family:'Bebas Neue',sans-serif;font-size:36px;color:var(--verde);letter-spacing:3px;margin-bottom:2px;}
+.page-sub{color:var(--testo-dim);font-size:13px;margin-bottom:20px;}
+.controls{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.search-box{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:9px 14px;color:var(--testo);font-family:'DM Sans',sans-serif;font-size:14px;flex:1;min-width:180px;outline:none;transition:border-color 0.2s;}
+.search-box:focus{border-color:var(--verde);}
+.search-box::placeholder{color:var(--testo-dim);}
+.squadre-overview{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;}
+.squadra-overview-card{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;overflow:hidden;cursor:pointer;transition:all 0.3s;}
+.squadra-overview-card:hover{border-color:var(--verde);transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,255,135,0.1);}
+.soc-logo{height:110px;display:flex;align-items:center;justify-content:center;}
+.soc-logo img{width:72px;height:72px;object-fit:contain;border-radius:8px;}
+.soc-logo-placeholder{width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--nero);}
+.soc-info{padding:12px 14px;}
+.soc-nome{font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;margin-bottom:3px;}
+.soc-owner{font-size:11px;color:var(--testo-dim);margin-bottom:8px;}
+.soc-stats{display:flex;gap:10px;flex-wrap:wrap;}
+.soc-stat{font-size:10px;color:var(--testo-dim);}
+.soc-stat span{color:var(--verde);font-weight:600;font-family:'Space Mono',monospace;}
+.back-btn{display:inline-flex;align-items:center;gap:6px;background:var(--grigio);border:1px solid var(--grigio-chiaro);color:var(--testo-dim);font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;margin-bottom:20px;transition:all 0.2s;}
+.back-btn:hover{border-color:var(--verde);color:var(--verde);}
+.squadra-hero{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;overflow:hidden;margin-bottom:20px;}
+.squadra-hero-banner{height:150px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+.squadra-hero-logo{width:90px;height:90px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:38px;color:var(--nero);border:3px solid rgba(255,255,255,0.2);z-index:1;overflow:hidden;background:rgba(0,0,0,0.2);}
+.squadra-hero-logo img{width:100%;height:100%;object-fit:cover;}
+.squadra-hero-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.3);}
+.squadra-hero-body{padding:18px 20px;}
+.squadra-hero-nome{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:2px;margin-bottom:4px;}
+.squadra-hero-all{font-size:13px;color:var(--testo-dim);margin-bottom:16px;}
+.squadra-hero-all span{color:var(--oro);font-weight:600;}
+.presidenti-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--testo-dim);margin-bottom:10px;}
+.presidenti-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.presidente-card{display:flex;align-items:center;gap:10px;background:var(--grigio-scuro);border-radius:10px;padding:10px 14px;flex:1;min-width:140px;}
+.presidente-foto{width:42px;height:42px;border-radius:50%;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:17px;color:var(--testo-dim);flex-shrink:0;overflow:hidden;}
+.presidente-foto img{width:100%;height:100%;object-fit:cover;}
+.presidente-nome{font-weight:600;font-size:13px;}
+.presidente-ruolo{font-size:10px;color:var(--testo-dim);}
+.squadra-stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--grigio-chiaro);border-top:1px solid var(--grigio-chiaro);}
+.squadra-stat-item{background:var(--grigio-scuro);padding:10px;text-align:center;}
+.squadra-stat-label{font-size:10px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:0.5px;}
+.squadra-stat-val{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;margin-top:2px;}
+.rosa-container{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;overflow:hidden;}
+.rosa-tabs{display:flex;border-bottom:1px solid var(--grigio-chiaro);}
+.rosa-tab{flex:1;padding:10px 6px;text-align:center;font-size:11px;font-weight:600;color:var(--testo-dim);cursor:pointer;transition:all 0.2s;letter-spacing:0.5px;text-transform:uppercase;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.rosa-tab:hover{color:var(--testo);}
+.rosa-tab.active{color:var(--verde);border-bottom-color:var(--verde);}
+.rosa-count{display:inline-block;background:var(--grigio-medio);border-radius:10px;padding:1px 5px;font-size:10px;margin-left:3px;color:var(--testo-dim);}
+.rosa-tab.active .rosa-count{background:rgba(0,255,135,0.15);color:var(--verde);}
+.legenda{display:flex;gap:10px;flex-wrap:wrap;padding:10px 16px;background:var(--grigio-scuro);border-bottom:1px solid var(--grigio-chiaro);}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--testo-dim);}
+.giocatori-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;padding:12px;}
+.giocatore-card{background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:10px;padding:11px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:10px;}
+.giocatore-card:hover{border-color:var(--verde);background:var(--grigio-medio);}
+.gc-avatar{width:34px;height:34px;border-radius:50%;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--testo-dim);flex-shrink:0;overflow:hidden;}
+.gc-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.gc-info{flex:1;min-width:0;}
+.gc-nome{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gc-sub{display:flex;gap:4px;margin-top:3px;flex-wrap:wrap;}
+.gc-maglia{font-family:'Space Mono',monospace;font-size:9px;color:var(--testo-dim);}
+.g-badge{font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;letter-spacing:0.5px;}
+.badge-c{background:rgba(255,215,0,0.15);color:var(--oro);}
+.badge-v{background:rgba(192,192,192,0.15);color:var(--argento);}
+.badge-p{background:rgba(68,136,255,0.15);color:var(--blu);}
+.badge-prom{background:rgba(0,255,135,0.15);color:var(--verde);}
+.g-ruolo{font-size:9px;padding:1px 4px;border-radius:3px;font-weight:700;}
+.ruolo-p{background:rgba(255,68,68,0.15);color:var(--rosso);}
+.ruolo-d{background:rgba(68,136,255,0.15);color:var(--blu);}
+.ruolo-c{background:rgba(255,215,0,0.15);color:var(--oro);}
+.ruolo-a{background:rgba(0,255,135,0.15);color:var(--verde);}
+.empty{text-align:center;padding:30px;color:var(--testo-dim);font-size:13px;}
+/* MERCATO */
+.trattativa-card{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;margin-bottom:12px;cursor:pointer;transition:all 0.2s;}
+.trattativa-card:hover{border-color:var(--verde);transform:translateY(-1px);}
+.trattativa-header{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--grigio-chiaro);}
+.trattativa-tipo-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:0.5px;flex-shrink:0;}
+.tipo-definitivo{background:rgba(0,255,135,0.15);color:var(--verde);}
+.tipo-prestito{background:rgba(68,136,255,0.15);color:var(--blu);}
+.tipo-scambio{background:rgba(255,215,0,0.15);color:var(--oro);}
+.trattativa-giocatore{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;flex:1;}
+.trattativa-stato{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;flex-shrink:0;}
+.stato-proposta{background:rgba(255,215,0,0.15);color:var(--oro);}
+.stato-approvata{background:rgba(0,255,135,0.15);color:var(--verde);}
+.stato-rifiutata{background:rgba(255,68,68,0.15);color:var(--rosso);}
+.stato-completata{background:rgba(68,136,255,0.15);color:var(--blu);}
+.trattativa-body{padding:10px 16px;display:flex;gap:16px;flex-wrap:wrap;}
+.trattativa-squadre{display:flex;align-items:center;gap:8px;font-size:13px;}
+.trattativa-freccia{color:var(--testo-dim);font-size:16px;}
+.trattativa-importo{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:var(--verde);}
+.trattativa-footer{padding:8px 16px;border-top:1px solid var(--grigio-chiaro);display:flex;justify-content:space-between;font-size:11px;color:var(--testo-dim);}
+.rate-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:6px;padding:2px 8px;font-size:10px;color:var(--oro);}
+.rata-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--grigio-scuro);border-radius:8px;margin-bottom:6px;font-size:12px;}
+.rata-pagata{opacity:0.5;text-decoration:line-through;}
+.step-indicator{display:flex;gap:4px;margin-bottom:20px;}
+.step{flex:1;height:4px;border-radius:2px;background:var(--grigio-chiaro);}
+.step.done{background:var(--verde);}
+.step.active{background:var(--oro);}
+.tifosi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+.tifosi-card{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;transition:all 0.2s;cursor:pointer;}
+.tifosi-card:hover{border-color:var(--blu);transform:translateY(-1px);}
+.tifosi-card-header{background:var(--grigio-scuro);padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--grigio-chiaro);}
+.tifosi-rank{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:16px;flex-shrink:0;}
+.rank-1{background:rgba(255,215,0,0.2);color:var(--oro);}
+.rank-2{background:rgba(192,192,192,0.2);color:var(--argento);}
+.rank-3{background:rgba(205,127,50,0.2);color:#cd7f32;}
+.rank-other{background:var(--grigio-medio);color:var(--testo-dim);}
+.tifosi-sq-nome{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;flex:1;}
+.tifosi-numero{font-family:'Space Mono',monospace;font-size:17px;font-weight:700;color:var(--blu);}
+.tifosi-card-body{padding:10px 14px;}
+.tifosi-bar-wrap{background:var(--grigio-medio);border-radius:4px;height:5px;margin-bottom:8px;overflow:hidden;}
+.tifosi-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blu),var(--verde));}
+.tifosi-last{font-size:11px;color:var(--testo-dim);}
+.tifosi-last span{color:var(--verde);font-weight:600;}
+.tifosi-card-footer{padding:8px 14px;border-top:1px solid var(--grigio-chiaro);display:flex;justify-content:space-between;font-size:11px;color:var(--testo-dim);}
+.log-item{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--grigio-chiaro);}
+.log-item:last-child{border-bottom:none;}
+.log-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.log-icon.pos{background:rgba(0,255,135,0.1);}
+.log-icon.neg{background:rgba(255,68,68,0.1);}
+.log-info{flex:1;}
+.log-motivo{font-size:13px;font-weight:500;}
+.log-data{font-size:11px;color:var(--testo-dim);margin-top:2px;}
+.log-val{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;}
+.log-val.pos{color:var(--verde);}
+.log-val.neg{color:var(--rosso);}
+.comp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+.comp-card{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;transition:all 0.2s;}
+.comp-card:hover{border-color:var(--oro);transform:translateY(-1px);}
+.comp-header{padding:14px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--grigio-chiaro);}
+.comp-icon{font-size:28px;flex-shrink:0;}
+.comp-nome{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;flex:1;}
+.comp-tipo{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600;letter-spacing:0.5px;}
+.tipo-campionato{background:rgba(0,255,135,0.15);color:var(--verde);}
+.tipo-coppa{background:rgba(255,215,0,0.15);color:var(--oro);}
+.tipo-speciale{background:rgba(68,136,255,0.15);color:var(--blu);}
+.comp-body{padding:12px 16px;}
+.comp-premio-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px;}
+.comp-premio-row:last-child{border-bottom:none;}
+.comp-premio-label{color:var(--testo-dim);}
+.comp-premio-val{font-weight:700;font-family:'Space Mono',monospace;font-size:11px;}
+.comp-premio-val.euro{color:var(--oro);}
+.comp-museo{background:var(--grigio-scuro);border-radius:8px;padding:8px 12px;display:flex;justify-content:space-between;font-size:12px;margin-top:8px;}
+.comp-museo-label{color:var(--testo-dim);}
+.comp-museo-val{color:var(--verde);font-family:'Space Mono',monospace;font-weight:700;}
+.museo-intro{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:12px;padding:20px;margin-bottom:20px;}
+.museo-intro-title{font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--oro);letter-spacing:2px;margin-bottom:8px;}
+.museo-intro-text{font-size:13px;color:var(--testo-dim);line-height:1.6;}
+.moltiplicatori{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.molt-item{background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:8px 12px;text-align:center;}
+.molt-num{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--oro);}
+.molt-label{font-size:10px;color:var(--testo-dim);}
+.museo-squadre{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+.museo-card{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;cursor:pointer;transition:all 0.2s;}
+.museo-card:hover{border-color:var(--oro);transform:translateY(-1px);}
+.museo-card-header{background:var(--grigio-scuro);padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--grigio-chiaro);}
+.museo-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--nero);flex-shrink:0;overflow:hidden;}
+.museo-avatar img{width:100%;height:100%;object-fit:cover;}
+.museo-sq-nome{font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;flex:1;}
+.museo-trofei-count{font-family:'Space Mono',monospace;font-size:13px;color:var(--oro);}
+.museo-card-body{padding:12px 14px;}
+.trofei-list{display:flex;flex-wrap:wrap;gap:6px;}
+.trofeo-badge{background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--oro);}
+.museo-rendita{background:var(--grigio-scuro);border-radius:8px;padding:8px 12px;margin-top:10px;display:flex;justify-content:space-between;font-size:12px;}
+.museo-rendita-label{color:var(--testo-dim);}
+.museo-rendita-val{color:var(--verde);font-family:'Space Mono',monospace;font-weight:700;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:300;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;scrollbar-width:thin;}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--grigio-chiaro);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--grigio);z-index:1;}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--verde);letter-spacing:2px;}
+.modal-close{background:none;border:none;color:var(--testo-dim);font-size:24px;cursor:pointer;line-height:1;padding:4px;}
+.modal-close:hover{color:var(--testo);}
+.player-hero{background:linear-gradient(135deg,var(--grigio-scuro),var(--grigio-medio));padding:22px 20px;display:flex;gap:16px;align-items:center;border-bottom:1px solid var(--grigio-chiaro);}
+.player-photo{width:80px;height:80px;border-radius:12px;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--testo-dim);flex-shrink:0;overflow:hidden;border:2px solid var(--grigio-chiaro);}
+.player-photo img{width:100%;height:100%;object-fit:cover;}
+.player-nome{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;line-height:1;margin-bottom:6px;}
+.player-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+.player-section{padding:14px 20px;border-bottom:1px solid var(--grigio-chiaro);}
+.player-section:last-child{border-bottom:none;}
+.player-section-title{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--testo-dim);margin-bottom:10px;}
+.player-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.player-info-item{background:var(--grigio-scuro);border-radius:8px;padding:10px 12px;}
+.pii-label{font-size:10px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;}
+.pii-val{font-size:13px;font-weight:600;}
+.pii-val.verde{color:var(--verde);}
+.pii-val.oro{color:var(--oro);}
+.contratto-box{background:var(--grigio-scuro);border-radius:10px;padding:14px;border-left:3px solid var(--verde);}
+.contratto-tipo{font-family:'Bebas Neue',sans-serif;font-size:17px;color:var(--verde);letter-spacing:1px;margin-bottom:10px;}
+.contratto-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px;}
+.contratto-row:last-child{border-bottom:none;}
+.contratto-row .label{color:var(--testo-dim);}
+.contratto-row .val{font-weight:600;font-family:'Space Mono',monospace;font-size:11px;}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.stat-box{background:var(--grigio-scuro);border-radius:8px;padding:10px;text-align:center;}
+.stat-box-val{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--verde);}
+.stat-box-label{font-size:10px;color:var(--testo-dim);margin-top:2px;text-transform:uppercase;}
+.admin-panel{background:var(--grigio);border:1px solid var(--oro);border-radius:12px;padding:20px;margin-bottom:20px;}
+.admin-title{font-family:'Bebas Neue',sans-serif;font-size:26px;color:var(--oro);letter-spacing:2px;margin-bottom:4px;}
+.admin-sub{color:var(--testo-dim);font-size:13px;margin-bottom:18px;}
+.admin-section-title{font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--verde);letter-spacing:1px;margin:20px 0 12px;}
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;}
+.admin-card{background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:10px;padding:14px;cursor:pointer;transition:all 0.2s;text-align:center;}
+.admin-card:hover{border-color:var(--oro);transform:translateY(-1px);}
+.admin-card-icon{font-size:22px;margin-bottom:6px;}
+.admin-card-title{font-weight:600;font-size:12px;margin-bottom:2px;}
+.admin-card-sub{font-size:10px;color:var(--testo-dim);}
+.form-group{margin-bottom:14px;}
+.form-label{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--testo-dim);margin-bottom:6px;display:block;}
+.form-input{width:100%;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:10px 14px;color:var(--testo);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color 0.2s;}
+.form-input:focus{border-color:var(--verde);}
+.form-select{width:100%;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:10px 14px;color:var(--testo);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;cursor:pointer;}
+.form-select option{background:var(--grigio-scuro);}
+.btn-primary{background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px 24px;border-radius:10px;border:none;cursor:pointer;width:100%;transition:all 0.2s;margin-top:8px;}
+.btn-primary:hover{opacity:0.9;}
+.btn-primary:disabled{opacity:0.5;cursor:not-allowed;}
+.btn-secondary{background:var(--grigio-medio);color:var(--testo);font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer;transition:all 0.2s;}
+.btn-secondary:hover{border-color:var(--verde);color:var(--verde);}
+.btn-danger{background:rgba(255,68,68,0.1);color:var(--rosso);font-size:14px;font-weight:600;padding:10px 20px;border-radius:8px;border:1px solid rgba(255,68,68,0.3);cursor:pointer;}
+.btn-danger:hover{background:rgba(255,68,68,0.2);}
+.giocatori-search-list,.squadre-search-list{max-height:260px;overflow-y:auto;border:1px solid var(--grigio-chiaro);border-radius:8px;margin-top:8px;}
+.giocatore-search-item,.squadra-search-item{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--grigio-chiaro);cursor:pointer;transition:background 0.15s;}
+.giocatore-search-item:last-child,.squadra-search-item:last-child{border-bottom:none;}
+.giocatore-search-item:hover,.squadra-search-item:hover{background:var(--grigio-medio);}
+.gsi-avatar{width:32px;height:32px;border-radius:50%;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--testo-dim);flex-shrink:0;overflow:hidden;}
+.gsi-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.gsi-sq-logo{width:32px;height:32px;border-radius:8px;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;overflow:hidden;}
+.gsi-sq-logo img{width:100%;height:100%;object-fit:contain;}
+.gsi-info{flex:1;}
+.gsi-nome{font-size:13px;font-weight:600;}
+.gsi-sub{font-size:11px;color:var(--testo-dim);}
+.foto-upload-area{border:2px dashed var(--grigio-chiaro);border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;}
+.foto-upload-area:hover{border-color:var(--verde);}
+.foto-upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.foto-preview{width:80px;height:80px;border-radius:50%;background:var(--grigio-chiaro);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;}
+.foto-preview img{width:100%;height:100%;object-fit:cover;}
+.logo-preview{width:80px;height:80px;border-radius:12px;background:var(--grigio-chiaro);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;}
+.logo-preview img{width:100%;height:100%;object-fit:contain;}
+.progress-wrap{background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:12px;}
+.progress-title{font-size:12px;font-weight:600;margin-bottom:8px;color:var(--testo-dim);}
+.progress-bar-bg{background:var(--grigio-chiaro);border-radius:4px;height:6px;overflow:hidden;margin-bottom:6px;}
+.progress-bar-fill{height:100%;background:linear-gradient(90deg,var(--verde),var(--blu));border-radius:4px;transition:width 0.3s;}
+.progress-info{font-size:11px;color:var(--testo-dim);}
+.password-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;padding:20px;}
+.password-icon{font-size:60px;margin-bottom:20px;}
+.password-title{font-family:'Bebas Neue',sans-serif;font-size:32px;color:var(--oro);letter-spacing:2px;margin-bottom:8px;}
+.password-sub{color:var(--testo-dim);font-size:14px;margin-bottom:24px;}
+.password-input-wrap{display:flex;gap:10px;max-width:320px;width:100%;}
+.coming-soon{text-align:center;padding:60px 20px;}
+.cs-icon{font-size:50px;margin-bottom:12px;}
+.cs-title{font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--verde);letter-spacing:2px;margin-bottom:8px;}
+.cs-sub{color:var(--testo-dim);font-size:13px;line-height:1.6;}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--verde);color:var(--nero);font-weight:700;font-size:14px;padding:10px 20px;border-radius:8px;z-index:999;transition:transform 0.3s;white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.toast.error{background:var(--rosso);color:var(--testo);}
+.loading{text-align:center;padding:40px;color:var(--testo-dim);}
+.loading-spinner{width:40px;height:40px;border:3px solid var(--grigio-chiaro);border-top-color:var(--verde);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="home">
+  <div class="home-bg"><div class="home-bg-circle"></div><div class="home-bg-circle"></div><div class="home-bg-circle"></div></div>
+  <div class="home-grid"></div>
+  <div class="home-content">
+    <div class="home-badge">⚽ Stagione 2025/26</div>
+    <div class="home-title"><div class="fanta">FANTA</div><div class="manager">MANAGER</div></div>
+    <div class="home-sub">La tua lega. Il tuo impero.</div>
+    <div class="home-cards">
+      <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
+      <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
+      <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
+      <div class="home-card" onclick="entraApp('museo')"><div class="home-card-icon">🏛️</div><div class="home-card-title">Museo</div><div class="home-card-sub">Bacheca trofei</div></div>
+      <div class="home-card" onclick="entraApp('mercato')"><div class="home-card-icon">🔄</div><div class="home-card-title">Mercato</div><div class="home-card-sub">Trasferimenti</div></div>
+      <div class="home-card" onclick="entraApp('classifica')"><div class="home-card-icon">📊</div><div class="home-card-title">Classifica</div><div class="home-card-sub">Punti e budget</div></div>
+    </div>
+    <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
+    <div class="home-stats">
+      <div class="home-stat"><div class="home-stat-val" id="home-num-squadre">—</div><div class="home-stat-label">Squadre</div></div>
+      <div class="home-stat"><div class="home-stat-val">12</div><div class="home-stat-label">Competizioni</div></div>
+      <div class="home-stat"><div class="home-stat-val">25/26</div><div class="home-stat-label">Stagione</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="header">
+    <div class="logo" onclick="tornaHome()">Fanta<span>Manager</span></div>
+    <nav class="nav">
+      <button class="nav-btn active" onclick="showSection('rose',this)">🏟️ Rose</button>
+      <button class="nav-btn" onclick="showSection('tifosi',this)">👥 Tifosi</button>
+      <button class="nav-btn" onclick="showSection('competizioni',this)">🏆 Coppe</button>
+      <button class="nav-btn" onclick="showSection('museo',this)">🏛️ Museo</button>
+      <button class="nav-btn" onclick="showSection('mercato',this)">🔄 Mercato</button>
+      <button class="nav-btn" onclick="showSection('classifica',this)">📊 Classifica</button>
+    </nav>
+    <button class="admin-btn" onclick="apriAdmin()">⚙️ ADMIN</button>
+  </div>
+  <div class="main">
+
+    <!-- ROSE -->
+    <div class="section active" id="section-rose">
+      <div id="lista-squadre">
+        <div class="page-title">LE SQUADRE</div>
+        <div class="page-sub">Stagione 2025/26 — Dati live</div>
+        <div class="controls"><input class="search-box" type="text" placeholder="🔍 Cerca squadra o giocatore..." oninput="cercaSquadra(this.value)"></div>
+        <div class="squadre-overview" id="squadre-overview"><div class="loading"><div class="loading-spinner"></div>Connessione...</div></div>
+      </div>
+      <div id="pagina-squadra" style="display:none">
+        <button class="back-btn" onclick="tornaLista()">← Tutte le squadre</button>
+        <div class="squadra-hero" id="sq-hero"></div>
+        <div class="rosa-container">
+          <div class="legenda">
+            <div class="leg-item"><span class="g-badge badge-c">C</span> Capitano</div>
+            <div class="leg-item"><span class="g-badge badge-v">V</span> Vice</div>
+            <div class="leg-item"><span class="g-badge badge-p">P</span> Prestito</div>
+            <div class="leg-item"><span class="g-badge badge-prom">PROM</span> Promosso</div>
+          </div>
+          <div class="rosa-tabs">
+            <div class="rosa-tab active" onclick="switchTabSq('principale',this)">Principale <span class="rosa-count" id="cnt-princ">0</span></div>
+            <div class="rosa-tab" onclick="switchTabSq('marginale',this)">Marginale <span class="rosa-count" id="cnt-marg">0</span></div>
+            <div class="rosa-tab" onclick="switchTabSq('primavera',this)">Primavera <span class="rosa-count" id="cnt-prim">0</span></div>
+          </div>
+          <div class="giocatori-grid" id="rosa-lista"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIFOSI -->
+    <div class="section" id="section-tifosi">
+      <div class="page-title">TIFOSI</div>
+      <div class="page-sub">Classifica tifosi — Stagione 2025/26</div>
+      <div class="tifosi-grid" id="tifosi-grid"></div>
+    </div>
+
+    <!-- COMPETIZIONI -->
+    <div class="section" id="section-competizioni">
+      <div class="page-title">COMPETIZIONI</div>
+      <div class="page-sub">Tutte le coppe — Premi in denaro reale e fantamilioni</div>
+      <div class="comp-grid" id="comp-grid"></div>
+    </div>
+
+    <!-- MUSEO -->
+    <div class="section" id="section-museo">
+      <div class="page-title">MUSEO & BACHECA</div>
+      <div class="page-sub">Trofei vinti e rendite annue per ogni squadra</div>
+      <div class="museo-intro">
+        <div class="museo-intro-title">🏆 SISTEMA MOLTIPLICATORI</div>
+        <div class="museo-intro-text">Ogni trofeo porta una rendita annua. La stessa coppa vinta più volte moltiplica la rendita solo per quella coppa!</div>
+        <div class="moltiplicatori">
+          <div class="molt-item"><div class="molt-num">×1</div><div class="molt-label">1 vittoria</div></div>
+          <div class="molt-item"><div class="molt-num">×2.5</div><div class="molt-label">2 vittorie</div></div>
+          <div class="molt-item"><div class="molt-num">×4</div><div class="molt-label">3 vittorie</div></div>
+          <div class="molt-item"><div class="molt-num">×5</div><div class="molt-label">4 vittorie</div></div>
+          <div class="molt-item"><div class="molt-num">×7</div><div class="molt-label">5 MAX</div></div>
+        </div>
+      </div>
+      <div class="museo-squadre" id="museo-grid"></div>
+    </div>
+
+    <!-- MERCATO -->
+    <div class="section" id="section-mercato">
+      <div class="page-title">MERCATO</div>
+      <div class="page-sub">Trasferimenti, prestiti, scambi e rateizzazioni — Stagione 2025/26</div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+        <button onclick="apriNuovaTrattativa()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;padding:10px 20px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;gap:8px">➕ NUOVA TRATTATIVA</button>
+        <button onclick="filtraTrattative('tutte')" id="filt-tutte" style="background:var(--grigio-medio);color:var(--testo);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">Tutte</button>
+        <button onclick="filtraTrattative('proposta')" id="filt-proposta" style="background:var(--grigio-medio);color:var(--testo);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid rgba(255,215,0,0.3);cursor:pointer;color:var(--oro)">In attesa</button>
+        <button onclick="filtraTrattative('approvata')" id="filt-approvata" style="background:var(--grigio-medio);color:var(--testo);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid rgba(0,255,135,0.3);cursor:pointer;color:var(--verde)">Approvate</button>
+        <button onclick="filtraTrattative('completata')" id="filt-completata" style="background:var(--grigio-medio);color:var(--testo);font-size:12px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid rgba(68,136,255,0.3);cursor:pointer;color:var(--blu)">Completate</button>
+      </div>
+      <div id="mercato-lista"><div class="loading"><div class="loading-spinner"></div>Caricamento trattative...</div></div>
+    </div>
+    <div class="section" id="section-classifica"><div class="coming-soon"><div class="cs-icon">📊</div><div class="cs-title">CLASSIFICA</div><div class="cs-sub">⏳ In costruzione</div></div></div>
+
+    <!-- ADMIN -->
+    <div class="section" id="section-admin">
+      <div id="admin-password-screen">
+        <div class="password-screen">
+          <div class="password-icon">🔐</div>
+          <div class="password-title">AREA ADMIN</div>
+          <div class="password-sub">Inserisci la password per accedere</div>
+          <div class="password-input-wrap">
+            <input class="form-input" type="password" id="pwd-input" placeholder="Password..." onkeydown="if(event.key==='Enter') verificaPassword()">
+            <button class="btn-primary" style="width:auto;margin:0" onclick="verificaPassword()">ENTRA</button>
+          </div>
+          <div id="pwd-error" style="color:var(--rosso);font-size:13px;margin-top:12px;display:none">❌ Password errata</div>
+        </div>
+      </div>
+      <div id="admin-content" style="display:none">
+        <div class="admin-panel">
+          <div class="admin-title">⚙️ PANNELLO ADMIN</div>
+          <div class="admin-sub">Benvenuto Umberto — Solo tu puoi accedere.</div>
+
+          <div class="admin-section-title">📋 GESTIONE GIOCATORI</div>
+          <div class="admin-grid">
+            <div class="admin-card" onclick="apriModificaGiocatore()"><div class="admin-card-icon">✏️</div><div class="admin-card-title">Modifica Giocatore</div><div class="admin-card-sub">Ruolo, età, contratto, TM</div></div>
+            <div class="admin-card" onclick="apriUploadFoto()"><div class="admin-card-icon">📸</div><div class="admin-card-title">Carica Foto</div><div class="admin-card-sub">Foto profilo giocatore</div></div>
+            <div class="admin-card" onclick="aggiornaTuttiTM()"><div class="admin-card-icon">🔄</div><div class="admin-card-title">Aggiorna TM</div><div class="admin-card-sub">Quotazione, età e nascita</div></div>
+            <div class="admin-card" onclick="aggiornaFotoTutti()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Foto Auto</div><div class="admin-card-sub">Foto giocatori da TheSportsDB</div></div>
+            <div class="admin-card" onclick="showToast('➕ Nuovo Giocatore — in costruzione')"><div class="admin-card-icon">➕</div><div class="admin-card-title">Nuovo Giocatore</div><div class="admin-card-sub">Aggiungi nuovi acquisti</div></div>
+            <div class="admin-card" onclick="showToast('🔓 Svincola — in costruzione')"><div class="admin-card-icon">🔓</div><div class="admin-card-title">Svincola</div><div class="admin-card-sub">Con calcolo automatico</div></div>
+            <div class="admin-card" onclick="showToast('🔄 Sposta — in costruzione')"><div class="admin-card-icon">🔄</div><div class="admin-card-title">Sposta Giocatore</div><div class="admin-card-sub">Principale↔Marginale</div></div>
+            <div class="admin-card" onclick="showToast('⬆️ Promuovi — in costruzione')"><div class="admin-card-icon">⬆️</div><div class="admin-card-title">Promuovi Primavera</div><div class="admin-card-sub">Con controllo età</div></div>
+          </div>
+
+          <div class="admin-section-title">🏟️ GESTIONE SQUADRE</div>
+          <div class="admin-grid">
+            <div class="admin-card" onclick="apriLogoSquadra()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Logo Squadra</div><div class="admin-card-sub">Carica logo personalizzato</div></div>
+            <div class="admin-card" onclick="apriFotoPresidente()"><div class="admin-card-icon">👑</div><div class="admin-card-title">Foto Presidente</div><div class="admin-card-sub">Foto e nome presidenti</div></div>
+            <div class="admin-card" onclick="showToast('🏷️ Nomi — in costruzione')"><div class="admin-card-icon">🏷️</div><div class="admin-card-title">Nomi Squadre</div><div class="admin-card-sub">Solo admin</div></div>
+            <div class="admin-card" onclick="showToast('⭐ Capitani — in costruzione')"><div class="admin-card-icon">⭐</div><div class="admin-card-title">Capitani</div><div class="admin-card-sub">Aggiorna C e V</div></div>
+          </div>
+
+          <div class="admin-section-title">💰 GESTIONE ECONOMICA</div>
+          <div class="admin-grid">
+            <div class="admin-card" onclick="showToast('💰 Budget — in costruzione')"><div class="admin-card-icon">💰</div><div class="admin-card-title">Modifica Budget</div><div class="admin-card-sub">Aggiorna fantamilioni</div></div>
+            <div class="admin-card" onclick="showToast('👥 Tifosi — in costruzione')"><div class="admin-card-icon">👥</div><div class="admin-card-title">Modifica Tifosi</div><div class="admin-card-sub">Aggiorna con motivazione</div></div>
+            <div class="admin-card" onclick="showToast('🏆 Trofei — in costruzione')"><div class="admin-card-icon">🏆</div><div class="admin-card-title">Assegna Trofeo</div><div class="admin-card-sub">Aggiorna museo</div></div>
+            <div class="admin-card" onclick="showToast('🤝 Certifica — in costruzione')"><div class="admin-card-icon">🤝</div><div class="admin-card-title">Certifica Trattativa</div><div class="admin-card-sub">Approva scambi</div></div>
+          </div>
+
+          <div style="margin-top:24px;text-align:center">
+            <button class="btn-danger" onclick="esciAdmin()">🚪 Esci dall'Admin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GIOCATORE -->
+<div class="modal-overlay" id="modal-giocatore" onclick="closeModal('modal-giocatore',event)">
+  <div class="modal" style="border-color:var(--verde)">
+    <div class="modal-header"><div class="modal-title" id="mg-title">SCHEDA GIOCATORE</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="mg-edit-btn" style="display:none;background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:6px 12px;border-radius:8px;border:none;cursor:pointer" onclick="apriModificaDaScheda()">✏️ MODIFICA</button>
+        <button class="modal-close" onclick="document.getElementById('modal-giocatore').classList.remove('open')">×</button>
+      </div>
+    </div>
+    <div id="mg-body"></div>
+  </div>
+</div>
+
+<!-- MODAL TIFOSI -->
+<div class="modal-overlay" id="modal-tifosi" onclick="closeModal('modal-tifosi',event)">
+  <div class="modal" style="border-color:var(--blu)">
+    <div class="modal-header"><div class="modal-title" id="mt-title" style="color:var(--blu)">STORICO TIFOSI</div><button class="modal-close" onclick="document.getElementById('modal-tifosi').classList.remove('open')">×</button></div>
+    <div id="mt-body"></div>
+  </div>
+</div>
+
+<!-- MODAL MUSEO -->
+<div class="modal-overlay" id="modal-museo" onclick="closeModal('modal-museo',event)">
+  <div class="modal" style="border-color:var(--oro)">
+    <div class="modal-header"><div class="modal-title" id="mm-title" style="color:var(--oro)">MUSEO</div><button class="modal-close" onclick="document.getElementById('modal-museo').classList.remove('open')">×</button></div>
+    <div id="mm-body"></div>
+  </div>
+</div>
+
+<!-- MODAL MODIFICA GIOCATORE -->
+<div class="modal-overlay" id="modal-modifica" onclick="closeModal('modal-modifica',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:520px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--oro)">✏️ MODIFICA GIOCATORE</div><button class="modal-close" onclick="document.getElementById('modal-modifica').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="modifica-step1">
+        <div class="form-group"><label class="form-label">Cerca giocatore</label><input class="form-input" type="text" id="search-giocatore-admin" placeholder="Scrivi il nome..." oninput="cercaGiocatoreAdmin(this.value)"></div>
+        <div class="giocatori-search-list" id="lista-giocatori-admin"></div>
+      </div>
+      <div id="modifica-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:20px;">
+          <div class="gc-avatar" id="edit-avatar" style="width:44px;height:44px;font-size:14px"></div>
+          <div><div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="edit-nome-display"></div><div style="font-size:12px;color:var(--testo-dim)" id="edit-squadra-display"></div></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaRicercaAdmin()">← Cambia</button>
+        </div>
+        <div class="form-group"><label class="form-label">Ruolo</label><select class="form-select" id="edit-ruolo"><option value="P">P — Portiere</option><option value="D">D — Difensore</option><option value="C">C — Centrocampista</option><option value="A">A — Attaccante</option></select></div>
+        <div class="form-group"><label class="form-label">Età</label><input class="form-input" type="number" id="edit-eta" min="15" max="45"></div>
+        <div class="form-group"><label class="form-label">Data di Nascita</label><input class="form-input" type="date" id="edit-data-nascita"></div>
+        <div class="form-group"><label class="form-label">Numero Maglia</label><input class="form-input" type="number" id="edit-maglia" min="1" max="99"></div>
+        <div class="form-group"><label class="form-label">Club Attuale (Serie A)</label><input class="form-input" type="text" id="edit-club-reale" placeholder="Es. Inter, Milan, Juventus..."></div>
+        <div class="form-group"><label class="form-label">Tipo Contratto</label>
+          <select class="form-select" id="edit-contratto" onchange="aggiornaFormContratto()">
+            <option value="Titolo Definitivo">Titolo Definitivo</option>
+            <option value="Titolo Definitivo con Clausola Recompra">Titolo Definitivo + Clausola Recompra</option>
+            <option value="Prestito Secco">Prestito Secco</option>
+            <option value="Prestito con Diritto di Riscatto">Prestito con Diritto di Riscatto</option>
+            <option value="Prestito con Obbligo di Riscatto">Prestito con Obbligo di Riscatto</option>
+          </select>
+        </div>
+        <div id="campi-prestito" style="display:none">
+          <div class="form-group"><label class="form-label">Squadra Proprietaria</label><input class="form-input" type="text" id="edit-squadra-propr"></div>
+          <div class="form-group"><label class="form-label">Scadenza Prestito</label><input class="form-input" type="date" id="edit-scadenza"></div>
+        </div>
+        <div id="campo-riscatto" style="display:none">
+          <div class="form-group"><label class="form-label">Importo Riscatto (FM)</label><input class="form-input" type="number" id="edit-riscatto" step="0.01"></div>
+          <div class="form-group"><label class="form-label">Scadenza Riscatto</label><input class="form-input" type="date" id="edit-scadenza-riscatto"></div>
+        </div>
+        <div id="campo-clausola" style="display:none">
+          <div class="form-group"><label class="form-label">Importo Clausola Recompra (FM)</label><input class="form-input" type="number" id="edit-clausola" step="0.01"></div>
+        </div>
+        <div class="form-group"><label class="form-label">% Futura Rivendita</label><input class="form-input" type="number" id="edit-rivendita" min="0" max="50" step="0.5"></div>
+        <div class="form-group"><label class="form-label">Quotazione Transfermarkt (M€)</label><input class="form-input" type="number" id="edit-quotazione" step="0.001"></div>
+        <div class="form-group"><label class="form-label">Stipendio Netto Capology (M€)</label><input class="form-input" type="number" id="edit-stipendio" step="0.01"></div>
+        <button class="btn-primary" id="btn-salva" onclick="salvaModificaGiocatore()">💾 SALVA MODIFICHE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FOTO GIOCATORE -->
+<div class="modal-overlay" id="modal-foto" onclick="closeModal('modal-foto',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:440px">
+    <div class="modal-header"><div class="modal-title">📸 CARICA FOTO GIOCATORE</div><button class="modal-close" onclick="document.getElementById('modal-foto').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="foto-step1">
+        <div class="form-group"><label class="form-label">Cerca giocatore</label><input class="form-input" type="text" id="search-giocatore-foto" placeholder="Scrivi il nome..." oninput="cercaGiocatoreFoto(this.value)"></div>
+        <div class="giocatori-search-list" id="lista-giocatori-foto"></div>
+      </div>
+      <div id="foto-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px;">
+          <div class="gc-avatar" id="foto-avatar" style="width:44px;height:44px;font-size:14px;overflow:hidden"></div>
+          <div><div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="foto-nome-display"></div><div style="font-size:12px;color:var(--testo-dim)" id="foto-squadra-display"></div></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaRicercaFoto()">← Cambia</button>
+        </div>
+        <div class="foto-upload-area">
+          <input type="file" id="foto-file-input" accept="image/*" onchange="previewFoto(event)">
+          <div class="foto-preview" id="foto-preview-box">📷</div>
+          <div style="font-size:13px;color:var(--testo-dim);margin-bottom:4px">Clicca per scegliere una foto</div>
+          <div style="font-size:11px;color:var(--testo-dim)">JPG, PNG • Max 5MB</div>
+        </div>
+        <div class="form-group" style="margin-top:14px"><label class="form-label">Oppure incolla URL foto</label><input class="form-input" type="url" id="foto-url-input" placeholder="https://..." oninput="previewFotoUrl(this.value)"></div>
+        <button class="btn-primary" id="btn-salva-foto" onclick="salvaFoto()">📸 SALVA FOTO</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LOGO SQUADRA -->
+<div class="modal-overlay" id="modal-logo" onclick="closeModal('modal-logo',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:440px">
+    <div class="modal-header"><div class="modal-title">🖼️ LOGO SQUADRA</div><button class="modal-close" onclick="document.getElementById('modal-logo').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="logo-step1">
+        <div class="form-group"><label class="form-label">Seleziona squadra</label></div>
+        <div class="squadre-search-list" id="lista-squadre-logo"></div>
+      </div>
+      <div id="logo-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px;">
+          <div class="gsi-sq-logo" id="logo-preview-small"></div>
+          <div><div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="logo-sq-nome-display"></div></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaSceltaSquadraLogo()">← Cambia</button>
+        </div>
+        <div class="foto-upload-area">
+          <input type="file" id="logo-file-input" accept="image/*" onchange="previewLogo(event)">
+          <div class="logo-preview" id="logo-preview-box">🏟️</div>
+          <div style="font-size:13px;color:var(--testo-dim);margin-bottom:4px">Clicca per scegliere il logo</div>
+          <div style="font-size:11px;color:var(--testo-dim)">JPG, PNG, SVG • Max 5MB</div>
+        </div>
+        <div class="form-group" style="margin-top:14px"><label class="form-label">Oppure incolla URL logo</label><input class="form-input" type="url" id="logo-url-input" placeholder="https://..." oninput="previewLogoUrl(this.value)"></div>
+        <button class="btn-primary" id="btn-salva-logo" onclick="salvaLogo()">🖼️ SALVA LOGO</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FOTO PRESIDENTE -->
+<div class="modal-overlay" id="modal-presidente" onclick="closeModal('modal-presidente',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--oro)">👑 FOTO PRESIDENTE</div><button class="modal-close" onclick="document.getElementById('modal-presidente').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="pres-step1">
+        <div class="form-group"><label class="form-label">Seleziona squadra</label></div>
+        <div class="squadre-search-list" id="lista-squadre-pres"></div>
+      </div>
+      <div id="pres-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="pres-sq-nome-display"></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaSceltaSquadraPres()">← Cambia</button>
+        </div>
+        <div id="presidenti-editor"></div>
+        <button class="btn-primary" id="btn-salva-pres" onclick="salvaPresidenti()">👑 SALVA PRESIDENTI</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- MODAL NUOVA TRATTATIVA -->
+<div class="modal-overlay" id="modal-trattativa" onclick="closeModal('modal-trattativa',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:540px">
+    <div class="modal-header"><div class="modal-title">🔄 NUOVA TRATTATIVA</div><button class="modal-close" onclick="document.getElementById('modal-trattativa').classList.remove('open')">×</button></div>
+    <div style="padding:20px" id="trattativa-body"></div>
+  </div>
+</div>
+
+<!-- MODAL DETTAGLIO TRATTATIVA -->
+<div class="modal-overlay" id="modal-trattativa-dettaglio" onclick="closeModal('modal-trattativa-dettaglio',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:500px">
+    <div class="modal-header"><div class="modal-title" id="td-title" style="color:var(--oro)">DETTAGLIO TRATTATIVA</div><button class="modal-close" onclick="document.getElementById('modal-trattativa-dettaglio').classList.remove('open')">×</button></div>
+    <div id="td-body"></div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://fithrsazeeawjzpfoowg.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_3zTXOqWp6rfVIQU56zyOrA_cDco2ulu';
+const RAPIDAPI_KEY = '73e7e8737bmsh406835bcadaa067p1fde41jsnd72004371828';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ADMIN_PWD = 'Ultimo96!';
+let adminLoggato = false;
+let squadreDB = [], giocatoriDB = [], tifosi_logDB = [];
+let squadraAttiva = null, tabAttivoSq = 'principale', ricercaSq = '';
+let giocatoreInModifica = null, giocatoreInFoto = null, squadraInLogo = null, squadraInPres = null;
+let fotoScelta = null, logoScelto = null;
+
+const competizioni = [
+  {id:'campionato',nome:'CAMPIONATO',icon:'⚽',tipo:'campionato',premi:[{pos:'1° posto',euro:null,fm:'Automatico'}],museo:{fm:2.5,label:'2.5M (1°) • 0.8M (2°) • 0.3M (3°)'}},
+  {id:'coppa_italia',nome:'COPPA ITALIA',icon:'🇮🇹',tipo:'coppa',premi:[{pos:'Vincitore',euro:'30€',fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
+  {id:'champions',nome:'CHAMPIONS LEAGUE',icon:'⭐',tipo:'coppa',premi:[{pos:'1° posto',euro:'50€',fm:null},{pos:'2° posto',euro:'10€',fm:null}],museo:{fm:1.5,label:'1.5M annui'}},
+  {id:'europa',nome:'EUROPA LEAGUE',icon:'🌍',tipo:'coppa',premi:[{pos:'1° posto',euro:'20€',fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
+  {id:'coglioni',nome:'COPPA DEI COGLIONI',icon:'🤡',tipo:'speciale',premi:[{pos:'Punteggio più basso',euro:'10€',fm:null}],museo:{fm:0.2,label:'0.2M annui'}},
+  {id:'coopmeiners',nome:'COOPMEINERS',icon:'🔥',tipo:'coppa',premi:[{pos:'1° posto',euro:'35€',fm:null},{pos:'2° posto',euro:'10€',fm:null}],museo:{fm:1.0,label:'1M annui'}},
+  {id:'formula1',nome:'FORMULA 1',icon:'🏎️',tipo:'coppa',premi:[{pos:'1° posto',euro:'50€',fm:null},{pos:'2° posto',euro:'20€',fm:null}],museo:{fm:1.8,label:'1.8M annui'}},
+  {id:'coppa_tua',nome:'COPPA TUA',icon:'🏅',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:0.6,label:'0.6M annui'}},
+  {id:'konami',nome:'COPPA KONAMI',icon:'🎮',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:0.5,label:'0.5M annui'}},
+  {id:'crediti',nome:'COPPA CREDITI',icon:'💳',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
+  {id:'talent',nome:'TALENT BOY',icon:'🌟',tipo:'speciale',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:1.0,label:'1M annui'}},
+  {id:'eroi',nome:'COPPA DEGLI EROI',icon:'🦸',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:1.0,label:'1M annui'}},
+  {id:'miglior_g',nome:'MIGLIOR PUNTEGGIO GIORNATA',icon:'📈',tipo:'speciale',premi:[{pos:'Ogni giornata',euro:'5€',fm:null}],museo:null},
+  {id:'miglior_a',nome:'PUNTEGGIO PIÙ ALTO ANNO',icon:'🥇',tipo:'speciale',premi:[{pos:'Fine stagione',euro:'25€',fm:null}],museo:null},
+];
+
+function fmtBudget(n){return new Intl.NumberFormat('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0)+' FM';}
+function ruoloColor(r){return{P:'ruolo-p',D:'ruolo-d',C:'ruolo-c',A:'ruolo-a'}[r]||'';}
+function ruoloNome(r){return{P:'Portiere',D:'Difensore',C:'Centrocampista',A:'Attaccante'}[r]||r;}
+function getMolt(n){return[0,1,2.5,4,5,7][Math.min(n,5)]||0;}
+function iniziali(nome){return(nome||'??').replace(/[^a-zA-Z ]/g,'').split(' ').map(p=>p[0]||'').join('').substring(0,2).toUpperCase()||'??';}
+
+async function caricaDati(){
+  try{
+    const[sq,gi,tl]=await Promise.all([
+      sb.from('squadre').select('*').order('nome'),
+      sb.from('giocatori').select('*').order('ruolo').order('nome'),
+      sb.from('tifosi_log').select('*').order('created_at',{ascending:false})
+    ]);
+    if(sq.error) throw sq.error;
+    if(gi.error) throw gi.error;
+    squadreDB=sq.data||[];
+    giocatoriDB=gi.data||[];
+    tifosi_logDB=tl.data||[];
+    document.getElementById('home-num-squadre').textContent=squadreDB.length||'—';
+    return true;
+  }catch(e){
+    showToast('❌ Errore: '+e.message,'error');
+    return false;
+  }
+}
+
+function renderOverview(){
+  const grid=document.getElementById('squadre-overview');
+  const sq=ricercaSq?squadreDB.filter(s=>{
+    const t=ricercaSq.toLowerCase();
+    const gSq=giocatoriDB.filter(g=>g.squadra_id===s.id);
+    return s.nome.toLowerCase().includes(t)||(s.owner_name||'').toLowerCase().includes(t)||gSq.some(g=>g.nome.toLowerCase().includes(t));
+  }):squadreDB;
+  if(!sq.length){grid.innerHTML='<div class="empty">Nessuna squadra trovata</div>';return;}
+  grid.innerHTML=sq.map(s=>`
+    <div class="squadra-overview-card" onclick="apriSquadra('${s.id}')">
+      <div class="soc-logo" style="background:${s.avatar_bg||'#333'}">
+        ${s.logo_url?`<img src="${s.logo_url}" onerror="this.style.display='none'">`:`<div class="soc-logo-placeholder" style="background:rgba(0,0,0,0.2)">${s.avatar||'⚽'}</div>`}
+      </div>
+      <div class="soc-info">
+        <div class="soc-nome">${s.nome}</div>
+        <div class="soc-owner">👤 ${s.owner_name||'—'}</div>
+        <div class="soc-stats">
+          <div class="soc-stat">Budget <span>${fmtBudget(s.budget)}</span></div>
+          <div class="soc-stat">Tifosi <span>${(s.tifosi||0).toLocaleString('it-IT')}</span></div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function cercaSquadra(val){ricercaSq=val;renderOverview();}
+
+function apriSquadra(id){
+  squadraAttiva=squadreDB.find(s=>s.id===id);
+  tabAttivoSq='principale';
+  document.getElementById('lista-squadre').style.display='none';
+  document.getElementById('pagina-squadra').style.display='block';
+  const sq=squadraAttiva;
+  const presidenti=sq.presidenti||[];
+  const gTot=giocatoriDB.filter(g=>g.squadra_id===id);
+  const logoHtml=sq.logo_url
+    ?`<img src="${sq.logo_url}" style="width:80px;height:80px;object-fit:contain">`
+    :`<span style="font-family:'Bebas Neue',sans-serif;font-size:38px;color:var(--nero)">${sq.avatar||'⚽'}</span>`;
+  document.getElementById('sq-hero').innerHTML=`
+    <div class="squadra-hero-banner" style="background:${sq.avatar_bg||'#333'}">
+      <div class="squadra-hero-overlay"></div>
+      <div class="squadra-hero-logo">${logoHtml}</div>
+    </div>
+    <div class="squadra-hero-body">
+      <div class="squadra-hero-nome">${sq.nome}</div>
+      <div class="squadra-hero-all">⚽ All.: <span>${sq.allenatore||'—'}</span> &nbsp;|&nbsp; Stipendio: <span>${sq.stip_all||'—'}</span></div>
+      <div class="presidenti-title">👑 PRESIDENZA</div>
+      <div class="presidenti-row">${presidenti.length?presidenti.map(p=>`
+        <div class="presidente-card">
+          <div class="presidente-foto">${p.foto?`<img src="${p.foto}">`:(p.nome||'P').charAt(0).toUpperCase()}</div>
+          <div><div class="presidente-nome">${p.nome||'—'}</div><div class="presidente-ruolo">👑 Presidente</div></div>
+        </div>`).join(''):'<div style="color:var(--testo-dim);font-size:13px">Nessun presidente registrato</div>'}
+      </div>
+    </div>
+    <div class="squadra-stats-bar">
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Budget</div><div class="squadra-stat-val" style="color:var(--verde);font-size:10px">${fmtBudget(sq.budget)}</div></div>
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Tifosi</div><div class="squadra-stat-val" style="color:var(--blu)">${(sq.tifosi||0).toLocaleString('it-IT')}</div></div>
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Giocatori</div><div class="squadra-stat-val">${gTot.length}</div></div>
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Trofei</div><div class="squadra-stat-val" style="color:var(--oro)">${(sq.trofei||[]).length}</div></div>
+    </div>`;
+  const princ=giocatoriDB.filter(g=>g.squadra_id===id&&g.lista==='principale');
+  const marg=giocatoriDB.filter(g=>g.squadra_id===id&&g.lista==='marginale');
+  const prim=giocatoriDB.filter(g=>g.squadra_id===id&&g.lista==='primavera');
+  document.getElementById('cnt-princ').textContent=princ.length;
+  document.getElementById('cnt-marg').textContent=marg.length;
+  document.getElementById('cnt-prim').textContent=prim.length;
+  document.querySelectorAll('.rosa-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.rosa-tab').classList.add('active');
+  renderRosa('principale');
+  window.scrollTo(0,0);
+}
+
+function tornaLista(){
+  squadraAttiva=null;
+  document.getElementById('lista-squadre').style.display='block';
+  document.getElementById('pagina-squadra').style.display='none';
+}
+
+function renderRosa(tipo){
+  tabAttivoSq=tipo;
+  const ordineRuolo={P:0,D:1,C:2,A:3};
+  const nomeRuolo={P:'PORTIERI',D:'DIFENSORI',C:'CENTROCAMPISTI',A:'ATTACCANTI'};
+  const lista=giocatoriDB.filter(g=>g.squadra_id===squadraAttiva.id&&g.lista===tipo).sort((a,b)=>(ordineRuolo[a.ruolo]??9)-(ordineRuolo[b.ruolo]??9)||a.nome.localeCompare(b.nome));
+  const c=document.getElementById('rosa-lista');
+  if(!lista.length){c.innerHTML='<div class="empty">Nessun giocatore</div>';return;}
+  let html='';
+  let ruoloCorrente=null;
+  lista.forEach(g=>{
+    if(g.ruolo!==ruoloCorrente){
+      ruoloCorrente=g.ruolo;
+      html+=`<div style="grid-column:1/-1;padding:8px 4px 4px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:2px;color:var(--testo-dim);border-bottom:1px solid var(--grigio-chiaro);margin-bottom:2px">${nomeRuolo[g.ruolo]||g.ruolo}</div>`;
+    }
+    html+=`<div class="giocatore-card" onclick="apriGiocatore(${g.id})">
+      <div class="gc-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div class="gc-info">
+        <div class="gc-nome">${g.nome}</div>
+        <div class="gc-sub">
+          <span class="g-ruolo ${ruoloColor(g.ruolo)}">${g.ruolo}</span>
+          <span class="gc-maglia">#${g.maglia||'—'}</span>
+          ${g.badge==='C'?'<span class="g-badge badge-c">C</span>':''}
+          ${g.badge==='V'?'<span class="g-badge badge-v">V</span>':''}
+          ${g.badge==='P'?'<span class="g-badge badge-p">P</span>':''}
+          ${g.promosso?'<span class="g-badge badge-prom">PROM</span>':''}
+        </div>
+      </div>
+    </div>`;
+  });
+  c.innerHTML=html;
+}
+
+function switchTabSq(tipo,el){
+  document.querySelectorAll('.rosa-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderRosa(tipo);
+}
+
+let giocatoreSchedaAttiva=null;
+function apriModificaDaScheda(){
+  if(!giocatoreSchedaAttiva) return;
+  document.getElementById('modal-giocatore').classList.remove('open');
+  apriModificaGiocatore();
+  setTimeout(()=>selezionaGiocatoreAdmin(giocatoreSchedaAttiva.id),100);
+}
+function apriGiocatore(gId){
+  const g=giocatoriDB.find(x=>x.id===gId);
+  if(!g) return;
+  giocatoreSchedaAttiva=g;
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  document.getElementById('mg-title').textContent=g.nome.toUpperCase();
+  const editBtn=document.getElementById('mg-edit-btn');
+  editBtn.style.display=adminLoggato?'block':'none';
+  const coloreC={'Titolo Definitivo':'var(--verde)','Titolo Definitivo con Clausola Recompra':'var(--argento)','Prestito Secco':'var(--blu)','Prestito con Diritto di Riscatto':'var(--oro)','Prestito con Obbligo di Riscatto':'var(--rosso)'}[g.contratto]||'var(--verde)';
+  document.getElementById('mg-body').innerHTML=`
+    <div class="player-hero">
+      <div class="player-photo">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div>
+        <div class="player-nome">${g.nome}</div>
+        <div class="player-tags">
+          <span class="g-ruolo ${ruoloColor(g.ruolo)}" style="font-size:12px;padding:3px 8px">${ruoloNome(g.ruolo)}</span>
+          ${g.badge==='C'?'<span class="g-badge badge-c">CAPITANO</span>':''}
+          ${g.badge==='V'?'<span class="g-badge badge-v">VICE CAP.</span>':''}
+          ${g.badge==='P'?'<span class="g-badge badge-p">IN PRESTITO</span>':''}
+          ${g.promosso?'<span class="g-badge badge-prom">PROMOSSO</span>':''}
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--testo-dim)">Maglia #<span style="color:var(--verde);font-weight:700;font-size:14px">${g.maglia||'—'}</span></div>
+      </div>
+    </div>
+    <div class="player-section">
+      <div class="player-section-title">📋 Anagrafica</div>
+      <div class="player-grid">
+        <div class="player-info-item"><div class="pii-label">Età</div><div class="pii-val">${g.eta?g.eta+' anni':'—'}</div></div>
+        <div class="player-info-item"><div class="pii-label">Data Nascita</div><div class="pii-val" style="font-size:11px">${g.data_nascita||'—'}</div></div>
+        <div class="player-info-item"><div class="pii-label">Squadra Fantasy</div><div class="pii-val" style="font-size:11px">${sq?sq.nome:'—'}</div></div>
+        <div class="player-info-item"><div class="pii-label">Club Attuale</div><div class="pii-val" style="font-size:11px;color:var(--blu)">${g.club_reale||g.squadra_club||'—'}</div></div>
+      </div>
+    </div>
+    <div class="player-section">
+      <div class="player-section-title">💰 Valori di Mercato</div>
+      <div class="player-grid">
+        <div class="player-info-item" style="border-left:3px solid var(--oro)"><div class="pii-label">Quotazione TM</div><div class="pii-val oro" style="font-size:18px">${g.quotazione?g.quotazione+'M€':'—'}</div></div>
+        <div class="player-info-item" style="border-left:3px solid var(--verde)"><div class="pii-label">Stipendio Netto</div><div class="pii-val verde" style="font-size:18px">${g.stipendio?g.stipendio+'M€':'—'}</div></div>
+      </div>
+    </div>
+    <div class="player-section">
+      <div class="player-section-title">📄 Contratto</div>
+      <div class="contratto-box" style="border-left-color:${coloreC}">
+        <div class="contratto-tipo" style="color:${coloreC}">${g.contratto||'—'}</div>
+        ${g.scadenza?`<div class="contratto-row"><span class="label">Scadenza</span><span class="val" style="color:var(--rosso)">${g.scadenza}</span></div>`:''}
+        ${g.squadra_propr?`<div class="contratto-row"><span class="label">Proprietario</span><span class="val">${g.squadra_propr}</span></div>`:''}
+        ${g.riscatto?`<div class="contratto-row"><span class="label">Riscatto</span><span class="val" style="color:var(--oro)">${Number(g.riscatto).toLocaleString('it-IT')} FM</span></div>`:''}
+        ${g.clausola?`<div class="contratto-row"><span class="label">Clausola recompra</span><span class="val" style="color:var(--argento)">${Number(g.clausola).toLocaleString('it-IT')} FM</span></div>`:''}
+        ${g.rivendita?`<div class="contratto-row"><span class="label">% Futura rivendita</span><span class="val" style="color:var(--verde)">${g.rivendita}%</span></div>`:''}
+      </div>
+    </div>
+    <div class="player-section" style="border-bottom:none">
+      <div class="player-section-title">⚽ Statistiche</div>
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-box-val">${g.gol||0}</div><div class="stat-box-label">Gol</div></div>
+        <div class="stat-box"><div class="stat-box-val">${g.assist||0}</div><div class="stat-box-label">Assist</div></div>
+        <div class="stat-box"><div class="stat-box-val">${g.mv||'—'}</div><div class="stat-box-label">Media V.</div></div>
+        <div class="stat-box"><div class="stat-box-val">${g.presenze||0}</div><div class="stat-box-label">Presenze</div></div>
+      </div>
+    </div>`;
+  document.getElementById('modal-giocatore').classList.add('open');
+}
+
+function renderTifosi(){
+  const sorted=[...squadreDB].sort((a,b)=>(b.tifosi||0)-(a.tifosi||0));
+  const max=Math.max(...sorted.map(s=>s.tifosi||0))||1;
+  document.getElementById('tifosi-grid').innerHTML=sorted.map((sq,i)=>{
+    const rc=['rank-1','rank-2','rank-3'][i]||'rank-other';
+    const pct=Math.round(((sq.tifosi||0)/max)*100)||2;
+    const log=tifosi_logDB.filter(l=>l.squadra_id===sq.id);
+    const ultimo=log[0];
+    const logoHtml=sq.logo_url
+      ?`<img src="${sq.logo_url}" style="width:26px;height:26px;object-fit:contain;border-radius:4px">`
+      :`<span style="font-family:'Bebas Neue',sans-serif;font-size:11px;color:var(--nero)">${sq.avatar||'⚽'}</span>`;
+    return `<div class="tifosi-card" onclick="apriStoricoTifosi('${sq.id}')">
+      <div class="tifosi-card-header">
+        <div class="tifosi-rank ${rc}">${i+1}</div>
+        <div style="width:26px;height:26px;border-radius:6px;background:${sq.avatar_bg||'#333'};display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">${logoHtml}</div>
+        <div class="tifosi-sq-nome">${sq.nome}</div>
+        <div class="tifosi-numero">${(sq.tifosi||0).toLocaleString('it-IT')}</div>
+      </div>
+      <div class="tifosi-card-body">
+        <div class="tifosi-bar-wrap"><div class="tifosi-bar" style="width:${pct}%"></div></div>
+        <div class="tifosi-last">Ultimo: <span>${ultimo?ultimo.motivo:'Nessun movimento'}</span></div>
+      </div>
+      <div class="tifosi-card-footer"><span>👤 ${sq.owner_name||'—'}</span><span style="color:var(--verde)">80€/tifoso</span></div>
+    </div>`;
+  }).join('');
+}
+
+function apriStoricoTifosi(sqId){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('mt-title').textContent=sq.nome+' — TIFOSI';
+  const log=tifosi_logDB.filter(l=>l.squadra_id===sqId);
+  document.getElementById('mt-body').innerHTML=`
+    <div style="padding:14px 20px;background:var(--grigio-scuro);border-bottom:1px solid var(--grigio-chiaro);display:flex;gap:20px;flex-wrap:wrap;">
+      <div><div style="font-size:10px;color:var(--testo-dim)">TIFOSI</div><div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--blu)">${(sq.tifosi||0).toLocaleString('it-IT')}</div></div>
+      <div><div style="font-size:10px;color:var(--testo-dim)">INCASSO MAX/PARTITA</div><div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--verde)">${((sq.tifosi||0)*80).toLocaleString('it-IT')}€</div></div>
+    </div>
+    ${log.length===0?'<div class="empty">Nessun movimento ancora</div>':log.map(l=>`
+      <div class="log-item">
+        <div class="log-icon ${l.positivo?'pos':'neg'}">${l.positivo?'📈':'📉'}</div>
+        <div class="log-info"><div class="log-motivo">${l.motivo}</div><div class="log-data">📅 ${new Date(l.data_log||l.created_at).toLocaleDateString('it-IT')}</div></div>
+        <div class="log-val ${l.positivo?'pos':'neg'}">${l.positivo?'+':''}${l.valore}</div>
+      </div>`).join('')}`;
+  document.getElementById('modal-tifosi').classList.add('open');
+}
+
+function renderCompetizioni(){
+  document.getElementById('comp-grid').innerHTML=competizioni.map(c=>`
+    <div class="comp-card">
+      <div class="comp-header"><div class="comp-icon">${c.icon}</div><div class="comp-nome">${c.nome}</div><span class="comp-tipo tipo-${c.tipo}">${c.tipo}</span></div>
+      <div class="comp-body">
+        ${c.premi.map(p=>`
+          <div class="comp-premio-row">
+            <span class="comp-premio-label">${p.pos}</span>
+            <div style="display:flex;gap:8px">
+              ${p.euro?`<span class="comp-premio-val euro">💶 ${p.euro}</span>`:''}
+              ${p.fm?`<span class="comp-premio-val">💰 ${p.fm}</span>`:''}
+              ${!p.euro&&!p.fm?'<span style="color:var(--testo-dim);font-size:11px">Da definire</span>':''}
+            </div>
+          </div>`).join('')}
+        ${c.museo?`<div class="comp-museo"><span class="comp-museo-label">🏛️ Museo</span><span class="comp-museo-val">${c.museo.label}</span></div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function renderMuseo(){
+  document.getElementById('museo-grid').innerHTML=squadreDB.map(sq=>{
+    const trofei=sq.trofei||[];
+    const perComp={};
+    trofei.forEach(t=>{if(!perComp[t.compId])perComp[t.compId]=[];perComp[t.compId].push(t);});
+    const rendita=Object.entries(perComp).reduce((tot,[cid,arr])=>{
+      const comp=competizioni.find(c=>c.id===cid);
+      return comp&&comp.museo?tot+comp.museo.fm*getMolt(arr.length):tot;
+    },0);
+    const logoHtml=sq.logo_url?`<img src="${sq.logo_url}">`:(sq.avatar||'⚽');
+    return `<div class="museo-card" onclick="apriMuseoSquadra('${sq.id}')">
+      <div class="museo-card-header">
+        <div class="museo-avatar" style="background:${sq.avatar_bg||'#333'}">${logoHtml}</div>
+        <div class="museo-sq-nome">${sq.nome}</div>
+        <div class="museo-trofei-count">🏆 ${trofei.length}</div>
+      </div>
+      <div class="museo-card-body">
+        ${trofei.length===0?'<div style="color:var(--testo-dim);font-size:12px">Nessun trofeo ancora</div>':`<div class="trofei-list">${trofei.map(t=>`<span class="trofeo-badge">🏆 ${t.coppa} ${t.anno}</span>`).join('')}</div>`}
+        <div class="museo-rendita"><span class="museo-rendita-label">Rendita annua</span><span class="museo-rendita-val">${rendita.toFixed(1)}M</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function apriMuseoSquadra(sqId){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  const trofei=sq.trofei||[];
+  const perComp={};
+  trofei.forEach(t=>{if(!perComp[t.compId])perComp[t.compId]=[];perComp[t.compId].push(t);});
+  const rendita=Object.entries(perComp).reduce((tot,[cid,arr])=>{
+    const comp=competizioni.find(c=>c.id===cid);
+    return comp&&comp.museo?tot+comp.museo.fm*getMolt(arr.length):tot;
+  },0);
+  document.getElementById('mm-title').textContent=sq.nome+' — MUSEO';
+  document.getElementById('mm-body').innerHTML=`
+    <div style="padding:14px 20px;background:var(--grigio-scuro);border-bottom:1px solid var(--grigio-chiaro);display:flex;gap:20px;">
+      <div><div style="font-size:10px;color:var(--testo-dim)">TROFEI</div><div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--oro)">${trofei.length}</div></div>
+      <div><div style="font-size:10px;color:var(--testo-dim)">RENDITA ANNUA</div><div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--verde)">${rendita.toFixed(1)}M FM</div></div>
+    </div>
+    <div style="padding:16px 20px">
+      ${trofei.length===0?'<div style="color:var(--testo-dim);font-size:14px;padding:20px 0;text-align:center">Nessun trofeo ancora 🏆</div>':
+        Object.entries(perComp).map(([cid,arr])=>{
+          const comp=competizioni.find(c=>c.id===cid);
+          const molt=getMolt(arr.length);
+          const rendC=comp&&comp.museo?comp.museo.fm*molt:0;
+          return `<div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid var(--oro)">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro)">${comp?comp.icon:''} ${comp?comp.nome:cid}</div>
+              <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--verde)">${rendC.toFixed(1)}M/anno</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${arr.map(t=>`<span class="trofeo-badge">🏆 ${t.anno}</span>`).join('')}</div>
+            <div style="font-size:11px;color:var(--testo-dim)">${arr.length} vittorie • ×${molt}</div>
+          </div>`;
+        }).join('')}
+    </div>`;
+  document.getElementById('modal-museo').classList.add('open');
+}
+
+// ===== TRANSFERMARKT =====
+function caricaFotoPresidente(event,i){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    document.getElementById(`pres-foto-${i}`).value=e.target.result;
+    document.getElementById(`pres-foto-preview-${i}`).innerHTML=`<img src="${e.target.result}">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function cercaGiocatoreTM(nome){
+  try{
+    const res=await fetch(`https://transfermarkt-football-data-api.p.rapidapi.com/api/v1/players/search?query=${encodeURIComponent(nome)}`,{
+      headers:{'X-RapidAPI-Key':RAPIDAPI_KEY,'X-RapidAPI-Host':'transfermarkt-football-data-api.p.rapidapi.com'}
+    });
+    const data=await res.json();
+    const players=data?.data?.items||data?.items||data?.players||[];
+    if(!players.length) return null;
+    const p=players[0];
+    return{
+      quotazione:p.marketValue?parseFloat((p.marketValue/1000000).toFixed(2)):null,
+      eta:p.age||null,
+      data_nascita:p.dateOfBirth||null
+    };
+  }catch(e){return null;}
+}
+
+async function aggiornaTuttiTM(){
+  if(!adminLoggato){showToast('❌ Non sei admin!');return;}
+  showToast('🔄 Avvio aggiornamento Transfermarkt...');
+  let aggiornati=0,errori=0;
+  for(const g of giocatoriDB){
+    const dati=await cercaGiocatoreTM(g.nome);
+    if(!dati){errori++;continue;}
+    const updates={};
+    if(dati.quotazione) updates.quotazione=dati.quotazione;
+    if(dati.eta) updates.eta=dati.eta;
+    if(dati.data_nascita) updates.data_nascita=dati.data_nascita;
+    if(!Object.keys(updates).length){errori++;continue;}
+    try{
+      const{error}=await sb.from('giocatori').update(updates).eq('id',g.id);
+      if(!error){
+        const idx=giocatoriDB.findIndex(x=>x.id===g.id);
+        if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updates};
+        aggiornati++;
+      }else errori++;
+    }catch(e){errori++;}
+    await new Promise(r=>setTimeout(r,300));
+  }
+  showToast(`✅ Aggiornati: ${aggiornati} • Errori: ${errori}`);
+  if(squadraAttiva) renderRosa(tabAttivoSq);
+}
+
+// ===== FOTO AUTO THESPORTSDB =====
+async function cercaFotoTheSportsDB(nome){
+  try{
+    const res=await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(nome)}`);
+    const data=await res.json();
+    const players=data?.player||[];
+    if(!players.length) return null;
+    return players[0].strThumb||players[0].strCutout||players[0].strRender||null;
+  }catch(e){return null;}
+}
+
+async function aggiornaFotoTutti(){
+  if(!adminLoggato){showToast('❌ Non sei admin!');return;}
+  showToast('🖼️ Avvio aggiornamento foto...');
+  let aggiornati=0,errori=0;
+  for(const g of giocatoriDB){
+    if(g.foto_url) continue; // salta chi ha già la foto
+    const fotoUrl=await cercaFotoTheSportsDB(g.nome);
+    if(!fotoUrl){errori++;continue;}
+    try{
+      const{error}=await sb.from('giocatori').update({foto_url:fotoUrl}).eq('id',g.id);
+      if(!error){
+        const idx=giocatoriDB.findIndex(x=>x.id===g.id);
+        if(idx>=0) giocatoriDB[idx].foto_url=fotoUrl;
+        aggiornati++;
+      }else errori++;
+    }catch(e){errori++;}
+    await new Promise(r=>setTimeout(r,200));
+  }
+  showToast(`📸 Foto aggiornate: ${aggiornati} • Non trovate: ${errori}`);
+  if(squadraAttiva) renderRosa(tabAttivoSq);
+}
+
+// ===== ADMIN =====
+function apriAdmin(){
+  showSection('admin',null);
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if(adminLoggato){
+    document.getElementById('admin-password-screen').style.display='none';
+    document.getElementById('admin-content').style.display='block';
+  }else{
+    document.getElementById('admin-password-screen').style.display='block';
+    document.getElementById('admin-content').style.display='none';
+  }
+}
+
+function verificaPassword(){
+  const pwd=document.getElementById('pwd-input').value;
+  if(pwd===ADMIN_PWD){
+    adminLoggato=true;
+    document.getElementById('admin-password-screen').style.display='none';
+    document.getElementById('admin-content').style.display='block';
+    document.getElementById('pwd-error').style.display='none';
+    document.getElementById('pwd-input').value='';
+    showToast('✅ Accesso admin confermato!');
+  }else{
+    document.getElementById('pwd-error').style.display='block';
+    document.getElementById('pwd-input').value='';
+  }
+}
+
+function esciAdmin(){
+  adminLoggato=false;
+  document.getElementById('admin-password-screen').style.display='block';
+  document.getElementById('admin-content').style.display='none';
+  showSection('rose',document.querySelector('.nav-btn'));
+}
+
+// ===== MODIFICA GIOCATORE =====
+function apriModificaGiocatore(){
+  giocatoreInModifica=null;
+  document.getElementById('modifica-step1').style.display='block';
+  document.getElementById('modifica-step2').style.display='none';
+  document.getElementById('search-giocatore-admin').value='';
+  document.getElementById('lista-giocatori-admin').innerHTML='';
+  document.getElementById('modal-modifica').classList.add('open');
+}
+
+function cercaGiocatoreAdmin(val){
+  if(val.length<2){document.getElementById('lista-giocatori-admin').innerHTML='';return;}
+  const results=giocatoriDB.filter(g=>g.nome.toLowerCase().includes(val.toLowerCase())).slice(0,20);
+  document.getElementById('lista-giocatori-admin').innerHTML=results.map(g=>{
+    const sq=squadreDB.find(s=>s.id===g.squadra_id);
+    return `<div class="giocatore-search-item" onclick="selezionaGiocatoreAdmin(${g.id})">
+      <div class="gsi-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div class="gsi-info"><div class="gsi-nome">${g.nome}</div><div class="gsi-sub">${sq?sq.nome:'—'} • ${g.ruolo} • #${g.maglia||'—'}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function selezionaGiocatoreAdmin(gId){
+  const g=giocatoriDB.find(x=>x.id===gId);
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  giocatoreInModifica=g;
+  document.getElementById('modifica-step1').style.display='none';
+  document.getElementById('modifica-step2').style.display='block';
+  document.getElementById('edit-avatar').innerHTML=g.foto_url?`<img src="${g.foto_url}" style="width:44px;height:44px;object-fit:cover;border-radius:50%">`:iniziali(g.nome);
+  document.getElementById('edit-nome-display').textContent=g.nome;
+  document.getElementById('edit-squadra-display').textContent=sq?sq.nome:'—';
+  document.getElementById('edit-ruolo').value=g.ruolo||'A';
+  document.getElementById('edit-eta').value=g.eta||'';
+  document.getElementById('edit-data-nascita').value=g.data_nascita||'';
+  document.getElementById('edit-maglia').value=g.maglia||'';
+  document.getElementById('edit-club-reale').value=g.club_reale||'';
+  document.getElementById('edit-contratto').value=g.contratto||'Titolo Definitivo';
+  document.getElementById('edit-squadra-propr').value=g.squadra_propr||'';
+  document.getElementById('edit-scadenza').value=g.scadenza||'';
+  document.getElementById('edit-riscatto').value=g.riscatto||'';
+  document.getElementById('edit-scadenza-riscatto').value=g.scadenza_riscatto||'';
+  document.getElementById('edit-clausola').value=g.clausola||'';
+  document.getElementById('edit-rivendita').value=g.rivendita||'';
+  document.getElementById('edit-quotazione').value=g.quotazione||'';
+  document.getElementById('edit-stipendio').value=g.stipendio||'';
+  aggiornaFormContratto();
+}
+
+function tornaRicercaAdmin(){
+  giocatoreInModifica=null;
+  document.getElementById('modifica-step1').style.display='block';
+  document.getElementById('modifica-step2').style.display='none';
+  document.getElementById('search-giocatore-admin').value='';
+  document.getElementById('lista-giocatori-admin').innerHTML='';
+}
+
+function aggiornaFormContratto(){
+  const tipo=document.getElementById('edit-contratto').value;
+  const isP=tipo.includes('Prestito');
+  const hasR=tipo.includes('Diritto')||tipo.includes('Obbligo');
+  const hasC=tipo.includes('Clausola');
+  document.getElementById('campi-prestito').style.display=isP?'block':'none';
+  document.getElementById('campo-riscatto').style.display=hasR?'block':'none';
+  document.getElementById('campo-clausola').style.display=hasC?'block':'none';
+}
+
+async function salvaModificaGiocatore(){
+  if(!giocatoreInModifica) return;
+  const btn=document.getElementById('btn-salva');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  const tipo=document.getElementById('edit-contratto').value;
+  const isP=tipo.includes('Prestito');
+  const hasR=tipo.includes('Diritto')||tipo.includes('Obbligo');
+  const hasC=tipo.includes('Clausola');
+  const updates={
+    ruolo:document.getElementById('edit-ruolo').value,
+    eta:parseInt(document.getElementById('edit-eta').value)||null,
+    data_nascita:document.getElementById('edit-data-nascita').value||null,
+    maglia:parseInt(document.getElementById('edit-maglia').value)||null,
+    club_reale:document.getElementById('edit-club-reale').value||null,
+    squadra_club:document.getElementById('edit-club-reale').value||null,
+    contratto:tipo,
+    squadra_propr:isP?document.getElementById('edit-squadra-propr').value||null:null,
+    scadenza:isP?document.getElementById('edit-scadenza').value||null:null,
+    riscatto:hasR?parseFloat(document.getElementById('edit-riscatto').value)||null:null,
+    scadenza_riscatto:hasR?document.getElementById('edit-scadenza-riscatto').value||null:null,
+    clausola:hasC?parseFloat(document.getElementById('edit-clausola').value)||null:null,
+    rivendita:parseFloat(document.getElementById('edit-rivendita').value)||null,
+    quotazione:parseFloat(document.getElementById('edit-quotazione').value)||null,
+    stipendio:parseFloat(document.getElementById('edit-stipendio').value)||null,
+    badge:isP?'P':(giocatoreInModifica.badge==='C'||giocatoreInModifica.badge==='V'?giocatoreInModifica.badge:null),
+  };
+  try{
+    const{error}=await sb.from('giocatori').update(updates).eq('id',giocatoreInModifica.id);
+    if(error) throw error;
+    const idx=giocatoriDB.findIndex(g=>g.id===giocatoreInModifica.id);
+    if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updates};
+    showToast('✅ '+giocatoreInModifica.nome+' aggiornato!');
+    document.getElementById('modal-modifica').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  btn.disabled=false;btn.textContent='💾 SALVA MODIFICHE';
+}
+
+// ===== FOTO GIOCATORE =====
+function apriUploadFoto(){
+  giocatoreInFoto=null;fotoScelta=null;
+  document.getElementById('foto-step1').style.display='block';
+  document.getElementById('foto-step2').style.display='none';
+  document.getElementById('search-giocatore-foto').value='';
+  document.getElementById('lista-giocatori-foto').innerHTML='';
+  document.getElementById('modal-foto').classList.add('open');
+}
+
+function cercaGiocatoreFoto(val){
+  if(val.length<2){document.getElementById('lista-giocatori-foto').innerHTML='';return;}
+  const results=giocatoriDB.filter(g=>g.nome.toLowerCase().includes(val.toLowerCase())).slice(0,20);
+  document.getElementById('lista-giocatori-foto').innerHTML=results.map(g=>{
+    const sq=squadreDB.find(s=>s.id===g.squadra_id);
+    return `<div class="giocatore-search-item" onclick="selezionaGiocatoreFoto(${g.id})">
+      <div class="gsi-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div class="gsi-info"><div class="gsi-nome">${g.nome}</div><div class="gsi-sub">${sq?sq.nome:'—'} • ${g.ruolo}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function selezionaGiocatoreFoto(gId){
+  const g=giocatoriDB.find(x=>x.id===gId);
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  giocatoreInFoto=g;
+  document.getElementById('foto-step1').style.display='none';
+  document.getElementById('foto-step2').style.display='block';
+  document.getElementById('foto-avatar').innerHTML=g.foto_url?`<img src="${g.foto_url}" style="width:44px;height:44px;object-fit:cover;border-radius:50%">`:iniziali(g.nome);
+  document.getElementById('foto-nome-display').textContent=g.nome;
+  document.getElementById('foto-squadra-display').textContent=sq?sq.nome:'—';
+  document.getElementById('foto-preview-box').innerHTML=g.foto_url?`<img src="${g.foto_url}">` :'📷';
+  document.getElementById('foto-url-input').value=g.foto_url||'';
+  fotoScelta=null;
+}
+
+function tornaRicercaFoto(){
+  giocatoreInFoto=null;
+  document.getElementById('foto-step1').style.display='block';
+  document.getElementById('foto-step2').style.display='none';
+}
+
+function previewFoto(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  if(file.size>5*1024*1024){showToast('❌ File troppo grande','error');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    fotoScelta=e.target.result;
+    document.getElementById('foto-preview-box').innerHTML=`<img src="${fotoScelta}">`;
+    document.getElementById('foto-url-input').value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewFotoUrl(url){
+  if(!url) return;
+  fotoScelta=null;
+  document.getElementById('foto-preview-box').innerHTML=`<img src="${url}" onerror="this.parentElement.innerHTML='❌'">`;
+}
+
+async function salvaFoto(){
+  if(!giocatoreInFoto) return;
+  const urlInput=document.getElementById('foto-url-input').value.trim();
+  const fotoUrl=fotoScelta||urlInput||null;
+  if(!fotoUrl){showToast('❌ Nessuna foto selezionata','error');return;}
+  const btn=document.getElementById('btn-salva-foto');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  try{
+    const{error}=await sb.from('giocatori').update({foto_url:fotoUrl}).eq('id',giocatoreInFoto.id);
+    if(error) throw error;
+    const idx=giocatoriDB.findIndex(g=>g.id===giocatoreInFoto.id);
+    if(idx>=0) giocatoriDB[idx].foto_url=fotoUrl;
+    showToast('📸 Foto di '+giocatoreInFoto.nome+' salvata!');
+    document.getElementById('modal-foto').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  btn.disabled=false;btn.textContent='📸 SALVA FOTO';
+}
+
+// ===== LOGO SQUADRA =====
+function apriLogoSquadra(){
+  squadraInLogo=null;logoScelto=null;
+  document.getElementById('logo-step1').style.display='block';
+  document.getElementById('logo-step2').style.display='none';
+  document.getElementById('lista-squadre-logo').innerHTML=squadreDB.map(sq=>`
+    <div class="squadra-search-item" onclick="selezionaSquadraLogo('${sq.id}')">
+      <div class="gsi-sq-logo" style="background:${sq.avatar_bg||'#333'}">${sq.logo_url?`<img src="${sq.logo_url}">`:sq.avatar||'⚽'}</div>
+      <div class="gsi-info"><div class="gsi-nome">${sq.nome}</div><div class="gsi-sub">👤 ${sq.owner_name||'—'}</div></div>
+    </div>`).join('');
+  document.getElementById('modal-logo').classList.add('open');
+}
+
+function selezionaSquadraLogo(sqId){
+  squadraInLogo=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('logo-step1').style.display='none';
+  document.getElementById('logo-step2').style.display='block';
+  document.getElementById('logo-sq-nome-display').textContent=squadraInLogo.nome;
+  const ps=document.getElementById('logo-preview-small');
+  ps.style.background=squadraInLogo.avatar_bg||'#333';
+  ps.innerHTML=squadraInLogo.logo_url?`<img src="${squadraInLogo.logo_url}">`:squadraInLogo.avatar||'⚽';
+  document.getElementById('logo-preview-box').innerHTML=squadraInLogo.logo_url?`<img src="${squadraInLogo.logo_url}">` :'🏟️';
+  document.getElementById('logo-url-input').value=squadraInLogo.logo_url||'';
+  logoScelto=null;
+}
+
+function tornaSceltaSquadraLogo(){
+  squadraInLogo=null;
+  document.getElementById('logo-step1').style.display='block';
+  document.getElementById('logo-step2').style.display='none';
+}
+
+function previewLogo(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  if(file.size>5*1024*1024){showToast('❌ File troppo grande','error');return;}
+  const reader=new FileReader();
+  reader.onload=e=>{
+    logoScelto=e.target.result;
+    document.getElementById('logo-preview-box').innerHTML=`<img src="${logoScelto}">`;
+    document.getElementById('logo-url-input').value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewLogoUrl(url){
+  if(!url) return;
+  logoScelto=null;
+  document.getElementById('logo-preview-box').innerHTML=`<img src="${url}" onerror="this.parentElement.innerHTML='❌'">`;
+}
+
+async function salvaLogo(){
+  if(!squadraInLogo) return;
+  const urlInput=document.getElementById('logo-url-input').value.trim();
+  const logoUrl=logoScelto||urlInput||null;
+  if(!logoUrl){showToast('❌ Nessun logo selezionato','error');return;}
+  const btn=document.getElementById('btn-salva-logo');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  try{
+    const{error}=await sb.from('squadre').update({logo_url:logoUrl}).eq('id',squadraInLogo.id);
+    if(error) throw error;
+    const idx=squadreDB.findIndex(s=>s.id===squadraInLogo.id);
+    if(idx>=0) squadreDB[idx].logo_url=logoUrl;
+    showToast('🖼️ Logo di '+squadraInLogo.nome+' salvato!');
+    document.getElementById('modal-logo').classList.remove('open');
+    renderOverview();
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  btn.disabled=false;btn.textContent='🖼️ SALVA LOGO';
+}
+
+// ===== FOTO PRESIDENTE =====
+function apriFotoPresidente(){
+  squadraInPres=null;
+  document.getElementById('pres-step1').style.display='block';
+  document.getElementById('pres-step2').style.display='none';
+  document.getElementById('lista-squadre-pres').innerHTML=squadreDB.map(sq=>`
+    <div class="squadra-search-item" onclick="selezionaSquadraPres('${sq.id}')">
+      <div class="gsi-sq-logo" style="background:${sq.avatar_bg||'#333'}">${sq.logo_url?`<img src="${sq.logo_url}">`:sq.avatar||'⚽'}</div>
+      <div class="gsi-info"><div class="gsi-nome">${sq.nome}</div><div class="gsi-sub">👤 ${sq.owner_name||'—'}</div></div>
+    </div>`).join('');
+  document.getElementById('modal-presidente').classList.add('open');
+}
+
+function selezionaSquadraPres(sqId){
+  squadraInPres=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('pres-step1').style.display='none';
+  document.getElementById('pres-step2').style.display='block';
+  document.getElementById('pres-sq-nome-display').textContent=squadraInPres.nome;
+  renderPresidentiEditor();
+}
+
+function tornaSceltaSquadraPres(){
+  squadraInPres=null;
+  document.getElementById('pres-step1').style.display='block';
+  document.getElementById('pres-step2').style.display='none';
+}
+
+function renderPresidentiEditor(){
+  const presidenti=(squadraInPres.presidenti||[{nome:'',foto:''}]);
+  document.getElementById('presidenti-editor').innerHTML=presidenti.map((p,i)=>`
+    <div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--grigio-chiaro)">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--testo-dim);margin-bottom:10px">👑 PRESIDENTE ${i+1}</div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">
+        <div class="presidente-foto" id="pres-foto-preview-${i}" style="width:50px;height:50px;font-size:18px">${p.foto?`<img src="${p.foto}">`:((p.nome||'P').charAt(0).toUpperCase())}</div>
+        <div style="flex:1">
+          <div class="form-group" style="margin-bottom:8px"><label class="form-label">Nome</label><input class="form-input" type="text" id="pres-nome-${i}" value="${p.nome||''}" oninput="aggiornaNomePres(${i})"></div>
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">URL Foto</label><input class="form-input" type="url" id="pres-foto-${i}" value="${p.foto||''}" placeholder="https://..." oninput="aggiornaFotoPres(${i})"></div>
+      <div style="position:relative;margin-top:6px">
+        <input type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:1" onchange="caricaFotoPresidente(event,${i})">
+        <button class="btn-secondary" style="width:100%;pointer-events:none">📁 Scegli dalla Galleria</button>
+      </div>
+    </div>`).join('')+`
+    <button class="btn-secondary" onclick="aggiungiPresidente()" style="width:100%;margin-bottom:8px">+ Aggiungi Presidente</button>`;
+}
+
+function aggiornaNomePres(i){
+  const lettera=document.getElementById(`pres-nome-${i}`).value.charAt(0).toUpperCase()||'P';
+  const foto=document.getElementById(`pres-foto-${i}`).value;
+  document.getElementById(`pres-foto-preview-${i}`).innerHTML=foto?`<img src="${foto}">`:(lettera||'P');
+}
+
+function aggiornaFotoPres(i){
+  const url=document.getElementById(`pres-foto-${i}`).value;
+  const nome=document.getElementById(`pres-nome-${i}`).value;
+  document.getElementById(`pres-foto-preview-${i}`).innerHTML=url?`<img src="${url}" onerror="this.parentElement.innerHTML='${(nome||'P').charAt(0).toUpperCase()}'">`:(nome||'P').charAt(0).toUpperCase();
+}
+
+function aggiungiPresidente(){
+  if(!squadraInPres) return;
+  if(!squadraInPres.presidenti) squadraInPres.presidenti=[];
+  squadraInPres.presidenti.push({nome:'',foto:''});
+  renderPresidentiEditor();
+}
+
+async function salvaPresidenti(){
+  if(!squadraInPres) return;
+  const n=document.querySelectorAll('[id^="pres-nome-"]').length;
+  const presidenti=[];
+  for(let i=0;i<n;i++){
+    const nome=document.getElementById(`pres-nome-${i}`)?.value||'';
+    const foto=document.getElementById(`pres-foto-${i}`)?.value||'';
+    if(nome||foto) presidenti.push({nome,foto});
+  }
+  const btn=document.getElementById('btn-salva-pres');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  try{
+    const{error}=await sb.from('squadre').update({presidenti}).eq('id',squadraInPres.id);
+    if(error) throw error;
+    const idx=squadreDB.findIndex(s=>s.id===squadraInPres.id);
+    if(idx>=0) squadreDB[idx].presidenti=presidenti;
+    showToast('👑 Presidenti di '+squadraInPres.nome+' salvati!');
+    document.getElementById('modal-presidente').classList.remove('open');
+    if(squadraAttiva&&squadraAttiva.id===squadraInPres.id) apriSquadra(squadraInPres.id);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  btn.disabled=false;btn.textContent='👑 SALVA PRESIDENTI';
+}
+
+// ===== NAVIGAZIONE =====
+async function entraApp(sezione){
+  document.getElementById('home').classList.add('hide');
+  setTimeout(async()=>{
+    document.getElementById('home').style.display='none';
+    document.getElementById('app').classList.add('show');
+    const ok=await caricaDati();
+    if(ok){renderOverview();showToast('✅ Connesso!');}
+    else document.getElementById('squadre-overview').innerHTML='<div class="empty">❌ Errore connessione database</div>';
+    if(sezione!=='rose'){
+      const btn=document.querySelector(`.nav-btn[onclick*="${sezione}"]`);
+      showSection(sezione,btn);
+    }
+  },600);
+}
+
+function tornaHome(){
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('home').style.display='flex';
+  document.getElementById('home').classList.remove('hide');
+}
+
+function showSection(nome,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('section-'+nome).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(nome==='tifosi') renderTifosi();
+  if(nome==='competizioni') renderCompetizioni();
+  if(nome==='museo') renderMuseo();
+  if(nome==='mercato') renderMercato();
+  if(nome==='rose'){tornaLista();renderOverview();}
+}
+
+// ===== MERCATO =====
+let trattativeDB=[], filtroTrattative='tutte';
+
+async function caricaTrattative(){
+  try{
+    const{data,error}=await sb.from('trattative').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    trattativeDB=data||[];
+  }catch(e){console.error('Errore trattative:',e);}
+}
+
+async function renderMercato(){
+  await caricaTrattative();
+  const filtrate=filtroTrattative==='tutte'?trattativeDB:trattativeDB.filter(t=>t.stato===filtroTrattative);
+  const c=document.getElementById('mercato-lista');
+  if(!filtrate.length){
+    c.innerHTML='<div class="empty">Nessuna trattativa trovata 🔄<br><br>Clicca <b>+ NUOVA TRATTATIVA</b> per iniziare!</div>';
+    return;
+  }
+  c.innerHTML=filtrate.map(t=>{
+    const cedente=squadreDB.find(s=>s.id===t.squadra_cedente_id);
+    const acquirente=squadreDB.find(s=>s.id===t.squadra_acquirente_id);
+    const tipoClass={'Titolo Definitivo':'tipo-definitivo','Titolo Definitivo con Clausola Recompra':'tipo-definitivo','Prestito Secco':'tipo-prestito','Prestito con Diritto di Riscatto':'tipo-prestito','Prestito con Obbligo di Riscatto':'tipo-prestito','Scambio':'tipo-scambio','Scambio con Conguaglio':'tipo-scambio'}[t.tipo]||'tipo-definitivo';
+    const statoClass={'proposta':'stato-proposta','approvata':'stato-approvata','rifiutata':'stato-rifiutata','completata':'stato-completata'}[t.stato]||'stato-proposta';
+    const importoFmt=t.importo?new Intl.NumberFormat('it-IT').format(t.importo)+' FM':'Scambio';
+    return `<div class="trattativa-card" onclick="apriDettaglioTrattativa(${t.id})">
+      <div class="trattativa-header">
+        <span class="trattativa-tipo-badge ${tipoClass}">${t.tipo||'—'}</span>
+        <div class="trattativa-giocatore">${t.giocatore_nome||'—'}${t.giocatore_scambio_nome?' ⇄ '+t.giocatore_scambio_nome:''}</div>
+        <span class="trattativa-stato ${statoClass}">${t.stato?.toUpperCase()||'—'}</span>
+      </div>
+      <div class="trattativa-body">
+        <div class="trattativa-squadre">
+          <span>${cedente?cedente.owner_name:'—'}</span>
+          <span class="trattativa-freccia">→</span>
+          <span>${acquirente?acquirente.owner_name:'—'}</span>
+        </div>
+        <div class="trattativa-importo">${importoFmt}</div>
+        ${t.num_rate>1?`<span class="rate-chip">💳 ${t.num_rate} rate</span>`:''}
+        ${t.perc_rivendita?`<span class="rate-chip">% ${t.perc_rivendita}% riv.</span>`:''}
+      </div>
+      <div class="trattativa-footer">
+        <span>📅 ${new Date(t.created_at).toLocaleDateString('it-IT')}</span>
+        <span>Proposto da: ${t.proposto_da||'—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filtraTrattative(stato){
+  filtroTrattative=stato;
+  renderMercato();
+}
+
+function apriDettaglioTrattativa(id){
+  const t=trattativeDB.find(x=>x.id===id);
+  if(!t) return;
+  const cedente=squadreDB.find(s=>s.id===t.squadra_cedente_id);
+  const acquirente=squadreDB.find(s=>s.id===t.squadra_acquirente_id);
+  const statoClass={'proposta':'stato-proposta','approvata':'stato-approvata','rifiutata':'stato-rifiutata','completata':'stato-completata'}[t.stato]||'stato-proposta';
+  document.getElementById('td-title').textContent=t.giocatore_nome?.toUpperCase()||'TRATTATIVA';
+  
+  // Calcola rate
+  let rateHtml='';
+  if(t.num_rate>1 && t.rate_dettaglio){
+    try{
+      const rate=JSON.parse(t.rate_dettaglio);
+      rateHtml=`<div style="margin-top:12px"><div style="font-size:10px;font-weight:700;letter-spacing:1px;color:var(--testo-dim);margin-bottom:8px">💳 RATEIZZAZIONE</div>
+        ${rate.map((r,i)=>`<div class="rata-item ${r.pagata?'rata-pagata':''}">
+          <div><span style="font-size:10px;color:var(--testo-dim)">Rata ${i+1}</span><br><span style="font-size:11px">${r.data}</span></div>
+          <div style="font-family:'Space Mono',monospace;font-size:13px;color:var(--verde)">${new Intl.NumberFormat('it-IT').format(r.importo)} FM</div>
+          ${adminLoggato&&!r.pagata?`<button onclick="marcaRataPagata(${id},${i})" style="font-size:10px;background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);color:var(--verde);padding:3px 8px;border-radius:6px;cursor:pointer">✓ Paga</button>`:''}
+        </div>`).join('')}
+      </div>`;
+    }catch(e){}
+  }
+  
+  document.getElementById('td-body').innerHTML=`
+    <div style="padding:14px 20px;background:var(--grigio-scuro);border-bottom:1px solid var(--grigio-chiaro)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span class="trattativa-stato ${statoClass}" style="font-size:13px;padding:4px 12px">${t.stato?.toUpperCase()}</span>
+        <span style="font-size:11px;color:var(--testo-dim)">📅 ${new Date(t.created_at).toLocaleDateString('it-IT')}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--testo-dim)">DA</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px">${cedente?cedente.owner_name:'—'}</div>
+        </div>
+        <div style="font-size:24px">→</div>
+        <div style="text-align:center">
+          <div style="font-size:10px;color:var(--testo-dim)">A</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px">${acquirente?acquirente.owner_name:'—'}</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px 20px">
+      <div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;border-left:3px solid var(--verde);margin-bottom:12px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;margin-bottom:8px">${t.tipo}</div>
+        <div style="font-size:13px;margin-bottom:4px">🎯 <strong>${t.giocatore_nome||'—'}</strong></div>
+        ${t.giocatore_scambio_nome?`<div style="font-size:13px;margin-bottom:4px">⇄ <strong>${t.giocatore_scambio_nome}</strong></div>`:''}
+        ${t.importo?`<div style="font-family:'Space Mono',monospace;font-size:16px;color:var(--verde);margin-top:8px">${new Intl.NumberFormat('it-IT').format(t.importo)} FM</div>`:''}
+        ${t.conguaglio?`<div style="font-size:12px;color:var(--testo-dim)">+ conguaglio: ${new Intl.NumberFormat('it-IT').format(t.conguaglio)} FM</div>`:''}
+        ${t.perc_rivendita?`<div style="font-size:12px;color:var(--oro);margin-top:4px">% futura rivendita: ${t.perc_rivendita}%</div>`:''}
+        ${t.importo_riscatto?`<div style="font-size:12px;color:var(--oro);margin-top:4px">Riscatto: ${new Intl.NumberFormat('it-IT').format(t.importo_riscatto)} FM${t.scadenza_riscatto?' entro '+t.scadenza_riscatto:''}</div>`:''}
+        ${t.clausola_recompra?`<div style="font-size:12px;color:var(--argento);margin-top:4px">Clausola recompra: ${new Intl.NumberFormat('it-IT').format(t.clausola_recompra)} FM</div>`:''}
+        ${t.data_inizio&&t.data_fine?`<div style="font-size:12px;color:var(--testo-dim);margin-top:4px">Prestito: ${t.data_inizio} → ${t.data_fine}</div>`:''}
+      </div>
+      ${rateHtml}
+      ${t.note?`<div style="background:var(--grigio-scuro);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--testo-dim);margin-top:8px">📝 ${t.note}</div>`:''}
+      ${adminLoggato&&t.stato==='proposta'?`
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button onclick="approvaTrattativa(${t.id})" style="flex:1;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:16px;padding:10px;border-radius:8px;border:none;cursor:pointer">✅ APPROVA</button>
+        <button onclick="rifiutaTrattativa(${t.id})" style="flex:1;background:rgba(255,68,68,0.1);color:var(--rosso);font-family:'Bebas Neue',sans-serif;font-size:16px;padding:10px;border-radius:8px;border:1px solid rgba(255,68,68,0.3);cursor:pointer">❌ RIFIUTA</button>
+      </div>`:''}
+      ${adminLoggato&&t.stato==='approvata'?`
+      <button onclick="completaTrattativa(${t.id})" style="width:100%;background:var(--blu);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:16px;padding:10px;border-radius:8px;border:none;cursor:pointer;margin-top:12px">🏁 SEGNA COMPLETATA</button>`:''}
+    </div>`;
+  document.getElementById('modal-trattativa-dettaglio').classList.add('open');
+}
+
+async function approvaTrattativa(id){
+  const{error}=await sb.from('trattative').update({stato:'approvata'}).eq('id',id);
+  if(!error){
+    const idx=trattativeDB.findIndex(t=>t.id===id);
+    if(idx>=0) trattativeDB[idx].stato='approvata';
+    showToast('✅ Trattativa approvata!');
+    document.getElementById('modal-trattativa-dettaglio').classList.remove('open');
+    renderMercato();
+  }else showToast('❌ Errore: '+error.message,'error');
+}
+
+async function rifiutaTrattativa(id){
+  const{error}=await sb.from('trattative').update({stato:'rifiutata'}).eq('id',id);
+  if(!error){
+    const idx=trattativeDB.findIndex(t=>t.id===id);
+    if(idx>=0) trattativeDB[idx].stato='rifiutata';
+    showToast('❌ Trattativa rifiutata');
+    document.getElementById('modal-trattativa-dettaglio').classList.remove('open');
+    renderMercato();
+  }
+}
+
+async function completaTrattativa(id){
+  const{error}=await sb.from('trattative').update({stato:'completata'}).eq('id',id);
+  if(!error){
+    const idx=trattativeDB.findIndex(t=>t.id===id);
+    if(idx>=0) trattativeDB[idx].stato='completata';
+    showToast('🏁 Trattativa completata!');
+    document.getElementById('modal-trattativa-dettaglio').classList.remove('open');
+    renderMercato();
+  }
+}
+
+async function marcaRataPagata(trattativaId,rataIdx){
+  const t=trattativeDB.find(x=>x.id===trattativaId);
+  if(!t) return;
+  try{
+    const rate=JSON.parse(t.rate_dettaglio);
+    rate[rataIdx].pagata=true;
+    const{error}=await sb.from('trattative').update({rate_dettaglio:JSON.stringify(rate),rate_pagate:(t.rate_pagate||0)+1}).eq('id',trattativaId);
+    if(!error){
+      const idx=trattativeDB.findIndex(x=>x.id===trattativaId);
+      if(idx>=0){trattativeDB[idx].rate_dettaglio=JSON.stringify(rate);trattativeDB[idx].rate_pagate=(t.rate_pagate||0)+1;}
+      showToast('💳 Rata segnata come pagata!');
+      apriDettaglioTrattativa(trattativaId);
+    }
+  }catch(e){showToast('❌ Errore','error');}
+}
+
+// STEP della nuova trattativa
+let trattativaStep=1, trattativaDati={};
+
+function apriNuovaTrattativa(){
+  trattativaStep=1;
+  trattativaDati={};
+  renderStepTrattativa();
+  document.getElementById('modal-trattativa').classList.add('open');
+}
+
+function renderStepTrattativa(){
+  const body=document.getElementById('trattativa-body');
+  const steps=['Tipo','Giocatore','Squadre','Condizioni','Rate','Riepilogo'];
+  const stepsHtml=`<div class="step-indicator">${steps.map((_,i)=>`<div class="step ${i+1<trattativaStep?'done':i+1===trattativaStep?'active':''}"></div>`).join('')}</div>
+  <div style="font-size:11px;color:var(--testo-dim);margin-bottom:16px;text-align:center">STEP ${trattativaStep} / ${steps.length} — ${steps[trattativaStep-1].toUpperCase()}</div>`;
+
+  if(trattativaStep===1){
+    body.innerHTML=stepsHtml+`
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Tipo di operazione:</div>
+      ${['Titolo Definitivo','Titolo Definitivo con Clausola Recompra','Prestito Secco','Prestito con Diritto di Riscatto','Prestito con Obbligo di Riscatto','Scambio','Scambio con Conguaglio'].map(t=>`
+        <div onclick="selTipo('${t}')" style="background:var(--grigio-scuro);border:1px solid ${trattativaDati.tipo===t?'var(--verde)':'var(--grigio-chiaro)'};border-radius:8px;padding:12px 14px;margin-bottom:8px;cursor:pointer;font-size:13px;font-weight:500;transition:all 0.2s">
+          ${t==='Titolo Definitivo'?'💚':t.includes('Clausola')?'🔒':t.includes('Prestito')?'🔵':t.includes('Scambio')?'🔄':'📄'} ${t}
+        </div>`).join('')}`;
+  } else if(trattativaStep===2){
+    body.innerHTML=stepsHtml+`
+      <div class="form-group"><label class="form-label">Nome giocatore principale</label><input class="form-input" type="text" id="t-giocatore" value="${trattativaDati.giocatore_nome||''}" placeholder="Cerca o scrivi il nome..."></div>
+      ${trattativaDati.tipo?.includes('Scambio')?`<div class="form-group"><label class="form-label">Giocatore in cambio</label><input class="form-input" type="text" id="t-giocatore2" value="${trattativaDati.giocatore_scambio_nome||''}" placeholder="Nome giocatore contropartita..."></div>`:''}
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button onclick="trattativaStep--;renderStepTrattativa()" class="btn-secondary" style="flex:1">← Indietro</button>
+        <button onclick="avanzaStep2()" class="btn-primary" style="flex:2;margin:0">Avanti →</button>
+      </div>`;
+  } else if(trattativaStep===3){
+    const sqOpts=squadreDB.map(s=>`<option value="${s.id}" ${trattativaDati.cedente===s.id?'selected':''}>${s.nome} (${s.owner_name})</option>`).join('');
+    body.innerHTML=stepsHtml+`
+      <div class="form-group"><label class="form-label">Squadra cedente (chi vende/presta)</label><select class="form-select" id="t-cedente">${sqOpts}</select></div>
+      <div class="form-group"><label class="form-label">Squadra acquirente (chi compra/riceve)</label><select class="form-select" id="t-acquirente">${squadreDB.map(s=>`<option value="${s.id}" ${trattativaDati.acquirente===s.id?'selected':''}>${s.nome} (${s.owner_name})</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label">Proposta da (nome)</label><input class="form-input" type="text" id="t-proposto" value="${trattativaDati.proposto_da||''}" placeholder="Chi propone..."></div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button onclick="trattativaStep--;renderStepTrattativa()" class="btn-secondary" style="flex:1">← Indietro</button>
+        <button onclick="avanzaStep3()" class="btn-primary" style="flex:2;margin:0">Avanti →</button>
+      </div>`;
+  } else if(trattativaStep===4){
+    const isP=trattativaDati.tipo?.includes('Prestito');
+    const hasR=trattativaDati.tipo?.includes('Diritto')||trattativaDati.tipo?.includes('Obbligo');
+    const hasC=trattativaDati.tipo?.includes('Clausola');
+    const isS=trattativaDati.tipo?.includes('Scambio');
+    body.innerHTML=stepsHtml+`
+      ${!isS?`<div class="form-group"><label class="form-label">Importo (FM)</label><input class="form-input" type="number" id="t-importo" value="${trattativaDati.importo||''}" placeholder="Es. 15000000" step="0.01"></div>`:''}
+      ${isS?`<div class="form-group"><label class="form-label">Conguaglio (FM) — opzionale</label><input class="form-input" type="number" id="t-conguaglio" value="${trattativaDati.conguaglio||''}" placeholder="0 se scambio puro" step="0.01"></div>`:''}
+      ${isP?`
+        <div class="form-group"><label class="form-label">Data inizio prestito</label><input class="form-input" type="date" id="t-data-inizio" value="${trattativaDati.data_inizio||''}"></div>
+        <div class="form-group"><label class="form-label">Data fine prestito</label><input class="form-input" type="date" id="t-data-fine" value="${trattativaDati.data_fine||''}"></div>`:''}
+      ${hasR?`
+        <div class="form-group"><label class="form-label">Importo riscatto (FM)</label><input class="form-input" type="number" id="t-riscatto" value="${trattativaDati.importo_riscatto||''}" placeholder="Es. 20000000" step="0.01"></div>
+        <div class="form-group"><label class="form-label">Scadenza esercizio riscatto</label><input class="form-input" type="date" id="t-scad-riscatto" value="${trattativaDati.scadenza_riscatto||''}"></div>`:''}
+      ${hasC?`<div class="form-group"><label class="form-label">Importo clausola recompra (FM)</label><input class="form-input" type="number" id="t-clausola" value="${trattativaDati.clausola_recompra||''}" step="0.01"></div>`:''}
+      <div class="form-group"><label class="form-label">% Futura rivendita — opzionale</label><input class="form-input" type="number" id="t-rivendita" value="${trattativaDati.perc_rivendita||''}" placeholder="Es. 10" min="0" max="50" step="0.5"></div>
+      <div class="form-group"><label class="form-label">Note aggiuntive</label><input class="form-input" type="text" id="t-note" value="${trattativaDati.note||''}" placeholder="Note opzionali..."></div>
+      <div style="display:flex;gap:10px;margin-top:4px">
+        <button onclick="trattativaStep--;renderStepTrattativa()" class="btn-secondary" style="flex:1">← Indietro</button>
+        <button onclick="avanzaStep4()" class="btn-primary" style="flex:2;margin:0">Avanti →</button>
+      </div>`;
+  } else if(trattativaStep===5){
+    // Step rateizzazione
+    const nRate=trattativaDati.num_rate||1;
+    body.innerHTML=stepsHtml+`
+      <div class="form-group"><label class="form-label">Numero di rate</label>
+        <select class="form-select" id="t-num-rate" onchange="aggiornaRate()">
+          ${[1,2,3,4,5,6,8,10,12].map(n=>`<option value="${n}" ${nRate===n?'selected':''}>${n===1?'Pagamento immediato':n+' rate'}</option>`).join('')}
+        </select>
+      </div>
+      <div id="rate-container"></div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button onclick="trattativaStep--;renderStepTrattativa()" class="btn-secondary" style="flex:1">← Indietro</button>
+        <button onclick="avanzaStep5()" class="btn-primary" style="flex:2;margin:0">Avanti →</button>
+      </div>`;
+    aggiornaRate();
+  } else if(trattativaStep===6){
+    const cedente=squadreDB.find(s=>s.id===trattativaDati.cedente);
+    const acquirente=squadreDB.find(s=>s.id===trattativaDati.acquirente);
+    body.innerHTML=stepsHtml+`
+      <div style="background:var(--grigio-scuro);border-radius:10px;padding:16px;border-left:3px solid var(--verde);margin-bottom:16px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--verde);margin-bottom:12px">RIEPILOGO TRATTATIVA</div>
+        <div style="font-size:13px;line-height:2">
+          <div>📋 <strong>Tipo:</strong> ${trattativaDati.tipo}</div>
+          <div>🎯 <strong>Giocatore:</strong> ${trattativaDati.giocatore_nome}${trattativaDati.giocatore_scambio_nome?' ⇄ '+trattativaDati.giocatore_scambio_nome:''}</div>
+          <div>📤 <strong>Cedente:</strong> ${cedente?.owner_name||'—'}</div>
+          <div>📥 <strong>Acquirente:</strong> ${acquirente?.owner_name||'—'}</div>
+          ${trattativaDati.importo?`<div>💰 <strong>Importo:</strong> ${new Intl.NumberFormat('it-IT').format(trattativaDati.importo)} FM</div>`:''}
+          ${trattativaDati.conguaglio?`<div>⚖️ <strong>Conguaglio:</strong> ${new Intl.NumberFormat('it-IT').format(trattativaDati.conguaglio)} FM</div>`:''}
+          ${trattativaDati.num_rate>1?`<div>💳 <strong>Rate:</strong> ${trattativaDati.num_rate} rate</div>`:''}
+          ${trattativaDati.perc_rivendita?`<div>📊 <strong>% Rivendita:</strong> ${trattativaDati.perc_rivendita}%</div>`:''}
+          ${trattativaDati.importo_riscatto?`<div>🔓 <strong>Riscatto:</strong> ${new Intl.NumberFormat('it-IT').format(trattativaDati.importo_riscatto)} FM</div>`:''}
+          ${trattativaDati.clausola_recompra?`<div>🔒 <strong>Clausola:</strong> ${new Intl.NumberFormat('it-IT').format(trattativaDati.clausola_recompra)} FM</div>`:''}
+          ${trattativaDati.data_fine?`<div>📅 <strong>Fine prestito:</strong> ${trattativaDati.data_fine}</div>`:''}
+          ${trattativaDati.note?`<div>📝 <strong>Note:</strong> ${trattativaDati.note}</div>`:''}
+          <div>👤 <strong>Proposto da:</strong> ${trattativaDati.proposto_da}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button onclick="trattativaStep--;renderStepTrattativa()" class="btn-secondary" style="flex:1">← Indietro</button>
+        <button onclick="salvaNuovaTrattativa()" id="btn-salva-trattativa" class="btn-primary" style="flex:2;margin:0">📤 INVIA PROPOSTA</button>
+      </div>`;
+  }
+}
+
+function aggiornaRate(){
+  const n=parseInt(document.getElementById('t-num-rate').value)||1;
+  trattativaDati.num_rate=n;
+  const c=document.getElementById('rate-container');
+  if(n<=1){c.innerHTML='<div style="text-align:center;color:var(--testo-dim);font-size:13px;padding:8px">Pagamento in un\'unica soluzione</div>';return;}
+  const importoBase=trattativaDati.importo||0;
+  const rataBase=importoBase>0?Math.round(importoBase/n):0;
+  c.innerHTML=`<div style="font-size:11px;color:var(--testo-dim);margin-bottom:10px">Specifica importo e data per ogni rata:</div>`+
+    Array.from({length:n},(_, i)=>{
+      const existing=trattativaDati.rate_dettaglio?JSON.parse(trattativaDati.rate_dettaglio)[i]:null;
+      return `<div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <span style="font-size:11px;color:var(--testo-dim);width:50px;flex-shrink:0">Rata ${i+1}</span>
+        <input class="form-input" type="number" id="rata-imp-${i}" placeholder="Importo FM" value="${existing?.importo||rataBase}" style="flex:1;padding:8px">
+        <input class="form-input" type="date" id="rata-data-${i}" value="${existing?.data||''}" style="flex:1;padding:8px">
+      </div>`;
+    }).join('');
+}
+
+function selTipo(t){
+  trattativaDati.tipo=t;
+  renderStepTrattativa();
+}
+
+function avanzaStep2(){
+  const g=document.getElementById('t-giocatore')?.value?.trim();
+  if(!g){showToast('❌ Inserisci il nome del giocatore','error');return;}
+  trattativaDati.giocatore_nome=g;
+  if(trattativaDati.tipo?.includes('Scambio')){
+    trattativaDati.giocatore_scambio_nome=document.getElementById('t-giocatore2')?.value?.trim()||null;
+  }
+  trattativaStep=3;renderStepTrattativa();
+}
+
+function avanzaStep3(){
+  const cedente=document.getElementById('t-cedente').value;
+  const acquirente=document.getElementById('t-acquirente').value;
+  if(cedente===acquirente){showToast('❌ Le squadre devono essere diverse!','error');return;}
+  trattativaDati.cedente=cedente;
+  trattativaDati.acquirente=acquirente;
+  trattativaDati.proposto_da=document.getElementById('t-proposto').value||'—';
+  trattativaStep=4;renderStepTrattativa();
+}
+
+function avanzaStep4(){
+  const isS=trattativaDati.tipo?.includes('Scambio');
+  const isP=trattativaDati.tipo?.includes('Prestito');
+  const hasR=trattativaDati.tipo?.includes('Diritto')||trattativaDati.tipo?.includes('Obbligo');
+  const hasC=trattativaDati.tipo?.includes('Clausola');
+  if(!isS) trattativaDati.importo=parseFloat(document.getElementById('t-importo')?.value)||0;
+  if(isS) trattativaDati.conguaglio=parseFloat(document.getElementById('t-conguaglio')?.value)||0;
+  if(isP){trattativaDati.data_inizio=document.getElementById('t-data-inizio')?.value||null;trattativaDati.data_fine=document.getElementById('t-data-fine')?.value||null;}
+  if(hasR){trattativaDati.importo_riscatto=parseFloat(document.getElementById('t-riscatto')?.value)||null;trattativaDati.scadenza_riscatto=document.getElementById('t-scad-riscatto')?.value||null;}
+  if(hasC) trattativaDati.clausola_recompra=parseFloat(document.getElementById('t-clausola')?.value)||null;
+  trattativaDati.perc_rivendita=parseFloat(document.getElementById('t-rivendita')?.value)||null;
+  trattativaDati.note=document.getElementById('t-note')?.value||null;
+  trattativaStep=5;renderStepTrattativa();
+}
+
+function avanzaStep5(){
+  const n=parseInt(document.getElementById('t-num-rate').value)||1;
+  trattativaDati.num_rate=n;
+  if(n>1){
+    const rate=Array.from({length:n},(_,i)=>({
+      importo:parseFloat(document.getElementById(`rata-imp-${i}`)?.value)||0,
+      data:document.getElementById(`rata-data-${i}`)?.value||'',
+      pagata:false
+    }));
+    trattativaDati.rate_dettaglio=JSON.stringify(rate);
+    trattativaDati.importo_rata=rate[0]?.importo||0;
+  } else {
+    trattativaDati.rate_dettaglio=null;
+  }
+  trattativaStep=6;renderStepTrattativa();
+}
+
+async function salvaNuovaTrattativa(){
+  const btn=document.getElementById('btn-salva-trattativa');
+  btn.disabled=true;btn.textContent='Invio...';
+  const payload={
+    stato:'proposta',
+    tipo:trattativaDati.tipo,
+    squadra_cedente_id:trattativaDati.cedente,
+    squadra_acquirente_id:trattativaDati.acquirente,
+    giocatore_nome:trattativaDati.giocatore_nome,
+    giocatore_scambio_nome:trattativaDati.giocatore_scambio_nome||null,
+    importo:trattativaDati.importo||0,
+    conguaglio:trattativaDati.conguaglio||0,
+    tipo_pagamento:trattativaDati.num_rate>1?'rate':'immediato',
+    num_rate:trattativaDati.num_rate||1,
+    importo_rata:trattativaDati.importo_rata||null,
+    rate_pagate:0,
+    rate_dettaglio:trattativaDati.rate_dettaglio||null,
+    data_inizio:trattativaDati.data_inizio||null,
+    data_fine:trattativaDati.data_fine||null,
+    importo_riscatto:trattativaDati.importo_riscatto||null,
+    scadenza_riscatto:trattativaDati.scadenza_riscatto||null,
+    perc_rivendita:trattativaDati.perc_rivendita||0,
+    clausola_recompra:trattativaDati.clausola_recompra||null,
+    note:trattativaDati.note||null,
+    proposto_da:trattativaDati.proposto_da||'—',
+  };
+  try{
+    const{data,error}=await sb.from('trattative').insert(payload).select();
+    if(error) throw error;
+    if(data&&data[0]) trattativeDB.unshift(data[0]);
+    showToast('📤 Proposta inviata! In attesa di approvazione admin.');
+    document.getElementById('modal-trattativa').classList.remove('open');
+    renderMercato();
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';
+}
+
+function closeModal(id,e){if(e.target===document.getElementById(id)) document.getElementById(id).classList.remove('open');}
+
+function showToast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast'+(type==='error'?' error':'');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
