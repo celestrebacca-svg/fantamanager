@@ -1215,6 +1215,17 @@ function ruoloNome(r){return{P:'Portiere',D:'Difensore',C:'Centrocampista',A:'At
 function getMolt(n){return[0,1,2.5,4,5,7][Math.min(n,5)]||0;}
 function iniziali(nome){return(nome||'??').replace(/[^a-zA-Z ]/g,'').split(' ').map(p=>p[0]||'').join('').substring(0,2).toUpperCase()||'??';}
 
+let _toastTimer=null;
+function showToast(msg,tipo){
+  const t=document.getElementById('toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.classList.toggle('error',tipo==='error');
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
 // ===== LOGIN =====
 function entraAppDiretto(){
   utenteLoggato=null;
@@ -2048,7 +2059,7 @@ async function inviaTrattativa(){
     document.getElementById('modal-trattativa').classList.remove('open');
     renderTrattative();
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
-  btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';
+  finally{btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';}
 }
 
 function apriApprovazione(){
@@ -3514,7 +3525,7 @@ async function salvaModificaGiocatore(){
     document.getElementById('modal-modifica').classList.remove('open');
     if(squadraAttiva) renderRosa(tabAttivoSq);
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
-  btn.disabled=false;btn.textContent='💾 SALVA MODIFICHE';
+  finally{btn.disabled=false;btn.textContent='💾 SALVA MODIFICHE';}
 }
 
 // ===== FOTO GIOCATORE =====
@@ -3587,7 +3598,7 @@ async function salvaFoto(){
     document.getElementById('modal-foto').classList.remove('open');
     if(squadraAttiva) renderRosa(tabAttivoSq);
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
-  btn.disabled=false;btn.textContent='📸 SALVA FOTO';
+  finally{btn.disabled=false;btn.textContent='📸 SALVA FOTO';}
 }
 
 // ===== LOGO + MAGLIA + NOME SQUADRA =====
@@ -3695,7 +3706,7 @@ async function salvaLogo(){
   }catch(e){
     showToast('❌ Errore: '+e.message,'error');
   }
-  btn.disabled=false;btn.textContent='💾 SALVA TUTTO';
+  finally{btn.disabled=false;btn.textContent='💾 SALVA TUTTO';}
 }
 
 function selezionaSquadraLogo(sqId){
@@ -3834,7 +3845,7 @@ async function salvaPresidenti(){
     document.getElementById('modal-presidente').classList.remove('open');
     if(squadraAttiva&&squadraAttiva.id===squadraInPres.id) apriSquadra(squadraInPres.id);
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
-  btn.disabled=false;btn.textContent='👑 SALVA PRESIDENTI';
+  finally{btn.disabled=false;btn.textContent='👑 SALVA PRESIDENTI';}
 }
 
 // ===== GESTIONE EMAIL =====
@@ -3923,7 +3934,7 @@ async function salvaEmail(){
     showToast('❌ Errore: '+e.message,'error');
     console.error('Email save error:',e);
   }
-  btn.disabled=false;btn.textContent='💾 SALVA ACCESSI';
+  finally{btn.disabled=false;btn.textContent='💾 SALVA ACCESSI';}
 }
 
 // ===== NAVIGAZIONE =====
