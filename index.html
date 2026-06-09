@@ -1174,23 +1174,6 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 </div>
 
 <script>
-const SUPABASE_URL='https://fithrsazeeawjzpfoowg.supabase.co';
-const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpdGhyc2F6ZWVhd2p6cGZvb3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTg0MjUsImV4cCI6MjA5MTQzNDQyNX0.gRI7mjgahc7qEittJWVDEBqGttY1BuJOL3t_DY3BBbg';
-const RAPIDAPI_KEY='73e7e8737bmsh406835bcadaa067p1fde41jsnd72004371828';
-const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const ADMIN_PWD='Ultimo96!';
-
-let adminLoggato=false;
-let utenteLoggato=null; // squadra dell'utente loggato
-let squadreDB=[],giocatoriDB=[],tifosi_logDB=[],trattativeDB=[];
-let squadraAttiva=null,tabAttivoSq='principale',ricercaSq='';
-let giocatoreInModifica=null,giocatoreInFoto=null,squadraInLogo=null,squadraInPres=null,squadraInEmail=null;
-let fotoScelta=null,logoScelto=null;
-let giocatoreSchedaAttiva=null;
-let trattativaGiocatoreTarget=null;
-let filtroTrattative='tutte';
-let rateList=[];
-
 const competizioni=[
   {id:'campionato',nome:'CAMPIONATO',icon:'⚽',tipo:'campionato',premi:[{pos:'1° posto',euro:null,fm:'Automatico'}],museo:{fm:2.5,label:'2.5M (1°) • 0.8M (2°) • 0.3M (3°)'}},
   {id:'coppa_italia',nome:'COPPA ITALIA',icon:'🇮🇹',tipo:'coppa',premi:[{pos:'Vincitore',euro:'30€',fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
@@ -1224,68 +1207,6 @@ function showToast(msg,tipo){
   t.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
-}
-
-// ===== LOGIN =====
-function entraAppDiretto(){
-  utenteLoggato=null;
-  adminLoggato=false;
-  document.getElementById('login-screen').classList.add('hide');
-  document.getElementById('home').style.display='flex';
-}
-
-async function doLogin(){
-  const email=document.getElementById('login-email').value.trim().toLowerCase();
-  const pwd=document.getElementById('login-password').value.trim();
-  const err=document.getElementById('login-error');
-  err.style.display='none';
-  if(!email||!pwd){err.style.display='block';err.textContent='❌ Inserisci email e password';return;}
-  const btn=document.querySelector('#login-screen .btn-primary');
-  if(btn){btn.disabled=true;btn.textContent='⏳...';}
-  try{
-    // Seleziona solo le colonne necessarie per evitare timeout
-    const{data:squadre,error:sqErr}=await sb.from('squadre')
-      .select('id,nome,nome_squadra,owner_name,emails,password_accesso,budget,tifosi,avatar,avatar_bg,logo_url,maglia_url,allenatore,stip_all');
-    if(sqErr) throw sqErr;
-    if(!squadre||!squadre.length){
-      err.style.display='block';err.textContent='❌ Errore connessione';
-      if(btn){btn.disabled=false;btn.textContent='ENTRA NELLA LEGA →';}
-      return;
-    }
-    const trovata=squadre.find(s=>{
-      let emails=[];
-      if(Array.isArray(s.emails)) emails=s.emails.map(e=>String(e).toLowerCase().trim());
-      else if(s.emails) emails=[String(s.emails).toLowerCase().trim()];
-      if(pwd===ADMIN_PWD) return emails.includes(email);
-      return emails.includes(email)&&s.password_accesso===pwd;
-    });
-    if(!trovata){
-      err.style.display='block';
-      err.textContent='❌ Email o password non corretta';
-      if(btn){btn.disabled=false;btn.textContent='ENTRA NELLA LEGA →';}
-      return;
-    }
-
-    utenteLoggato=trovata;
-    adminLoggato=(pwd===ADMIN_PWD);
-    document.getElementById('login-screen').classList.add('hide');
-    document.getElementById('home').style.display='flex';
-    showToast('👋 Benvenuto '+trovata.owner_name+'!');
-
-  }catch(e){
-    err.style.display='block';
-    err.textContent='❌ Errore: '+e.message;
-  }
-  if(btn){btn.disabled=false;btn.textContent='ENTRA NELLA LEGA →';}
-}
-
-function doLogout(){
-  utenteLoggato=null;adminLoggato=false;
-  document.getElementById('app').classList.remove('show');
-  document.getElementById('home').style.display='none';
-  document.getElementById('login-screen').classList.remove('hide');
-  document.getElementById('login-email').value='';
-  document.getElementById('login-password').value='';
 }
 
 // ===== CARICA DATI =====
