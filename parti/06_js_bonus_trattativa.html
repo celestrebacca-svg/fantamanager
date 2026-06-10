@@ -129,16 +129,20 @@ async function inviaTrattativa(){
   if(usaRate){
     dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;
   }
-  if(tipo.includes('Prestito')){
-    dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
+  if (tipo.includes('Prestito')) {
+    dati.scadenza_prestito = document.getElementById('trat-scadenza-prestito').value || null;
+    // Se è un prestito ma non uno scambio, aggiungi l'importo iniziale (se presente)
+    if (!tipo.includes('Scambio')) {
+      dati.importo = parseFloat(document.getElementById('trat-importo').value) || 0;
+    }
   }
-  if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
-    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto').value)||null;
-    dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
+  if (tipo.includes('Diritto di Riscatto') || tipo.includes('Obbligo di Riscatto')) {
+    dati.importo_riscatto = parseFloat(document.getElementById('trat-importo-riscatto').value) || null;
+    dati.scadenza_riscatto = document.getElementById('trat-scadenza-riscatto').value || null;
   }
-  if(hasCondizioni){
-    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto-cond').value)||null;
-    dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
+  if (hasCondizioni) {
+    dati.importo_riscatto = parseFloat(document.getElementById('trat-importo-riscatto-cond').value) || null;
+    dati.scadenza_riscatto = document.getElementById('trat-scadenza-riscatto-cond').value || null;
   }
 
   // Costruisci nota automatica per condizioni
