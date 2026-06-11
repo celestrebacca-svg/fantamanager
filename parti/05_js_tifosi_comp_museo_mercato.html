@@ -1,0 +1,184 @@
+    <div style="padding:14px 20px;background:var(--grigio-scuro);border-bottom:1px solid var(--grigio-chiaro);display:flex;gap:20px;">
+      <div><div style="font-size:10px;color:var(--testo-dim)">TROFEI</div><div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--oro)">${trofei.length}</div></div>
+      <div><div style="font-size:10px;color:var(--testo-dim)">RENDITA</div><div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--verde)">${rendita.toFixed(1)}M FM</div></div>
+    </div>
+    <div style="padding:16px 20px">
+      ${trofei.length===0?'<div style="color:var(--testo-dim);font-size:14px;text-align:center;padding:20px 0">Nessun trofeo ancora 🏆</div>':
+        Object.entries(perComp).map(([cid,arr])=>{
+          const comp=competizioni.find(c=>c.id===cid);
+          const molt=getMolt(arr.length);
+          const rendC=comp&&comp.museo?comp.museo.fm*molt:0;
+          return `<div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid var(--oro)">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro)">${comp?comp.icon:''} ${comp?comp.nome:cid}</div>
+              <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--verde)">${rendC.toFixed(1)}M/anno</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${arr.map(t=>`<span class="trofeo-badge">🏆 ${t.anno}</span>`).join('')}</div>
+            <div style="font-size:11px;color:var(--testo-dim)">${arr.length} vittorie • ×${molt}</div>
+          </div>`;
+        }).join('')}
+    </div>`;
+  document.getElementById('modal-museo').classList.add('open');
+}
+
+// ===== MERCATO =====
+function filtraTrattative(stato,el){
+  filtroTrattative=stato;
+  document.querySelectorAll('.mercato-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderTrattative();
+}
+
+function renderTrattative(){
+  const lista=filtroTrattative==='tutte'?trattativeDB:trattativeDB.filter(t=>t.stato===filtroTrattative);
+  const container=document.getElementById('trattative-lista');
+  if(!lista.length){container.innerHTML='<div class="empty">Nessuna trattativa</div>';return;}
+  container.innerHTML=lista.map(t=>{
+    const off=squadreDB.find(s=>s.id===t.squadra_offerente_id);
+    const ric=squadreDB.find(s=>s.id===t.squadra_ricevente_id);
+    const g=giocatoriDB.find(x=>x.id===t.giocatore_id);
+    const gc=t.giocatore_cambio_id?giocatoriDB.find(x=>x.id===t.giocatore_cambio_id):null;
+    const statoClass={'in_attesa':'stato-attesa','approvata':'stato-approvata','completata':'stato-completata','rifiutata':'stato-rifiutata'}[t.stato]||'stato-attesa';
+    const statoLabel={'in_attesa':'⏳ In attesa','approvata':'✅ Approvata','completata':'🏁 Completata','rifiutata':'❌ Rifiutata'}[t.stato]||t.stato;
+    const isAdmin=adminLoggato;
+    const miaTratt=utenteLoggato&&(t.squadra_offerente_id===utenteLoggato.id||t.squadra_ricevente_id===utenteLoggato.id);
+    return `<div class="trattativa-card">
+      <div class="trattativa-header">
+        <div>
+          <div class="trattativa-tipo">${t.tipo}</div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-top:2px">${off?off.nome:'?'} → ${ric?ric.nome:'?'}</div>
+        </div>
+        <span class="trattativa-stato ${statoClass}">${statoLabel}</span>
+      </div>
+      <div class="trattativa-body">
+        ${g?`<div class="trattativa-row"><span class="label">Giocatore</span><span style="font-weight:600">${g.nome} (${g.ruolo})</span></div>`:''}
+        ${gc?`<div class="trattativa-row"><span class="label">In cambio</span><span style="font-weight:600">${gc.nome} (${gc.ruolo})</span></div>`:''}
+        ${t.importo?`<div class="trattativa-row"><span class="label">Importo</span><span style="color:var(--verde);font-family:'Space Mono',monospace">${fmtNum(t.importo)} FM</span></div>`:''}
+        ${t.importo_riscatto?`<div class="trattativa-row"><span class="label">Riscatto</span><span style="color:var(--oro);font-family:'Space Mono',monospace">${fmtNum(t.importo_riscatto)} FM</span></div>`:''}
+        ${t.importo_recompra?`<div class="trattativa-row"><span class="label">Recompra entro</span><span style="color:var(--argento)">${t.scadenza_recompra||'—'}</span></div>`:''}
+        ${t.scadenza_prestito?`<div class="trattativa-row"><span class="label">Scadenza prestito</span><span>${t.scadenza_prestito}</span></div>`:''}
+        ${t.percentuale_rivendita?`<div class="trattativa-row"><span class="label">% Rivendita</span><span style="color:var(--verde)">${t.percentuale_rivendita}%</span></div>`:''}
+        ${t.rate&&t.rate.length?`<div class="trattativa-row"><span class="label">Rate</span><span>${t.rate.length} rate programmate</span></div>`:''}
+        ${t.note?`<div class="trattativa-row"><span class="label">Note</span><span style="color:var(--testo-dim)">${t.note}</span></div>`:''}
+        <div class="trattativa-row"><span class="label">Data</span><span>${new Date(t.created_at).toLocaleDateString('it-IT')}</span></div>
+      </div>
+      ${isAdmin&&t.stato==='in_attesa'?`
+        <div class="trattativa-footer">
+          <button class="btn-rifiuta" onclick="cambiaStatoTrattativa(${t.id},'rifiutata')">❌ Rifiuta</button>
+          <button class="btn-approva" onclick="cambiaStatoTrattativa(${t.id},'approvata')">✅ Approva</button>
+        </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function cambiaStatoTrattativa(id,stato){
+  try{
+    const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
+    if(error) throw error;
+    const idx=trattativeDB.findIndex(t=>t.id===id);
+    if(idx>=0) trattativeDB[idx].stato=stato;
+    showToast(stato==='approvata'?'✅ Trattativa approvata!':'❌ Trattativa rifiutata!');
+    renderTrattative();
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+}
+
+// ===== BONUS =====
+let bonusList=[];
+const TIPI_BONUS=['gol','assist','presenze','media_voto','classifica'];
+const LABEL_BONUS={gol:'⚽ Gol',assist:'🎯 Assist',presenze:'👟 Presenze',media_voto:'⭐ Media Voto',classifica:'🏆 Posizione in classifica'};
+
+function toggleBonus(){
+  const checked=document.getElementById('trat-usa-bonus').checked;
+  document.getElementById('campo-bonus').style.display=checked?'block':'none';
+  if(checked&&bonusList.length===0) aggiungiBonus();
+}
+
+function aggiungiBonus(){
+  if(bonusList.length>=5){showToast('Max 5 bonus','error');return;}
+  bonusList.push({tipo:'gol',soglia:'',importo:''});
+  renderBonusLista();
+}
+
+function renderBonusLista(){
+  document.getElementById('bonus-lista').innerHTML=bonusList.map((b,i)=>`
+    <div style="background:var(--grigio-scuro);border-radius:8px;padding:10px;margin-bottom:8px;border-left:3px solid var(--verde)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:700;color:var(--verde)">BONUS ${i+1}</span>
+        <button onclick="bonusList.splice(${i},1);renderBonusLista()" style="background:rgba(255,68,68,0.15);border:none;color:var(--rosso);border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px">✕ Rimuovi</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+        <div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">OBIETTIVO</div>
+          <select onchange="bonusList[${i}].tipo=this.value" style="width:100%;background:var(--grigio-medio);border:1px solid var(--grigio-chiaro);border-radius:6px;padding:7px 8px;color:var(--testo);font-size:13px;outline:none">
+            ${TIPI_BONUS.map(t=>`<option value="${t}" ${b.tipo===t?'selected':''}>${LABEL_BONUS[t]}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">${b.tipo==='classifica'?'ENTRO POSIZIONE N.':'SOGLIA MINIMA'}</div>
+          <input class="form-input" type="number" value="${b.soglia}" oninput="bonusList[${i}].soglia=this.value" placeholder="${b.tipo==='media_voto'?'Es. 6.5':b.tipo==='classifica'?'Es. 4':'Es. 10'}" style="padding:7px 8px;font-size:13px" step="${b.tipo==='media_voto'?'0.1':'1'}" min="0">
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">IMPORTO BONUS (FM)</div>
+        <input class="form-input" type="number" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2500000" step="100000" style="padding:7px 8px;font-size:13px">
+      </div>
+    </div>`).join('');
+}
+
+// Aggiorna placeholder bonus quando cambia tipo
+document.addEventListener('change',function(e){
+  if(e.target.tagName==='SELECT'&&e.target.closest('#bonus-lista')){
+    renderBonusLista();
+  }
+});
+
+function apriNuovaTrattativa(giocatore=null){
+  if(!utenteLoggato){showToast('❌ Devi essere loggato','error');return;}
+  trattativaGiocatoreTarget=giocatore;
+  rateList=[];
+  giocatoriCambioSelezionati=[];
+  giocatoriSuoiSelezionati=[];
+  bonusList=[];
+
+  // Info giocatore target
+  const info=document.getElementById('trattativa-giocatore-info');
+  if(giocatore){
+    info.style.display='flex';
+    document.getElementById('trat-avatar').innerHTML=giocatore.foto_url?`<img src="${giocatore.foto_url}" style="width:32px;height:32px;object-fit:cover;border-radius:50%">`:iniziali(giocatore.nome);
+    document.getElementById('trat-nome').textContent=giocatore.nome;
+    const sqG=squadreDB.find(s=>s.id===giocatore.squadra_id);
+    document.getElementById('trat-squadra').textContent=(sqG?sqG.nome:'—')+' • '+ruoloNome(giocatore.ruolo);
+  }else{
+    info.style.display='none';
+  }
+
+  // Reset
+  document.getElementById('trat-tipo').value='Titolo Definitivo';
+  document.getElementById('trat-importo').value='';
+  document.getElementById('trat-note').value='';
+  document.getElementById('trat-rivendita').value='';
+  document.getElementById('trat-conguaglio').value='';
+  document.getElementById('rate-lista').innerHTML='';
+  document.getElementById('trat-usa-rate').checked=false;
+  document.getElementById('campo-rate-inline').style.display='none';
+  document.getElementById('trat-usa-bonus').checked=false;
+  document.getElementById('campo-bonus').style.display='none';
+  aggiornaCampiTrattativa();
+  renderGiocatoriCambio();
+  document.getElementById('modal-trattativa').classList.add('open');
+}
+
+let giocatoriSuoiSelezionati=[];
+
+function renderGiocatoriCambio(){
+  if(!utenteLoggato||!trattativaGiocatoreTarget) return;
+  const sqAvversaria=trattativaGiocatoreTarget.squadra_id;
+
+  // I MIEI
+  const miei=giocatoriDB.filter(g=>g.squadra_id===utenteLoggato.id);
+  document.getElementById('trat-miei-lista').innerHTML=miei.map(g=>`
+    <div onclick="toggleMio(${g.id})" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--grigio-chiaro);cursor:pointer;background:${giocatoriCambioSelezionati.includes(g.id)?'rgba(0,255,135,0.08)':''}">
+      <div style="width:14px;height:14px;border-radius:3px;border:2px solid ${giocatoriCambioSelezionati.includes(g.id)?'var(--verde)':'var(--grigio-chiaro)'};background:${giocatoriCambioSelezionati.includes(g.id)?'var(--verde)':'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px">${giocatoriCambioSelezionati.includes(g.id)?'✓':''}</div>
+      <div style="width:24px;height:24px;border-radius:50%;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;overflow:hidden">${g.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`:iniziali(g.nome)}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${g.nome}</div><div style="font-size:9px;color:var(--testo-dim)">${g.ruolo}</div></div>
+    </div>`).join('');

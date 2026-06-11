@@ -1,0 +1,270 @@
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">Fanta<span>Manager</span></div>
+    <div class="login-sub">Inserisci le tue credenziali per accedere</div>
+    <div class="form-group" style="margin-top:20px"><label class="form-label">Email</label><input class="form-input" type="email" id="login-email" placeholder="la-tua@email.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="login-password" placeholder="Password..." onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div id="login-error" style="display:none;color:var(--rosso);font-size:13px;margin-bottom:10px;text-align:center"></div>
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">ENTRA NELLA LEGA →</button>
+  </div>
+</div>
+
+<!-- HOME -->
+<div id="home" style="display:none">
+  <div class="home-bg"><div class="home-bg-circle"></div><div class="home-bg-circle"></div><div class="home-bg-circle"></div></div>
+  <div class="home-grid"></div>
+  <div class="home-content">
+    <div class="home-badge">⚽ Stagione 2025/26</div>
+    <div class="home-title"><div class="fanta">FANTA</div><div class="manager">MANAGER</div></div>
+    <div class="home-sub">La tua lega. Il tuo impero.</div>
+    <div class="home-cards">
+      <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
+      <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
+      <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
+      <div class="home-card" onclick="entraApp('museo')"><div class="home-card-icon">🏛️</div><div class="home-card-title">Museo</div><div class="home-card-sub">Bacheca trofei</div></div>
+      <div class="home-card" onclick="entraApp('mercato')"><div class="home-card-icon">🔄</div><div class="home-card-title">Mercato</div><div class="home-card-sub">Trattative</div></div>
+      <div class="home-card" onclick="entraApp('classifica')"><div class="home-card-icon">📊</div><div class="home-card-title">Classifica</div><div class="home-card-sub">Punti e budget</div></div>
+      <div class="home-card" onclick="entraApp('social')" style="border-color:rgba(68,136,255,0.4)"><div class="home-card-icon">📱</div><div class="home-card-title">Social</div><div class="home-card-sub">Social Manager</div></div>
+    </div>
+    <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
+    <div class="home-stats">
+      <div class="home-stat"><div class="home-stat-val" id="home-num-squadre">—</div><div class="home-stat-label">Squadre</div></div>
+      <div class="home-stat"><div class="home-stat-val">12</div><div class="home-stat-label">Competizioni</div></div>
+      <div class="home-stat"><div class="home-stat-val">25/26</div><div class="home-stat-label">Stagione</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="header">
+    <div class="logo" onclick="tornaHome()">Fanta<span>Manager</span></div>
+    <nav class="nav">
+      <button class="nav-btn active" onclick="showSection('rose',this)">🏟️ Rose</button>
+      <button class="nav-btn" onclick="showSection('tifosi',this)">👥 Tifosi</button>
+      <button class="nav-btn" onclick="showSection('competizioni',this)">🏆 Coppe</button>
+      <button class="nav-btn" onclick="showSection('museo',this)">🏛️ Museo</button>
+      <button class="nav-btn" onclick="showSection('mercato',this)">🔄 Mercato</button>
+      <button class="nav-btn" onclick="showSection('classifica',this)">📊 Classifica</button>
+      <button class="nav-btn" onclick="showSection('social',this)">📱 Social</button>
+    </nav>
+    <div class="user-chip" id="user-chip" onclick="doLogout()">👤 <span id="user-nome">—</span> 🚪</div>
+    <button class="admin-btn" id="admin-btn-header" style="display:none" onclick="apriAdmin()">⚙️ ADMIN</button>
+  </div>
+
+  <!-- MENU RAPIDO FISSO -->
+  <div id="quick-menu-overlay" onclick="chiudiMenuRapido()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200"></div>
+  <div id="quick-menu" style="display:none;position:fixed;bottom:70px;left:16px;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:8px;z-index:201;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
+    <button onclick="chiudiMenuRapido();showSection('rose',document.querySelector('.nav-btn[onclick*=\'rose\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏟️ Rose</button>
+    <button onclick="chiudiMenuRapido();showSection('tifosi',document.querySelector('.nav-btn[onclick*=\'tifosi\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">👥 Tifosi</button>
+    <button onclick="chiudiMenuRapido();showSection('competizioni',document.querySelector('.nav-btn[onclick*=\'competizioni\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏆 Coppe</button>
+    <button onclick="chiudiMenuRapido();showSection('museo',document.querySelector('.nav-btn[onclick*=\'museo\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏛️ Museo</button>
+    <button onclick="chiudiMenuRapido();showSection('mercato',document.querySelector('.nav-btn[onclick*=\'mercato\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🔄 Mercato</button>
+    <button onclick="chiudiMenuRapido();showSection('classifica',document.querySelector('.nav-btn[onclick*=\'classifica\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">📊 Classifica</button>
+    <button onclick="chiudiMenuRapido();showSection('social',document.querySelector('.nav-btn[onclick*=\'social\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">📱 Social</button>
+  </div>
+  <button onclick="toggleMenuRapido()" style="display:none;position:fixed;bottom:16px;left:16px;width:52px;height:52px;border-radius:50%;background:var(--verde);color:var(--nero);font-size:22px;border:none;cursor:pointer;z-index:202;box-shadow:0 4px 16px rgba(0,255,135,0.4)" id="quick-menu-btn">☰</button>
+  <div class="main">
+
+    <!-- ROSE -->
+    <div class="section active" id="section-rose">
+      <div id="lista-squadre">
+        <div class="page-title">LE SQUADRE</div>
+        <div class="page-sub">Stagione 2025/26 — Clicca una squadra avversaria per proporre una trattativa</div>
+        <div id="mia-squadra-banner-wrap"></div>
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+          <button id="tab-rose-squadre" onclick="switchTabRose('squadre')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer">🏟️ SQUADRE</button>
+          <button id="tab-rose-svincolati" onclick="switchTabRose('svincolati')" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">🔓 SVINCOLATI SERIE A</button>
+        </div>
+        <div id="rose-tab-squadre">
+          <div class="controls"><input class="search-box" type="text" placeholder="🔍 Cerca squadra o giocatore..." oninput="cercaSquadra(this.value)"></div>
+          <div class="squadre-overview" id="squadre-overview"><div class="loading"><div class="loading-spinner"></div>Connessione...</div></div>
+        </div>
+        <div id="rose-tab-svincolati" style="display:none">
+          <div class="controls" style="gap:10px;flex-wrap:wrap">
+            <input class="search-box" type="text" id="svincola-search" placeholder="🔍 Cerca giocatore..." oninput="filtraSvincolati(this.value)" style="flex:1;min-width:160px">
+            <select id="svincola-ruolo" onchange="filtraSvincolati()" style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:9px 14px;color:var(--testo);font-size:13px;outline:none">
+              <option value="">Tutti i ruoli</option>
+              <option value="P">🧤 Portieri</option>
+              <option value="D">🛡️ Difensori</option>
+              <option value="C">⚙️ Centrocampisti</option>
+              <option value="A">⚡ Attaccanti</option>
+            </select>
+            <select id="svincola-squadra" onchange="filtraSvincolati()" style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:9px 14px;color:var(--testo);font-size:13px;outline:none">
+              <option value="">Tutte le squadre</option>
+            </select>
+          </div>
+          <div id="svincolati-stats" style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap"></div>
+          <div id="svincolati-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px">
+            <div style="grid-column:1/-1;text-align:center;color:var(--testo-dim);padding:20px">Clicca "Svincolati Serie A" per caricare i giocatori disponibili</div>
+          </div>
+        </div>
+      </div>
+      <div id="pagina-squadra" style="display:none">
+        <button class="back-btn" onclick="tornaLista()">← Tutte le squadre</button>
+        <div class="squadra-hero" id="sq-hero"></div>
+        <div class="rosa-container">
+          <div class="legenda">
+            <div class="leg-item"><span class="g-badge badge-c">C</span> Capitano</div>
+            <div class="leg-item"><span class="g-badge badge-v">V</span> Vice</div>
+            <div class="leg-item"><span class="g-badge badge-p">P</span> Prestito</div>
+            <div class="leg-item"><span class="g-badge badge-prom">PROM</span> Promosso</div>
+          </div>
+          <div class="rosa-tabs">
+            <div class="rosa-tab active" onclick="switchTabSq('principale',this)">Principale <span class="rosa-count" id="cnt-princ">0</span></div>
+            <div class="rosa-tab" onclick="switchTabSq('marginale',this)">Marginale <span class="rosa-count" id="cnt-marg">0</span></div>
+            <div class="rosa-tab" onclick="switchTabSq('primavera',this)">Primavera <span class="rosa-count" id="cnt-prim">0</span></div>
+          </div>
+          <div class="giocatori-grid" id="rosa-lista"></div>
+        </div>
+
+        <!-- FORMAZIONE -->
+        <div id="formazione-squadra-inline" style="margin-top:20px;display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+            <div class="page-title" style="margin:0;font-size:28px">⚽ FORMAZIONE</div>
+            <div id="formazione-edit-btn-wrap" style="display:none">
+              <button onclick="attivaEditFormazione()" id="btn-edit-formazione" style="background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);color:var(--verde);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:8px 16px;border-radius:8px;cursor:pointer">✏️ MODIFICA</button>
+            </div>
+          </div>
+          <div id="formazione-content"></div>
+        </div>
+
+        <!-- BILANCIO SQUADRA (visibile sotto la rosa) -->
+        <div id="bilancio-squadra-inline" style="margin-top:20px;display:none">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <div class="page-title" style="margin:0;font-size:28px">💰 BILANCIO</div>
+            <div style="font-size:12px;color:var(--testo-dim)">Stagione 2026/27 • Chiusura 30 Giugno</div>
+          </div>
+          <div id="bilancio-inline-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TIFOSI -->
+    <div class="section" id="section-tifosi">
+      <div class="page-title">TIFOSI</div>
+      <div class="page-sub">Classifica tifosi — Stagione 2025/26</div>
+      <div class="tifosi-grid" id="tifosi-grid"></div>
+    </div>
+
+    <!-- COMPETIZIONI -->
+    <div class="section" id="section-competizioni">
+      <div class="page-title">COMPETIZIONI</div>
+      <div class="page-sub">Tutte le coppe — Premi in denaro reale e fantamilioni</div>
+      <div class="comp-grid" id="comp-grid"></div>
+    </div>
+
+    <!-- MUSEO -->
+    <div class="section" id="section-museo">
+      <div class="page-title">MUSEO & BACHECA</div>
+      <div class="page-sub">Trofei vinti e rendite annue per ogni squadra</div>
+      <div class="museo-intro">
+        <div class="museo-intro-title">🏆 SISTEMA MOLTIPLICATORI</div>
+        <div class="museo-intro-text">Ogni trofeo porta una rendita annua. La stessa coppa vinta più volte moltiplica la rendita!</div>
+        <div class="moltiplicatori">
+          <div class="molt-item"><div class="molt-num">×1</div><div class="molt-label">1 vittoria</div></div>
+          <div class="molt-item"><div class="molt-num">×2.5</div><div class="molt-label">2 vittorie</div></div>
+          <div class="molt-item"><div class="molt-num">×4</div><div class="molt-label">3 vittorie</div></div>
+          <div class="molt-item"><div class="molt-num">×5</div><div class="molt-label">4 vittorie</div></div>
+          <div class="molt-item"><div class="molt-num">×7</div><div class="molt-label">5 MAX</div></div>
+        </div>
+      </div>
+      <div class="museo-squadre" id="museo-grid"></div>
+    </div>
+
+    <!-- MERCATO -->
+    <div class="section" id="section-mercato">
+      <div class="page-title">MERCATO</div>
+      <div class="page-sub">Trattative — Stagione 2025/26</div>
+      <button class="btn-nuova" onclick="apriNuovaTrattativa()">➕ NUOVA TRATTATIVA</button>
+      <div class="mercato-tabs">
+        <div class="mercato-tab active" onclick="filtraTrattative('tutte',this)">Tutte</div>
+        <div class="mercato-tab" onclick="filtraTrattative('in_attesa',this)">In attesa</div>
+        <div class="mercato-tab" onclick="filtraTrattative('approvata',this)">Approvate</div>
+        <div class="mercato-tab" onclick="filtraTrattative('completata',this)">Completate</div>
+        <div class="mercato-tab" onclick="filtraTrattative('rifiutata',this)">Rifiutate</div>
+      </div>
+      <div id="trattative-lista"><div class="loading"><div class="loading-spinner"></div>Caricamento...</div></div>
+    </div>
+
+    <!-- CLASSIFICA -->
+    <div class="section" id="section-classifica">
+      <div class="page-title">CLASSIFICA</div>
+      <div class="page-sub">Campionato 2025/26 — Aggiornata dall'admin dopo ogni giornata</div>
+      <div id="classifica-container"><div class="loading"><div class="loading-spinner"></div>Caricamento...</div></div>
+    </div>
+
+    <!-- SOCIAL MANAGER -->
+    <div class="section" id="section-social">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+        <div>
+          <div class="page-title" style="margin:0">📱 SOCIAL MANAGER</div>
+          <div class="page-sub" style="margin:0">La lega sui social — pubblica, commenta, guadagna follower</div>
+        </div>
+        <button id="btn-nuovo-post" onclick="apriNuovoPost()" style="display:none;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer">✏️ NUOVO POST</button>
+      </div>
+
+      <!-- TOP FOLLOWER -->
+      <div id="social-top-follower" style="margin-bottom:16px"></div>
+
+      <!-- TABS -->
+      <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+        <button id="social-tab-feed" onclick="switchSocialTab('feed')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:7px;border:none;cursor:pointer">🏠 FEED</button>
+        <button id="social-tab-mio" onclick="switchSocialTab('mio')" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:7px;border:1px solid var(--grigio-chiaro);cursor:pointer">👤 IL MIO PROFILO</button>
+        <button id="social-tab-classifica" onclick="switchSocialTab('classifica')" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:7px;border:1px solid var(--grigio-chiaro);cursor:pointer">🏆 CLASSIFICA FOLLOWER</button>
+      </div>
+
+      <div id="social-content"><div class="loading"><div class="loading-spinner"></div>Caricamento...</div></div>
+    </div>
+
+    <!-- ADMIN -->
+    <div class="section" id="section-admin">
+      <div id="admin-password-screen" style="display:none">
+        <div class="password-screen">
+          <div class="password-icon">🔐</div>
+          <div class="password-title">AREA ADMIN</div>
+          <div class="password-sub">Inserisci la password per accedere</div>
+          <div class="password-input-wrap">
+            <input class="form-input" type="password" id="pwd-input" placeholder="Password..." onkeydown="if(event.key==='Enter') verificaPassword()">
+            <button class="btn-primary" style="width:auto;margin:0" onclick="verificaPassword()">ENTRA</button>
+          </div>
+          <div id="pwd-error" style="color:var(--rosso);font-size:13px;margin-top:12px;display:none">❌ Password errata</div>
+        </div>
+      </div>
+      <div id="admin-content" style="display:none">
+        <div class="admin-panel">
+          <div class="admin-title">⚙️ PANNELLO ADMIN</div>
+          <div class="admin-sub">Benvenuto Umberto — Solo tu puoi accedere.</div>
+          <div class="admin-section-title">📋 GESTIONE GIOCATORI</div>
+          <div class="admin-grid">
+            <div class="admin-card" onclick="apriModificaGiocatore()"><div class="admin-card-icon">✏️</div><div class="admin-card-title">Modifica Giocatore</div><div class="admin-card-sub">Ruolo, età, contratto, TM</div></div>
+            <div class="admin-card" onclick="apriUploadFoto()"><div class="admin-card-icon">📸</div><div class="admin-card-title">Carica Foto</div><div class="admin-card-sub">Foto profilo giocatore</div></div>
+            <div class="admin-card" onclick="apriImportCSV()" style="border-color:rgba(0,255,135,0.4);background:rgba(0,255,135,0.05)"><div class="admin-card-icon">📊</div><div class="admin-card-title">Import CSV</div><div class="admin-card-sub">Aggiorna valori da Transfermarkt</div></div>
+            <div class="admin-card" onclick="aggiornaFotoTutti()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Foto Auto</div><div class="admin-card-sub">Foto da TheSportsDB</div></div>
+            <div class="admin-card" onclick="apriNuovoGiocatore()" style="border-color:rgba(0,255,135,0.4);background:rgba(0,255,135,0.05)"><div class="admin-card-icon">➕</div><div class="admin-card-title">Nuovo Giocatore</div><div class="admin-card-sub">Aggiungi a qualsiasi rosa</div></div>
+            <div class="admin-card" onclick="showToast('🔓 In costruzione')"><div class="admin-card-icon">🔓</div><div class="admin-card-title">Svincola</div><div class="admin-card-sub">Con calcolo automatico</div></div>
+            <div class="admin-card" onclick="apriSpostaGiocatore()"><div class="admin-card-icon">🔄</div><div class="admin-card-title">Sposta Giocatore</div><div class="admin-card-sub">Principale↔Marginale↔Primavera</div></div>
+            <div class="admin-card" onclick="showToast('⬆️ In costruzione')"><div class="admin-card-icon">⬆️</div><div class="admin-card-title">Promuovi Primavera</div><div class="admin-card-sub">Con controllo età</div></div>
+          </div>
+          <div class="admin-section-title">🏟️ GESTIONE SQUADRE</div>
+          <div class="admin-grid">
+            <div class="admin-card" onclick="apriLogoSquadra()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Logo Squadra</div><div class="admin-card-sub">Carica logo</div></div>
+            <div class="admin-card" onclick="apriFotoPresidente()"><div class="admin-card-icon">👑</div><div class="admin-card-title">Foto Presidente</div><div class="admin-card-sub">Foto e nome presidenti</div></div>
+            <div class="admin-card" onclick="apriGestioneEmail()"><div class="admin-card-icon">📧</div><div class="admin-card-title">Gestione Email</div><div class="admin-card-sub">Registra accessi presidenti</div></div>
+            <div class="admin-card" onclick="showToast('⭐ In costruzione')"><div class="admin-card-icon">⭐</div><div class="admin-card-title">Capitani</div><div class="admin-card-sub">Aggiorna C e V</div></div>
+          </div>
+          <div class="admin-section-title">💰 GESTIONE ECONOMICA</div>
+          <div class="admin-grid">
+            <div class="admin-card" onclick="showToast('💰 In costruzione')"><div class="admin-card-icon">💰</div><div class="admin-card-title">Modifica Budget</div><div class="admin-card-sub">Aggiorna fantamilioni</div></div>
+            <div class="admin-card" onclick="showToast('👥 In costruzione')"><div class="admin-card-icon">👥</div><div class="admin-card-title">Modifica Tifosi</div><div class="admin-card-sub">Aggiorna con motivazione</div></div>
+            <div class="admin-card" onclick="showToast('🏆 In costruzione')"><div class="admin-card-icon">🏆</div><div class="admin-card-title">Assegna Trofeo</div><div class="admin-card-sub">Aggiorna museo</div></div>
+            <div class="admin-card" onclick="apriApprovazione()"><div class="admin-card-icon">🤝</div><div class="admin-card-title">Approva Trattative</div><div class="admin-card-sub">Certifica scambi</div></div>
+          </div>
+          <div style="margin-top:24px;text-align:center"><button class="btn-danger" onclick="esciAdmin()">🚪 Esci dall'Admin</button></div>
+        </div>
+      </div>
+    </div>

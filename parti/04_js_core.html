@@ -1,0 +1,426 @@
+  </div>
+</div>
+
+<script>
+// ===== CARICA DATI =====
+async function ricaricaDati(){
+  document.getElementById('squadre-overview').innerHTML='<div class="loading"><div class="loading-spinner"></div>Riconnessione...</div>';
+  const ok=await caricaDati();
+  if(ok) renderOverview();
+}
+
+async function caricaDati(){
+  try{
+    // Al login carica SOLO le squadre - veloci e leggere
+    const sq=await sb.from('squadre').select('*').order('nome');
+    if(sq.error) throw new Error(sq.error.message);
+    squadreDB=sq.data||[];
+    document.getElementById('home-num-squadre').textContent=squadreDB.length||'—';
+    // Carica trattative in background
+    sb.from('trattative').select('*').order('created_at',{ascending:false})
+      .then(r=>{if(!r.error)trattativeDB=r.data||[];});
+    // Carica giocatori in background a chunk
+    caricaGiocatoriBackground();
+    return true;
+  }catch(e){
+    showToast('❌ '+e.message,'error');
+    return false;
+  }
+}
+
+async function caricaGiocatoriBackground(){
+  try{
+    // Carica prima 200 giocatori
+    const r1=await sb.from('giocatori').select('*').order('nome').range(0,199);
+    if(!r1.error){
+      giocatoriDB=r1.data||[];
+      // Aggiorna overview con i giocatori parziali
+      if(document.getElementById('section-rose')?.classList.contains('active')) renderOverview();
+    }
+    // Poi i restanti
+    const r2=await sb.from('giocatori').select('*').order('nome').range(200,599);
+    if(!r2.error){
+      giocatoriDB=[...giocatoriDB,...(r2.data||[])];
+    }
+    // Tifosi log
+    sb.from('tifosi_log').select('*').order('created_at',{ascending:false})
+      .then(r=>{if(!r.error)tifosi_logDB=r.data||[];});
+  }catch(e){console.warn('Background load error:',e);}
+}
+
+// ===== OVERVIEW =====
+function renderBannerMiaSquadra(){
+  const wrap=document.getElementById('mia-squadra-banner-wrap');
+  if(!utenteLoggato){wrap.innerHTML='';return;}
+  const sq=utenteLoggato;
+  const logoHtml=sq.logo_url?`<img src="${sq.logo_url}">`:(sq.avatar||'⚽');
+  wrap.innerHTML=`
+    <div class="mia-squadra-banner">
+      <div class="msb-logo" style="background:${sq.avatar_bg||'#333'}">${logoHtml}</div>
+      <div class="msb-info">
+        <div class="msb-label">⭐ La tua squadra</div>
+        <div class="msb-nome">${sq.nome}</div>
+        <div class="msb-stats">
+          <div class="msb-stat">Budget <span>${fmtBudget(sq.budget)}</span></div>
+          <div class="msb-stat">Tifosi <span>${(sq.tifosi||0).toLocaleString('it-IT')}</span></div>
+          <div class="msb-stat">Giocatori <span>${giocatoriDB.filter(g=>g.squadra_id===sq.id).length}</span></div>
+        </div>
+      </div>
+      <button class="msb-btn" onclick="apriSquadra('${sq.id}')">VEDI ROSA →</button>
+    </div>`;
+}
+
+function renderOverview(){
+  renderBannerMiaSquadra();
+  const grid=document.getElementById('squadre-overview');
+  if(!squadreDB||squadreDB.length===0){
+    grid.innerHTML=`<div class="empty" style="text-align:center;padding:30px">
+      ❌ Nessuna squadra caricata.<br>
+      <small style="color:var(--testo-dim)">Controlla la connessione Supabase</small><br><br>
+      <button onclick="ricaricaDati()" style="background:var(--verde);color:var(--nero);border:none;padding:10px 20px;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;cursor:pointer">🔄 RIPROVA</button>
+    </div>`;
+    return;
+  }
+  const sq=ricercaSq?squadreDB.filter(s=>{
+    const t=ricercaSq.toLowerCase();
+    const gSq=giocatoriDB.filter(g=>g.squadra_id===s.id);
+    return s.nome.toLowerCase().includes(t)||(s.owner_name||'').toLowerCase().includes(t)||gSq.some(g=>g.nome.toLowerCase().includes(t));
+  }):squadreDB;
+  if(!sq.length){grid.innerHTML='<div class="empty">Nessuna squadra trovata</div>';return;}
+  grid.innerHTML=sq.map(s=>{
+    const isMia=utenteLoggato&&s.id===utenteLoggato.id;
+    const nomeDisplay=s.nome_squadra||s.nome;
+    // Banner: logo a sinistra, maglia a destra, sfondo nero
+    const bannerContent=`
+      <div style="display:flex;align-items:center;justify-content:center;gap:20px;padding:20px 24px">
+        <div style="width:100px;height:100px;background:#111;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+          ${s.logo_url?`<img src="${s.logo_url}" style="width:96px;height:96px;object-fit:contain">`:`<span style="font-family:'Bebas Neue',sans-serif;font-size:42px;color:var(--testo)">${s.avatar||'⚽'}</span>`}
+        </div>
+        ${s.maglia_url?`<div style="width:80px;height:100px;background:#111;border-radius:14px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+          <img src="${s.maglia_url}" style="width:72px;height:90px;object-fit:contain">
+        </div>`:''}
+      </div>`;
+    return `<div class="squadra-overview-card${isMia?' mia':''}" onclick="apriSquadra('${s.id}')">
+      ${isMia?'<div class="mia-badge">⭐ TUA</div>':''}
+      <div style="background:#000;border-radius:12px 12px 0 0;overflow:hidden">${bannerContent}</div>
+      <div class="soc-info">
+        <div class="soc-nome">${nomeDisplay}</div>
+        <div class="soc-owner">👤 ${s.owner_name||'—'}</div>
+        <div class="soc-stats">
+          <div class="soc-stat">Budget <span>${fmtBudget(s.budget)}</span></div>
+          <div class="soc-stat">Tifosi <span>${(s.tifosi||0).toLocaleString('it-IT')}</span></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function cercaSquadra(val){ricercaSq=val;renderOverview();}
+
+// ===== PAGINA SQUADRA =====
+function apriSquadra(id){
+  squadraAttiva=squadreDB.find(s=>s.id===id);
+  tabAttivoSq='principale';
+  document.getElementById('lista-squadre').style.display='none';
+  document.getElementById('pagina-squadra').style.display='block';
+  const sq=squadraAttiva;
+  const presidenti=sq.presidenti||[];
+  const gTot=giocatoriDB.filter(g=>g.squadra_id===id);
+  const logoHtml=sq.logo_url?`<img src="${sq.logo_url}" style="width:140px;height:140px;object-fit:contain">`:`<span style="font-family:'Bebas Neue',sans-serif;font-size:60px;color:var(--testo)">${sq.avatar||'⚽'}</span>`;
+  const nomeDisplay=sq.nome_squadra||sq.nome;
+  document.getElementById('sq-hero').innerHTML=`
+    <div class="squadra-hero-banner" style="background:#000;min-height:180px;display:flex;align-items:center;justify-content:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:24px;padding:24px">
+        <div onclick="zoomImmagine('${sq.logo_url||''}')" style="width:150px;height:150px;background:#111;border-radius:20px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.15);overflow:hidden;flex-shrink:0;cursor:${sq.logo_url?'zoom-in':'default'}">${logoHtml}</div>
+        ${sq.maglia_url?`<div onclick="zoomImmagine('${sq.maglia_url}')" style="width:120px;height:150px;background:#111;border-radius:20px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.15);overflow:hidden;flex-shrink:0;cursor:zoom-in"><img src="${sq.maglia_url}" style="width:110px;height:140px;object-fit:contain"></div>`:''}
+      </div>
+    </div>
+    <div class="squadra-hero-body">
+      <div class="squadra-hero-nome">${nomeDisplay}</div>
+      <div class="squadra-hero-all">⚽ All.: <span>${sq.allenatore||'—'}</span> &nbsp;|&nbsp; Stipendio: <span>${sq.stip_all||'—'}</span></div>
+      <div class="presidenti-title">👑 PRESIDENZA</div>
+      <div class="presidenti-row">${presidenti.length?presidenti.map(p=>`
+        <div class="presidente-card">
+          <div class="presidente-foto">${p.foto?`<img src="${p.foto}">`:(p.nome||'P').charAt(0).toUpperCase()}</div>
+          <div><div class="presidente-nome">${p.nome||'—'}</div><div class="presidente-ruolo">👑 Presidente</div></div>
+        </div>`).join(''):'<div style="color:var(--testo-dim);font-size:13px">—</div>'}
+      </div>
+    </div>
+    <div class="squadra-stats-bar">
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Budget</div><div class="squadra-stat-val" style="color:var(--verde);font-size:10px">${fmtBudget(sq.budget)}</div></div>
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Tifosi</div><div class="squadra-stat-val" style="color:var(--blu)">${(sq.tifosi||0).toLocaleString('it-IT')}</div></div>
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Giocatori</div><div class="squadra-stat-val">${gTot.length}</div></div>
+      <div class="squadra-stat-item"><div class="squadra-stat-label">Trofei</div><div class="squadra-stat-val" style="color:var(--oro)">${(sq.trofei||[]).length}</div></div>
+    </div>`;
+  const princ=giocatoriDB.filter(g=>g.squadra_id===id&&g.lista==='principale');
+  const marg=giocatoriDB.filter(g=>g.squadra_id===id&&g.lista==='marginale');
+  const prim=giocatoriDB.filter(g=>g.squadra_id===id&&g.lista==='primavera');
+  document.getElementById('cnt-princ').textContent=princ.length;
+  document.getElementById('cnt-marg').textContent=marg.length;
+  document.getElementById('cnt-prim').textContent=prim.length;
+  document.querySelectorAll('.rosa-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.rosa-tab').classList.add('active');
+  renderRosa('principale');
+
+  // Formazione — visibile a tutti
+  const formazioneDiv=document.getElementById('formazione-squadra-inline');
+  const editBtnWrap=document.getElementById('formazione-edit-btn-wrap');
+  if(formazioneDiv){
+    formazioneDiv.style.display='block';
+    const puoModificare=(utenteLoggato&&utenteLoggato.id===id)||adminLoggato;
+    if(editBtnWrap) editBtnWrap.style.display=puoModificare?'block':'none';
+    renderFormazione(id, false);
+  }
+
+  // Bilancio: tutti lo vedono, ma lo storico solo al proprietario/admin
+  const bilancioDiv=document.getElementById('bilancio-squadra-inline');
+  if(bilancioDiv){
+    bilancioDiv.style.display='block';
+    bilancioSquadraAttiva=id;
+    const isProprietario=(utenteLoggato&&utenteLoggato.id===id)||adminLoggato;
+    renderBilancioSquadra(id, isProprietario);
+  }
+
+  window.scrollTo(0,0);
+}
+
+function tornaLista(){
+  squadraAttiva=null;
+  document.getElementById('lista-squadre').style.display='block';
+  document.getElementById('pagina-squadra').style.display='none';
+}
+
+// ===== ROSA =====
+function renderRosa(tipo){
+  tabAttivoSq=tipo;
+  const ordineRuolo={P:0,D:1,C:2,A:3};
+  const nomeRuolo={P:'PORTIERI',D:'DIFENSORI',C:'CENTROCAMPISTI',A:'ATTACCANTI'};
+  const lista=giocatoriDB.filter(g=>g.squadra_id===squadraAttiva.id&&g.lista===tipo)
+    .sort((a,b)=>(ordineRuolo[a.ruolo]??9)-(ordineRuolo[b.ruolo]??9)||a.nome.localeCompare(b.nome));
+  const c=document.getElementById('rosa-lista');
+  if(!lista.length){c.innerHTML='<div class="empty">Nessun giocatore</div>';return;}
+  const isMia=utenteLoggato&&squadraAttiva.id===utenteLoggato.id;
+  const isAvversaria=utenteLoggato&&squadraAttiva.id!==utenteLoggato.id;
+  let html='';
+  let ruoloCorrente=null;
+  lista.forEach(g=>{
+    if(g.ruolo!==ruoloCorrente){
+      ruoloCorrente=g.ruolo;
+      html+=`<div class="ruolo-header">${nomeRuolo[g.ruolo]||g.ruolo}</div>`;
+    }
+    const clickFn=isAvversaria?`apriGiocatoreConTrattativa(${g.id})`:`apriGiocatore(${g.id})`;
+    html+=`<div class="giocatore-card${isAvversaria?' avversario':''}" onclick="${clickFn}">
+      <div class="gc-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div class="gc-info">
+        <div class="gc-nome">${g.nome}</div>
+        <div class="gc-sub">
+          <span class="g-ruolo ${ruoloColor(g.ruolo)}">${g.ruolo}</span>
+          <span class="gc-maglia">#${g.maglia||'—'}</span>
+          ${g.badge==='C'?'<span class="g-badge badge-c">C</span>':''}
+          ${g.badge==='V'?'<span class="g-badge badge-v">V</span>':''}
+          ${g.badge==='P'?'<span class="g-badge badge-p">P</span>':''}
+          ${g.promosso?'<span class="g-badge badge-prom">PROM</span>':''}
+        </div>
+      </div>
+    </div>`;
+  });
+  c.innerHTML=html;
+}
+
+function switchTabSq(tipo,el){
+  document.querySelectorAll('.rosa-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderRosa(tipo);
+}
+
+// ===== SCHEDA GIOCATORE =====
+let giocatoreModificaDaScheda=null;
+function apriModificaDaScheda(){
+  if(!giocatoreSchedaAttiva) return;
+  document.getElementById('modal-giocatore').classList.remove('open');
+  apriModificaGiocatore();
+  setTimeout(()=>selezionaGiocatoreAdmin(giocatoreSchedaAttiva.id),150);
+}
+
+function apriTrattativaDaScheda(){
+  if(!giocatoreSchedaAttiva) return;
+  document.getElementById('modal-giocatore').classList.remove('open');
+  apriNuovaTrattativa(giocatoreSchedaAttiva);
+}
+
+function apriGiocatoreConTrattativa(gId){
+  apriGiocatore(gId);
+  // mostra bottone trattativa dopo che il modal è aperto
+  setTimeout(()=>{
+    const btn=document.getElementById('mg-trattativa-btn');
+    if(btn) btn.style.display='block';
+  },50);
+}
+
+function apriGiocatore(gId){
+  const g=giocatoriDB.find(x=>x.id===gId);
+  if(!g) return;
+  giocatoreSchedaAttiva=g;
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  document.getElementById('mg-title').textContent=g.nome.toUpperCase();
+  // Bottone modifica: visibile SOLO se admin
+  const editBtn=document.getElementById('mg-edit-btn');
+  if(editBtn) editBtn.style.display=adminLoggato?'block':'none';
+  // Bottone trattativa: nascosto di default, apriGiocatoreConTrattativa lo mostra
+  const tratBtn=document.getElementById('mg-trattativa-btn');
+  if(tratBtn) tratBtn.style.display='none';
+  const coloreC={'Titolo Definitivo':'var(--verde)','Titolo Definitivo con Clausola Recompra':'var(--argento)','Prestito Secco':'var(--blu)','Prestito con Diritto di Riscatto':'var(--oro)','Prestito con Obbligo di Riscatto':'var(--rosso)'}[g.contratto]||'var(--verde)';
+  document.getElementById('mg-body').innerHTML=`
+    <div class="player-hero">
+      <div class="player-photo">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div>
+        <div class="player-nome">${g.nome}</div>
+        <div class="player-tags">
+          <span class="g-ruolo ${ruoloColor(g.ruolo)}" style="font-size:12px;padding:3px 8px">${ruoloNome(g.ruolo)}</span>
+          ${g.badge==='C'?'<span class="g-badge badge-c">CAPITANO</span>':''}
+          ${g.badge==='V'?'<span class="g-badge badge-v">VICE CAP.</span>':''}
+          ${g.badge==='P'?'<span class="g-badge badge-p">IN PRESTITO</span>':''}
+          ${g.promosso?'<span class="g-badge badge-prom">PROMOSSO</span>':''}
+        </div>
+        <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--testo-dim)">Maglia #<span style="color:var(--verde);font-weight:700;font-size:14px">${g.maglia||'—'}</span></div>
+      </div>
+    </div>
+    <div class="player-section">
+      <div class="player-section-title">📋 Anagrafica</div>
+      <div class="player-grid">
+        <div class="player-info-item"><div class="pii-label">Età</div><div class="pii-val">${g.eta?g.eta+' anni':'—'}</div></div>
+        <div class="player-info-item"><div class="pii-label">Data Nascita</div><div class="pii-val" style="font-size:11px">${g.data_nascita||'—'}</div></div>
+        <div class="player-info-item"><div class="pii-label">Squadra Fantasy</div><div class="pii-val" style="font-size:11px">${sq?sq.nome:'—'}</div></div>
+        <div class="player-info-item"><div class="pii-label">Club Attuale</div><div class="pii-val" style="font-size:11px;color:var(--blu)">${g.club_reale||'—'}</div></div>
+      </div>
+    </div>
+    <div class="player-section">
+      <div class="player-section-title">💰 Valori di Mercato</div>
+      <div class="player-grid">
+        <div class="player-info-item" style="border-left:3px solid var(--oro)"><div class="pii-label">Quotazione TM</div><div class="pii-val oro" style="font-size:20px;font-weight:700">${g.quotazione?g.quotazione+'M€':'—'}</div></div>
+        <div class="player-info-item" style="border-left:3px solid var(--verde)"><div class="pii-label">Stipendio Netto</div><div class="pii-val verde" style="font-size:20px;font-weight:700">${g.stipendio?g.stipendio+'M€':'—'}</div></div>
+      </div>
+    </div>
+    <div class="player-section">
+      <div class="player-section-title">📄 Contratto</div>
+      <div class="contratto-box" style="border-left-color:${coloreC}">
+        <div class="contratto-tipo" style="color:${coloreC}">${g.contratto||'—'}</div>
+        ${g.scadenza?`<div class="contratto-row"><span class="label">Scadenza</span><span class="val" style="color:var(--rosso)">${g.scadenza}</span></div>`:''}
+        ${g.squadra_propr?`<div class="contratto-row"><span class="label">Proprietario</span><span class="val">${g.squadra_propr}</span></div>`:''}
+        ${g.riscatto?`<div class="contratto-row"><span class="label">Riscatto</span><span class="val" style="color:var(--oro)">${fmtNum(g.riscatto)} FM</span></div>`:''}
+        ${g.clausola?`<div class="contratto-row"><span class="label">Clausola recompra</span><span class="val" style="color:var(--argento)">${fmtNum(g.clausola)} FM</span></div>`:''}
+        ${g.rivendita?`<div class="contratto-row"><span class="label">% Futura rivendita</span><span class="val" style="color:var(--verde)">${g.rivendita}%</span></div>`:''}
+      </div>
+    </div>
+    <div class="player-section" style="border-bottom:none">
+      <div class="player-section-title">⚽ Statistiche</div>
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-box-val">${g.gol||0}</div><div class="stat-box-label">Gol</div></div>
+        <div class="stat-box"><div class="stat-box-val">${g.assist||0}</div><div class="stat-box-label">Assist</div></div>
+        <div class="stat-box"><div class="stat-box-val">${g.mv||'—'}</div><div class="stat-box-label">Media V.</div></div>
+        <div class="stat-box"><div class="stat-box-val">${g.presenze||0}</div><div class="stat-box-label">Presenze</div></div>
+      </div>
+    </div>`;
+  document.getElementById('modal-giocatore').classList.add('open');
+}
+
+// ===== TIFOSI =====
+function renderTifosi(){
+  const sorted=[...squadreDB].sort((a,b)=>(b.tifosi||0)-(a.tifosi||0));
+  const max=Math.max(...sorted.map(s=>s.tifosi||0))||1;
+  document.getElementById('tifosi-grid').innerHTML=sorted.map((sq,i)=>{
+    const rc=['rank-1','rank-2','rank-3'][i]||'rank-other';
+    const pct=Math.round(((sq.tifosi||0)/max)*100)||2;
+    const log=tifosi_logDB.filter(l=>l.squadra_id===sq.id);
+    const ultimo=log[0];
+    const logoHtml=sq.logo_url?`<img src="${sq.logo_url}" style="width:26px;height:26px;object-fit:contain;border-radius:4px">`:`<span style="font-family:'Bebas Neue',sans-serif;font-size:11px;color:var(--nero)">${sq.avatar||'⚽'}</span>`;
+    return `<div class="tifosi-card" onclick="apriStoricoTifosi('${sq.id}')">
+      <div class="tifosi-card-header">
+        <div class="tifosi-rank ${rc}">${i+1}</div>
+        <div style="width:26px;height:26px;border-radius:6px;background:${sq.avatar_bg||'#333'};display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">${logoHtml}</div>
+        <div class="tifosi-sq-nome">${sq.nome}</div>
+        <div class="tifosi-numero">${(sq.tifosi||0).toLocaleString('it-IT')}</div>
+      </div>
+      <div class="tifosi-card-body">
+        <div class="tifosi-bar-wrap"><div class="tifosi-bar" style="width:${pct}%"></div></div>
+        <div class="tifosi-last">Ultimo: <span>${ultimo?ultimo.motivo:'—'}</span></div>
+      </div>
+      <div class="tifosi-card-footer"><span>👤 ${sq.owner_name||'—'}</span><span style="color:var(--verde)">80€/tifoso</span></div>
+    </div>`;
+  }).join('');
+}
+
+function apriStoricoTifosi(sqId){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('mt-title').textContent=sq.nome+' — TIFOSI';
+  const log=tifosi_logDB.filter(l=>l.squadra_id===sqId);
+  document.getElementById('mt-body').innerHTML=`
+    <div style="padding:14px 20px;background:var(--grigio-scuro);border-bottom:1px solid var(--grigio-chiaro);display:flex;gap:20px;flex-wrap:wrap;">
+      <div><div style="font-size:10px;color:var(--testo-dim)">TIFOSI</div><div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:var(--blu)">${(sq.tifosi||0).toLocaleString('it-IT')}</div></div>
+      <div><div style="font-size:10px;color:var(--testo-dim)">INCASSO MAX/PARTITA</div><div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--verde)">${((sq.tifosi||0)*80).toLocaleString('it-IT')}€</div></div>
+    </div>
+    ${log.length===0?'<div class="empty">Nessun movimento</div>':log.map(l=>`
+      <div class="log-item">
+        <div class="log-icon ${l.positivo?'pos':'neg'}">${l.positivo?'📈':'📉'}</div>
+        <div class="log-info"><div class="log-motivo">${l.motivo}</div><div class="log-data">📅 ${new Date(l.data_log||l.created_at).toLocaleDateString('it-IT')}</div></div>
+        <div class="log-val ${l.positivo?'pos':'neg'}">${l.positivo?'+':''}${l.valore}</div>
+      </div>`).join('')}`;
+  document.getElementById('modal-tifosi').classList.add('open');
+}
+
+// ===== COMPETIZIONI =====
+function renderCompetizioni(){
+  document.getElementById('comp-grid').innerHTML=competizioni.map(c=>`
+    <div class="comp-card">
+      <div class="comp-header"><div class="comp-icon">${c.icon}</div><div class="comp-nome">${c.nome}</div><span class="comp-tipo tipo-${c.tipo}">${c.tipo}</span></div>
+      <div class="comp-body">
+        ${c.premi.map(p=>`
+          <div class="comp-premio-row">
+            <span class="comp-premio-label">${p.pos}</span>
+            <div style="display:flex;gap:8px">
+              ${p.euro?`<span class="comp-premio-val euro">💶 ${p.euro}</span>`:''}
+              ${p.fm?`<span class="comp-premio-val">💰 ${p.fm}</span>`:''}
+              ${!p.euro&&!p.fm?'<span style="color:var(--testo-dim);font-size:11px">Da definire</span>':''}
+            </div>
+          </div>`).join('')}
+        ${c.museo?`<div class="comp-museo"><span class="comp-museo-label">🏛️ Museo</span><span class="comp-museo-val">${c.museo.label}</span></div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// ===== MUSEO =====
+function renderMuseo(){
+  document.getElementById('museo-grid').innerHTML=squadreDB.map(sq=>{
+    const trofei=sq.trofei||[];
+    const perComp={};
+    trofei.forEach(t=>{if(!perComp[t.compId])perComp[t.compId]=[];perComp[t.compId].push(t);});
+    const rendita=Object.entries(perComp).reduce((tot,[cid,arr])=>{
+      const comp=competizioni.find(c=>c.id===cid);
+      return comp&&comp.museo?tot+comp.museo.fm*getMolt(arr.length):tot;
+    },0);
+    const logoHtml=sq.logo_url?`<img src="${sq.logo_url}">`:(sq.avatar||'⚽');
+    return `<div class="museo-card" onclick="apriMuseoSquadra('${sq.id}')">
+      <div class="museo-card-header">
+        <div class="museo-avatar" style="background:${sq.avatar_bg||'#333'}">${logoHtml}</div>
+        <div class="museo-sq-nome">${sq.nome}</div>
+        <div class="museo-trofei-count">🏆 ${trofei.length}</div>
+      </div>
+      <div class="museo-card-body">
+        ${trofei.length===0?'<div style="color:var(--testo-dim);font-size:12px">Nessun trofeo ancora</div>':`<div class="trofei-list">${trofei.map(t=>`<span class="trofeo-badge">🏆 ${t.coppa} ${t.anno}</span>`).join('')}</div>`}
+        <div class="museo-rendita"><span class="museo-rendita-label">Rendita annua</span><span class="museo-rendita-val">${rendita.toFixed(1)}M</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function apriMuseoSquadra(sqId){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  const trofei=sq.trofei||[];
+  const perComp={};
+  trofei.forEach(t=>{if(!perComp[t.compId])perComp[t.compId]=[];perComp[t.compId].push(t);});
+  const rendita=Object.entries(perComp).reduce((tot,[cid,arr])=>{
+    const comp=competizioni.find(c=>c.id===cid);
+    return comp&&comp.museo?tot+comp.museo.fm*getMolt(arr.length):tot;
+  },0);
+  document.getElementById('mm-title').textContent=sq.nome+' — MUSEO';
+  document.getElementById('mm-body').innerHTML=`

@@ -1,0 +1,581 @@
+  if(!prev) return;
+  if(url) prev.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover" onerror="this.parentElement.innerHTML='❌'">`;
+  else prev.innerHTML=giocatoreInModifica?iniziali(giocatoreInModifica.nome):'?';
+}
+
+function caricaFileInModifica(input){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    document.getElementById('edit-foto-url').value=e.target.result;
+    aggiornaPreviewFotoModifica(e.target.result);
+    // Aggiorna anche avatar nell'header
+    document.getElementById('edit-avatar').innerHTML=`<img src="${e.target.result}" style="width:52px;height:52px;object-fit:cover;border-radius:50%">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function tornaRicercaAdmin(){
+  giocatoreInModifica=null;
+  document.getElementById('modifica-step1').style.display='block';
+  document.getElementById('modifica-step2').style.display='none';
+  document.getElementById('search-giocatore-admin').value='';
+  document.getElementById('lista-giocatori-admin').innerHTML='';
+}
+
+function aggiornaFormContratto(){
+  const tipo=document.getElementById('edit-contratto').value;
+  document.getElementById('campi-prestito').style.display=tipo.includes('Prestito')?'block':'none';
+  document.getElementById('campo-riscatto').style.display=(tipo.includes('Diritto')||tipo.includes('Obbligo'))?'block':'none';
+  document.getElementById('campo-clausola').style.display=tipo.includes('Clausola')?'block':'none';
+}
+
+async function salvaModificaGiocatore(){
+  if(!giocatoreInModifica) return;
+  const btn=document.getElementById('btn-salva');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  const tipo=document.getElementById('edit-contratto').value;
+  const nuovoNome=document.getElementById('edit-nome').value.trim()||giocatoreInModifica.nome;
+  const nuovaFoto=document.getElementById('edit-foto-url').value.trim()||null;
+  const updates={
+    nome:nuovoNome,
+    foto_url:nuovaFoto,
+    ruolo:document.getElementById('edit-ruolo').value,
+    eta:parseInt(document.getElementById('edit-eta').value)||null,
+    data_nascita:document.getElementById('edit-data-nascita').value||null,
+    maglia:parseInt(document.getElementById('edit-maglia').value)||null,
+    club_reale:document.getElementById('edit-club-reale').value||null,
+    squadra_club:document.getElementById('edit-club-reale').value||null,
+    contratto:tipo,
+    squadra_propr:tipo.includes('Prestito')?document.getElementById('edit-squadra-propr').value||null:null,
+    scadenza:tipo.includes('Prestito')?document.getElementById('edit-scadenza').value||null:null,
+    riscatto:(tipo.includes('Diritto')||tipo.includes('Obbligo'))?parseFloat(document.getElementById('edit-riscatto').value)||null:null,
+    scadenza_riscatto:(tipo.includes('Diritto')||tipo.includes('Obbligo'))?document.getElementById('edit-scadenza-riscatto').value||null:null,
+    clausola:tipo.includes('Clausola')?parseFloat(document.getElementById('edit-clausola').value)||null:null,
+    rivendita:parseFloat(document.getElementById('edit-rivendita').value)||null,
+    quotazione:parseFloat(document.getElementById('edit-quotazione').value)||null,
+    stipendio:parseFloat(document.getElementById('edit-stipendio').value)||null,
+    badge:tipo.includes('Prestito')?'P':(giocatoreInModifica.badge==='C'||giocatoreInModifica.badge==='V'?giocatoreInModifica.badge:null),
+  };
+  try{
+    const{error}=await sb.from('giocatori').update(updates).eq('id',giocatoreInModifica.id);
+    if(error) throw error;
+    const idx=giocatoriDB.findIndex(g=>g.id===giocatoreInModifica.id);
+    if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updates};
+    showToast('✅ '+nuovoNome+' aggiornato!');
+    document.getElementById('modal-modifica').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  finally{btn.disabled=false;btn.textContent='💾 SALVA MODIFICHE';}
+}
+
+// ===== FOTO GIOCATORE =====
+function apriUploadFoto(){
+  giocatoreInFoto=null;fotoScelta=null;
+  document.getElementById('foto-step1').style.display='block';
+  document.getElementById('foto-step2').style.display='none';
+  document.getElementById('search-giocatore-foto').value='';
+  document.getElementById('lista-giocatori-foto').innerHTML='';
+  document.getElementById('modal-foto').classList.add('open');
+}
+
+function cercaGiocatoreFoto(val){
+  if(val.length<2){document.getElementById('lista-giocatori-foto').innerHTML='';return;}
+  const results=giocatoriDB.filter(g=>g.nome.toLowerCase().includes(val.toLowerCase())).slice(0,20);
+  document.getElementById('lista-giocatori-foto').innerHTML=results.map(g=>{
+    const sq=squadreDB.find(s=>s.id===g.squadra_id);
+    return `<div class="giocatore-search-item" onclick="selezionaGiocatoreFoto(${g.id})">
+      <div class="gsi-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div class="gsi-info"><div class="gsi-nome">${g.nome}</div><div class="gsi-sub">${sq?sq.nome:'—'} • ${g.ruolo}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function selezionaGiocatoreFoto(gId){
+  const g=giocatoriDB.find(x=>x.id===gId);
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  giocatoreInFoto=g;
+  document.getElementById('foto-step1').style.display='none';
+  document.getElementById('foto-step2').style.display='block';
+  document.getElementById('foto-avatar').innerHTML=g.foto_url?`<img src="${g.foto_url}" style="width:44px;height:44px;object-fit:cover;border-radius:50%">`:iniziali(g.nome);
+  document.getElementById('foto-nome-display').textContent=g.nome;
+  document.getElementById('foto-squadra-display').textContent=sq?sq.nome:'—';
+  document.getElementById('foto-preview-box').innerHTML=g.foto_url?`<img src="${g.foto_url}">` :'📷';
+  document.getElementById('foto-url-input').value=g.foto_url||'';
+  fotoScelta=null;
+}
+
+function tornaRicercaFoto(){
+  giocatoreInFoto=null;
+  document.getElementById('foto-step1').style.display='block';
+  document.getElementById('foto-step2').style.display='none';
+}
+
+function previewFoto(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{fotoScelta=e.target.result;document.getElementById('foto-preview-box').innerHTML=`<img src="${fotoScelta}">`;document.getElementById('foto-url-input').value='';};
+  reader.readAsDataURL(file);
+}
+
+function previewFotoUrl(url){
+  if(!url) return;fotoScelta=null;
+  document.getElementById('foto-preview-box').innerHTML=`<img src="${url}" onerror="this.parentElement.innerHTML='❌'">`;
+}
+
+async function salvaFoto(){
+  if(!giocatoreInFoto) return;
+  const fotoUrl=fotoScelta||document.getElementById('foto-url-input').value.trim()||null;
+  if(!fotoUrl){showToast('❌ Nessuna foto','error');return;}
+  const btn=document.getElementById('btn-salva-foto');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  try{
+    const{error}=await sb.from('giocatori').update({foto_url:fotoUrl}).eq('id',giocatoreInFoto.id);
+    if(error) throw error;
+    const idx=giocatoriDB.findIndex(g=>g.id===giocatoreInFoto.id);
+    if(idx>=0) giocatoriDB[idx].foto_url=fotoUrl;
+    showToast('📸 Foto salvata!');
+    document.getElementById('modal-foto').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  finally{btn.disabled=false;btn.textContent='📸 SALVA FOTO';}
+}
+
+// ===== LOGO + MAGLIA + NOME SQUADRA =====
+let magliaScelta=null;
+
+function zoomImmagine(url){
+  if(!url) return;
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out';
+  overlay.innerHTML=`<img src="${url}" style="max-width:92vw;max-height:92vh;object-fit:contain;border-radius:12px">`;
+  overlay.onclick=()=>document.body.removeChild(overlay);
+  document.body.appendChild(overlay);
+}
+
+function apriLogoSquadra(){
+  squadraInLogo=null;logoScelto=null;magliaScelta=null;
+  document.getElementById('logo-step1').style.display='block';
+  document.getElementById('logo-step2').style.display='none';
+  document.getElementById('lista-squadre-logo').innerHTML=squadreDB.map(sq=>`
+    <div class="squadra-search-item" onclick="selezionaSquadraLogo('${sq.id}')">
+      <div class="gsi-sq-logo" style="background:${sq.avatar_bg||'#333'}">${sq.logo_url?`<img src="${sq.logo_url}">`:sq.avatar||'⚽'}</div>
+      <div class="gsi-info"><div class="gsi-nome">${sq.nome}</div><div class="gsi-sub">👤 ${sq.owner_name||'—'}</div></div>
+    </div>`).join('');
+  document.getElementById('modal-logo').classList.add('open');
+}
+
+function selezionaSquadraLogo(sqId){
+  squadraInLogo=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('logo-step1').style.display='none';
+  document.getElementById('logo-step2').style.display='block';
+  document.getElementById('logo-sq-nome-display').textContent=squadraInLogo.nome;
+  document.getElementById('logo-nome-squadra').value=squadraInLogo.nome_squadra||squadraInLogo.nome||'';
+  const ps=document.getElementById('logo-preview-small');
+  ps.style.background=squadraInLogo.avatar_bg||'#333';
+  ps.innerHTML=squadraInLogo.logo_url?`<img src="${squadraInLogo.logo_url}">`:squadraInLogo.avatar||'⚽';
+  document.getElementById('logo-preview-box').innerHTML=squadraInLogo.logo_url?`<img src="${squadraInLogo.logo_url}">`:'🏟️';
+  document.getElementById('logo-url-input').value=squadraInLogo.logo_url||'';
+  document.getElementById('maglia-preview-box').innerHTML=squadraInLogo.maglia_url?`<img src="${squadraInLogo.maglia_url}" style="width:70px;height:70px;object-fit:contain">`:'👕';
+  document.getElementById('maglia-url-input').value=squadraInLogo.maglia_url||'';
+  logoScelto=null;magliaScelta=null;
+}
+
+function tornaSceltaSquadraLogo(){
+  squadraInLogo=null;
+  document.getElementById('logo-step1').style.display='block';
+  document.getElementById('logo-step2').style.display='none';
+}
+
+function previewLogo(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{logoScelto=e.target.result;document.getElementById('logo-preview-box').innerHTML=`<img src="${logoScelto}">`;document.getElementById('logo-url-input').value='';};
+  reader.readAsDataURL(file);
+}
+
+function previewLogoUrl(url){
+  if(!url) return;logoScelto=null;
+  document.getElementById('logo-preview-box').innerHTML=`<img src="${url}" onerror="this.parentElement.innerHTML='❌'">`;
+}
+
+function previewMaglia(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    magliaScelta=e.target.result;
+    document.getElementById('maglia-preview-box').innerHTML=`<img src="${magliaScelta}" style="width:70px;height:70px;object-fit:contain">`;
+    document.getElementById('maglia-url-input').value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewMagliaUrl(url){
+  if(!url) return;magliaScelta=null;
+  document.getElementById('maglia-preview-box').innerHTML=`<img src="${url}" style="width:70px;height:70px;object-fit:contain" onerror="this.parentElement.innerHTML='❌'">`;
+}
+
+async function salvaLogo(){
+  if(!squadraInLogo) return;
+  // Prendi nuovi valori — se campo vuoto mantieni quello esistente
+  const logoUrl=logoScelto||document.getElementById('logo-url-input').value.trim()||squadraInLogo.logo_url||null;
+  const magliaUrl=magliaScelta||document.getElementById('maglia-url-input').value.trim()||squadraInLogo.maglia_url||null;
+  const nomeInput=document.getElementById('logo-nome-squadra').value.trim();
+  const nomeSquadra=nomeInput||squadraInLogo.nome_squadra||null;
+  const btn=document.getElementById('btn-salva-logo');
+  btn.disabled=true;btn.textContent='⏳ Salvataggio...';
+  try{
+    const updates={};
+    if(logoUrl) updates.logo_url=logoUrl;
+    if(magliaUrl) updates.maglia_url=magliaUrl;
+    if(nomeSquadra) updates.nome_squadra=nomeSquadra;
+    const{error}=await sb.from('squadre').update(updates).eq('id',squadraInLogo.id);
+    if(error) throw error;
+    // Aggiorna DB locale
+    const idx=squadreDB.findIndex(s=>s.id===squadraInLogo.id);
+    if(idx>=0) squadreDB[idx]={...squadreDB[idx],...updates};
+    // Aggiorna utenteLoggato
+    if(utenteLoggato&&utenteLoggato.id===squadraInLogo.id) utenteLoggato={...utenteLoggato,...updates};
+    showToast('✅ Salvato!');
+    document.getElementById('modal-logo').classList.remove('open');
+    // Ricarica tutto con nuovi dati
+    renderOverview();
+    renderBannerMiaSquadra();
+  }catch(e){
+    showToast('❌ Errore: '+e.message,'error');
+  }
+  finally{btn.disabled=false;btn.textContent='💾 SALVA TUTTO';}
+}
+
+function selezionaSquadraLogo(sqId){
+  squadraInLogo=squadreDB.find(s=>s.id===sqId);
+  if(!squadraInLogo) return;
+  document.getElementById('logo-step1').style.display='none';
+  document.getElementById('logo-step2').style.display='block';
+  document.getElementById('logo-sq-nome-display').textContent=squadraInLogo.nome;
+  // Nome squadra
+  document.getElementById('logo-nome-squadra').value=squadraInLogo.nome_squadra||squadraInLogo.nome||'';
+  // Logo
+  const ps=document.getElementById('logo-preview-small');
+  ps.style.background=squadraInLogo.avatar_bg||'#333';
+  ps.innerHTML=squadraInLogo.logo_url?`<img src="${squadraInLogo.logo_url}">`:squadraInLogo.avatar||'⚽';
+  document.getElementById('logo-preview-box').innerHTML=squadraInLogo.logo_url?`<img src="${squadraInLogo.logo_url}">` :'🏟️';
+  document.getElementById('logo-url-input').value=squadraInLogo.logo_url||'';
+  // Maglia
+  const mb=document.getElementById('maglia-preview-box');
+  if(mb) mb.innerHTML=squadraInLogo.maglia_url?`<img src="${squadraInLogo.maglia_url}" style="width:70px;height:70px;object-fit:contain">`:'👕';
+  const mi=document.getElementById('maglia-url-input');
+  if(mi) mi.value=squadraInLogo.maglia_url||'';
+  logoScelto=null;
+  magliaScelta=null;
+}
+
+function tornaSceltaSquadraLogo(){
+  squadraInLogo=null;
+  document.getElementById('logo-step1').style.display='block';
+  document.getElementById('logo-step2').style.display='none';
+}
+
+function previewLogo(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{logoScelto=e.target.result;document.getElementById('logo-preview-box').innerHTML=`<img src="${logoScelto}">`;document.getElementById('logo-url-input').value='';};
+  reader.readAsDataURL(file);
+}
+
+function previewLogoUrl(url){
+  if(!url) return;logoScelto=null;
+  document.getElementById('logo-preview-box').innerHTML=`<img src="${url}" onerror="this.parentElement.innerHTML='❌'">`;
+}
+
+// ===== PRESIDENTI =====
+function apriFotoPresidente(){
+  squadraInPres=null;
+  document.getElementById('pres-step1').style.display='block';
+  document.getElementById('pres-step2').style.display='none';
+  document.getElementById('lista-squadre-pres').innerHTML=squadreDB.map(sq=>`
+    <div class="squadra-search-item" onclick="selezionaSquadraPres('${sq.id}')">
+      <div class="gsi-sq-logo" style="background:${sq.avatar_bg||'#333'}">${sq.logo_url?`<img src="${sq.logo_url}">`:sq.avatar||'⚽'}</div>
+      <div class="gsi-info"><div class="gsi-nome">${sq.nome}</div><div class="gsi-sub">👤 ${sq.owner_name||'—'}</div></div>
+    </div>`).join('');
+  document.getElementById('modal-presidente').classList.add('open');
+}
+
+function selezionaSquadraPres(sqId){
+  squadraInPres=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('pres-step1').style.display='none';
+  document.getElementById('pres-step2').style.display='block';
+  document.getElementById('pres-sq-nome-display').textContent=squadraInPres.nome;
+  renderPresidentiEditor();
+}
+
+function tornaSceltaSquadraPres(){
+  squadraInPres=null;
+  document.getElementById('pres-step1').style.display='block';
+  document.getElementById('pres-step2').style.display='none';
+}
+
+function renderPresidentiEditor(){
+  const presidenti=(squadraInPres.presidenti&&squadraInPres.presidenti.length)?squadraInPres.presidenti:[{nome:'',foto:''}];
+  document.getElementById('presidenti-editor').innerHTML=presidenti.map((p,i)=>`
+    <div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid var(--grigio-chiaro)">
+      <div style="font-size:11px;font-weight:700;color:var(--testo-dim);margin-bottom:10px">👑 PRESIDENTE ${i+1}</div>
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">
+        <div class="presidente-foto" id="pres-foto-preview-${i}" style="width:50px;height:50px;font-size:18px">${p.foto?`<img src="${p.foto}">`:((p.nome||'P').charAt(0).toUpperCase())}</div>
+        <div style="flex:1"><div class="form-group" style="margin-bottom:0"><label class="form-label">Nome</label><input class="form-input" type="text" id="pres-nome-${i}" value="${p.nome||''}" oninput="aggiornaNomePres(${i})"></div></div>
+      </div>
+      <div class="form-group" style="margin-bottom:8px"><label class="form-label">URL Foto</label><input class="form-input" type="url" id="pres-foto-${i}" value="${p.foto||''}" placeholder="https://..." oninput="aggiornaFotoPres(${i})"></div>
+      <div style="position:relative;margin-top:6px">
+        <input type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:1" onchange="caricaFotoPresidente(event,${i})">
+        <button class="btn-secondary" style="width:100%;pointer-events:none;font-size:12px;padding:8px">📁 Scegli dalla Galleria</button>
+      </div>
+    </div>`).join('')+`<button class="btn-secondary" onclick="aggiungiPresidente()" style="width:100%;margin-bottom:8px">+ Aggiungi Presidente</button>`;
+}
+
+function aggiornaNomePres(i){
+  const lettera=document.getElementById(`pres-nome-${i}`).value.charAt(0).toUpperCase()||'P';
+  const foto=document.getElementById(`pres-foto-${i}`).value;
+  document.getElementById(`pres-foto-preview-${i}`).innerHTML=foto?`<img src="${foto}">`:(lettera||'P');
+}
+
+function aggiornaFotoPres(i){
+  const url=document.getElementById(`pres-foto-${i}`).value;
+  const nome=document.getElementById(`pres-nome-${i}`).value;
+  document.getElementById(`pres-foto-preview-${i}`).innerHTML=url?`<img src="${url}" onerror="this.parentElement.innerHTML='${(nome||'P').charAt(0).toUpperCase()}'">`:(nome||'P').charAt(0).toUpperCase();
+}
+
+function caricaFotoPresidente(event,i){
+  const file=event.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    document.getElementById(`pres-foto-${i}`).value=e.target.result;
+    document.getElementById(`pres-foto-preview-${i}`).innerHTML=`<img src="${e.target.result}">`;
+  };
+  reader.readAsDataURL(file);
+}
+
+function aggiungiPresidente(){
+  if(!squadraInPres) return;
+  if(!squadraInPres.presidenti) squadraInPres.presidenti=[];
+  squadraInPres.presidenti.push({nome:'',foto:''});
+  renderPresidentiEditor();
+}
+
+async function salvaPresidenti(){
+  if(!squadraInPres) return;
+  const n=document.querySelectorAll('[id^="pres-nome-"]').length;
+  const presidenti=[];
+  for(let i=0;i<n;i++){
+    const nome=document.getElementById(`pres-nome-${i}`)?.value||'';
+    const foto=document.getElementById(`pres-foto-${i}`)?.value||'';
+    if(nome||foto) presidenti.push({nome,foto});
+  }
+  const btn=document.getElementById('btn-salva-pres');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  try{
+    const{error}=await sb.from('squadre').update({presidenti}).eq('id',squadraInPres.id);
+    if(error) throw error;
+    const idx=squadreDB.findIndex(s=>s.id===squadraInPres.id);
+    if(idx>=0) squadreDB[idx].presidenti=presidenti;
+    showToast('👑 Presidenti salvati!');
+    document.getElementById('modal-presidente').classList.remove('open');
+    if(squadraAttiva&&squadraAttiva.id===squadraInPres.id) apriSquadra(squadraInPres.id);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  finally{btn.disabled=false;btn.textContent='👑 SALVA PRESIDENTI';}
+}
+
+// ===== GESTIONE EMAIL =====
+function apriGestioneEmail(){
+  squadraInEmail=null;
+  document.getElementById('email-step1').style.display='block';
+  document.getElementById('email-step2').style.display='none';
+  document.getElementById('lista-squadre-email').innerHTML=squadreDB.map(sq=>`
+    <div class="squadra-search-item" onclick="selezionaSquadraEmail('${sq.id}')">
+      <div class="gsi-sq-logo" style="background:${sq.avatar_bg||'#333'}">${sq.logo_url?`<img src="${sq.logo_url}">`:sq.avatar||'⚽'}</div>
+      <div class="gsi-info"><div class="gsi-nome">${sq.nome}</div><div class="gsi-sub">${(sq.emails||[]).join(', ')||'Nessuna email'}</div></div>
+    </div>`).join('');
+  document.getElementById('modal-email').classList.add('open');
+}
+
+function selezionaSquadraEmail(sqId){
+  squadraInEmail=squadreDB.find(s=>s.id===sqId);
+  document.getElementById('email-step1').style.display='none';
+  document.getElementById('email-step2').style.display='block';
+  document.getElementById('email-sq-nome').textContent=squadraInEmail.nome;
+  document.getElementById('email-password').value=squadraInEmail.password_accesso||'';
+  renderEmailEditor();
+}
+
+function tornaSceltaSquadraEmail(){
+  squadraInEmail=null;
+  document.getElementById('email-step1').style.display='block';
+  document.getElementById('email-step2').style.display='none';
+}
+
+function renderEmailEditor(){
+  const emails=squadraInEmail.emails||[''];
+  document.getElementById('email-editor').innerHTML=emails.map((e,i)=>`
+    <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px">
+      <input class="form-input" type="email" id="email-val-${i}" value="${e}" placeholder="email@esempio.com">
+      <button onclick="rimuoviEmail(${i})" style="background:rgba(255,68,68,0.2);border:none;color:var(--rosso);border-radius:6px;padding:8px 12px;cursor:pointer">✕</button>
+    </div>`).join('')+`<button class="btn-secondary" onclick="aggiungiEmail()" style="width:100%;margin-top:4px;font-size:12px">+ Aggiungi Email</button>`;
+}
+
+function aggiungiEmail(){
+  if(!squadraInEmail.emails) squadraInEmail.emails=[];
+  squadraInEmail.emails.push('');
+  renderEmailEditor();
+}
+
+function rimuoviEmail(i){
+  squadraInEmail.emails.splice(i,1);
+  renderEmailEditor();
+}
+
+async function salvaEmail(){
+  if(!squadraInEmail) return;
+  // Raccogli tutti gli input email visibili
+  const inputs=document.querySelectorAll('[id^="email-val-"]');
+  const emails=[];
+  inputs.forEach(inp=>{
+    const v=inp.value.trim().toLowerCase();
+    if(v) emails.push(v);
+  });
+  const pwd=document.getElementById('email-password').value.trim();
+  if(!pwd){showToast('❌ Inserisci la password','error');return;}
+  const btn=document.getElementById('btn-salva-email');
+  btn.disabled=true;btn.textContent='Salvataggio...';
+  try{
+    // Usa cast esplicito per JSONB
+    const{error}=await sb.from('squadre')
+      .update({
+        emails: emails,           // array JS → Supabase lo serializza in JSONB
+        password_accesso: pwd
+      })
+      .eq('id',squadraInEmail.id);
+    if(error) throw error;
+    const idx=squadreDB.findIndex(s=>s.id===squadraInEmail.id);
+    if(idx>=0){
+      squadreDB[idx].emails=emails;
+      squadreDB[idx].password_accesso=pwd;
+    }
+    // Aggiorna anche l'utente loggato se è la sua squadra
+    if(utenteLoggato&&utenteLoggato.id===squadraInEmail.id){
+      utenteLoggato.emails=emails;
+      utenteLoggato.password_accesso=pwd;
+    }
+    showToast(`📧 ${emails.length} email salvate per ${squadraInEmail.nome}!`);
+    document.getElementById('modal-email').classList.remove('open');
+  }catch(e){
+    showToast('❌ Errore: '+e.message,'error');
+    console.error('Email save error:',e);
+  }
+  finally{btn.disabled=false;btn.textContent='💾 SALVA ACCESSI';}
+}
+
+// ===== NAVIGAZIONE =====
+async function entraApp(sezione){
+  document.getElementById('home').style.display='none';
+  document.getElementById('app').classList.add('show');
+  document.getElementById('user-nome').textContent=utenteLoggato?utenteLoggato.owner_name:'—';
+  if(adminLoggato) document.getElementById('admin-btn-header').style.display='block';
+  document.getElementById('quick-menu-btn').style.display='flex';
+  // Prima mostra rose con loading
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const roseEl=document.getElementById('section-rose');
+  if(roseEl) roseEl.classList.add('active');
+  document.getElementById('squadre-overview').innerHTML='<div class="loading"><div class="loading-spinner"></div>Caricamento squadre...</div>';
+  // Poi carica dati
+  const ok=await caricaDati();
+  if(ok){
+    renderOverview();
+    showToast('✅ Connesso!');
+  } else {
+    document.getElementById('squadre-overview').innerHTML='<div class="empty">❌ Errore connessione. Riprova.</div>';
+    return;
+  }
+  // Vai alla sezione richiesta
+  if(sezione && sezione!=='rose'){
+    const navBtn=document.querySelector(`.nav-btn[onclick*="'${sezione}'"]`);
+    showSection(sezione, navBtn);
+  } else {
+    const roseBtn=document.querySelector(`.nav-btn[onclick*="'rose'"]`);
+    if(roseBtn) roseBtn.classList.add('active');
+  }
+}
+
+function tornaHome(){
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('home').style.display='flex';
+  document.getElementById('home').classList.remove('hide');
+}
+
+let _sezioneAttiva='rose';
+
+function toggleMenuRapido(){
+  const menu=document.getElementById('quick-menu');
+  const overlay=document.getElementById('quick-menu-overlay');
+  const open=menu.style.display==='block';
+  menu.style.display=open?'none':'block';
+  overlay.style.display=open?'none':'block';
+}
+function chiudiMenuRapido(){
+  document.getElementById('quick-menu').style.display='none';
+  document.getElementById('quick-menu-overlay').style.display='none';
+}
+
+function showSection(nome,btn){
+  _sezioneAttiva=nome;
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  // Fix admin: nascondi contenuto quando esci
+  if(nome!=='admin'){
+    const ac=document.getElementById('admin-content');
+    const ap=document.getElementById('admin-password-screen');
+    if(ac) ac.style.display='none';
+    if(ap) ap.style.display='none';
+  }
+  const el=document.getElementById('section-'+nome);
+  if(!el) return;
+  el.classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  else{
+    const nb=document.querySelector(`.nav-btn[onclick*="'${nome}'"]`);
+    if(nb) nb.classList.add('active');
+  }
+  if(nome==='tifosi') renderTifosi();
+  else if(nome==='competizioni') renderCompetizioni();
+  else if(nome==='museo') renderMuseo();
+  else if(nome==='mercato') renderTrattative();
+  else if(nome==='classifica') renderClassifica();
+  else if(nome==='social') renderSocial();
+  else if(nome==='rose'){
+    const lista=document.getElementById('lista-squadre');
+    const pagina=document.getElementById('pagina-squadra');
+    if(lista) lista.style.display='block';
+    if(pagina) pagina.style.display='none';
+    renderOverview();
+  }
+}
+
+
+
+// ===== SOCIAL MANAGER =====
+let socialPostsDB=[];
+let socialLikesDB={}; // post_id → array of squadra_id
+let socialTabAttivo='feed';
+
+// Follower guadagnati per tipo post
+const FOLLOWER_FOTO=30;         // per ogni foto (max 3/sett)
+const FOLLOWER_INTERVISTA_5=60; // intervista completa 5 domande
+const FOLLOWER_INTERVISTA_3=50; // intervista min 3 domande
+const FOLLOWER_LIKE_DATO=3;     // dai un like
+const FOLLOWER_LIKE_RICEVUTO=5; // ricevi un like
+const FOLLOWER_COMMENTO_DATO=5;
+const FOLLOWER_COMMENTO_RICEVUTO=10;

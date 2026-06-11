@@ -1,0 +1,251 @@
+  const color=m&&n>=m?'var(--rosso)':'var(--verde)';
+  document.getElementById('nuovo-rosa-count').innerHTML=
+    `<span style="color:${color}">${label}: ${n}${m?'/'+m:''} giocatori</span>`;
+}
+
+async function salvaNuovoGiocatore(){
+  const sqId=document.getElementById('nuovo-squadra-id').value;
+  const nome=document.getElementById('nuovo-nome').value.trim();
+  if(!sqId){showToast('❌ Seleziona una squadra','error');return;}
+  if(!nome){showToast('❌ Inserisci il nome','error');return;}
+  const lista=document.getElementById('nuovo-lista').value;
+  const max={principale:25,marginale:14};
+  const n=giocatoriDB.filter(g=>g.squadra_id===sqId&&g.lista===lista).length;
+  if(max[lista]&&n>=max[lista]){showToast(`❌ Rosa ${lista} piena (max ${max[lista]})!`,'error');return;}
+  const nuovoG={
+    nome,squadra_id:sqId,lista,
+    ruolo:document.getElementById('nuovo-ruolo').value,
+    maglia:parseInt(document.getElementById('nuovo-maglia').value)||null,
+    eta:parseInt(document.getElementById('nuovo-eta').value)||null,
+    data_nascita:document.getElementById('nuovo-data-nascita').value||null,
+    club_reale:document.getElementById('nuovo-club').value||null,
+    squadra_club:document.getElementById('nuovo-club').value||null,
+    quotazione:parseFloat(document.getElementById('nuovo-quotazione').value)||null,
+    stipendio:parseFloat(document.getElementById('nuovo-stipendio').value)||null,
+    contratto:document.getElementById('nuovo-contratto').value,
+    foto_url:document.getElementById('nuovo-foto').value||null,
+    gol:0,assist:0,presenze:0,promosso:false,
+  };
+  try{
+    const{data,error}=await sb.from('giocatori').insert(nuovoG).select();
+    if(error) throw error;
+    giocatoriDB.push(data[0]);
+    const sq=squadreDB.find(s=>s.id===sqId);
+    showToast(`✅ ${nome} aggiunto alla ${lista} di ${sq?.nome||''}!`);
+    document.getElementById('modal-nuovo-giocatore').classList.remove('open');
+    if(squadraAttiva&&squadraAttiva.id===sqId) renderRosa(tabAttivoSq);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+}
+
+// ===== SPOSTA GIOCATORE =====
+let giocatoreDaSpostare=null;
+
+function apriSpostaGiocatore(){
+  giocatoreDaSpostare=null;
+  document.getElementById('sposta-step1').style.display='block';
+  document.getElementById('sposta-step2').style.display='none';
+  document.getElementById('sposta-search').value='';
+  document.getElementById('sposta-lista').innerHTML='';
+  const sel=document.getElementById('sposta-squadra-id');
+  sel.innerHTML='<option value="">— Lascia nella stessa squadra —</option>'+
+    squadreDB.map(s=>`<option value="${s.id}">${s.nome} (${s.owner_name})</option>`).join('');
+  document.getElementById('modal-sposta').classList.add('open');
+}
+
+function cercaGiocatoreSposta(val){
+  if(val.length<2){document.getElementById('sposta-lista').innerHTML='';return;}
+  const results=giocatoriDB.filter(g=>g.nome.toLowerCase().includes(val.toLowerCase())).slice(0,15);
+  document.getElementById('sposta-lista').innerHTML=results.map(g=>{
+    const sq=squadreDB.find(s=>s.id===g.squadra_id);
+    return`<div class="giocatore-search-item" onclick="selezionaGiocatoreSposta(${g.id})">
+      <div class="gsi-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
+      <div class="gsi-info">
+        <div class="gsi-nome">${g.nome}</div>
+        <div class="gsi-sub">${sq?sq.nome:'—'} • ${g.ruolo} • ${g.lista||'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function selezionaGiocatoreSposta(gId){
+  const g=giocatoriDB.find(x=>x.id===gId);
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  giocatoreDaSpostare=g;
+  document.getElementById('sposta-step1').style.display='none';
+  document.getElementById('sposta-step2').style.display='block';
+  document.getElementById('sposta-avatar').innerHTML=g.foto_url?
+    `<img src="${g.foto_url}" style="width:44px;height:44px;object-fit:cover;border-radius:50%">`:iniziali(g.nome);
+  document.getElementById('sposta-nome').textContent=g.nome;
+  document.getElementById('sposta-info-attuale').textContent=
+    `${sq?sq.nome:'—'} • ${g.ruolo} • Lista attuale: ${g.lista||'—'}`;
+  document.getElementById('sposta-squadra-id').value=g.squadra_id||'';
+  document.getElementById('sposta-lista').innerHTML=`
+    <option value="principale" ${g.lista==='principale'?'selected':''}>🟢 Principale</option>
+    <option value="marginale" ${g.lista==='marginale'?'selected':''}>🟡 Marginale</option>
+    <option value="primavera" ${g.lista==='primavera'?'selected':''}>🔵 Primavera</option>`;
+  aggiornaCountSposta();
+}
+
+function tornaSpostaStep1(){
+  giocatoreDaSpostare=null;
+  document.getElementById('sposta-step1').style.display='block';
+  document.getElementById('sposta-step2').style.display='none';
+  document.getElementById('sposta-search').value='';
+  document.getElementById('sposta-lista').innerHTML='';
+}
+
+function aggiornaCountSposta(){
+  const sqId=document.getElementById('sposta-squadra-id').value||
+    (giocatoreDaSpostare?giocatoreDaSpostare.squadra_id:'');
+  const listaEl=document.getElementById('sposta-lista');
+  const lista=listaEl?listaEl.value:'principale';
+  if(!sqId){document.getElementById('sposta-count').textContent='';return;}
+  const max={principale:25,marginale:14};
+  const n=giocatoriDB.filter(g=>g.squadra_id===sqId&&g.lista===lista&&
+    (!giocatoreDaSpostare||g.id!==giocatoreDaSpostare.id)).length;
+  const m=max[lista];
+  const color=m&&n>=m?'var(--rosso)':'var(--verde)';
+  document.getElementById('sposta-count').innerHTML=m?
+    `<span style="color:${color}">${lista.charAt(0).toUpperCase()+lista.slice(1)}: ${n}/${m} (dopo spostamento)</span>`:'';
+}
+
+async function salvaSposta(){
+  if(!giocatoreDaSpostare){showToast('❌ Nessun giocatore selezionato','error');return;}
+  const nuovaSqId=document.getElementById('sposta-squadra-id').value||giocatoreDaSpostare.squadra_id;
+  const nuovaLista=document.getElementById('sposta-lista').value;
+  const max={principale:25,marginale:14};
+  const n=giocatoriDB.filter(g=>g.squadra_id===nuovaSqId&&g.lista===nuovaLista&&g.id!==giocatoreDaSpostare.id).length;
+  if(max[nuovaLista]&&n>=max[nuovaLista]){
+    showToast(`❌ Rosa ${nuovaLista} piena (max ${max[nuovaLista]})!`,'error');return;
+  }
+  const updates={squadra_id:nuovaSqId,lista:nuovaLista};
+  try{
+    const{error}=await sb.from('giocatori').update(updates).eq('id',giocatoreDaSpostare.id);
+    if(error) throw error;
+    const idx=giocatoriDB.findIndex(x=>x.id===giocatoreDaSpostare.id);
+    if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updates};
+    const sq=squadreDB.find(s=>s.id===nuovaSqId);
+    showToast(`✅ ${giocatoreDaSpostare.nome} → ${nuovaLista} di ${sq?.nome||''}!`);
+    document.getElementById('modal-sposta').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+}
+
+let svincolatiCaricati=false;
+function switchTabRose(tab){
+  const sqDiv=document.getElementById('rose-tab-squadre');
+  const svDiv=document.getElementById('rose-tab-svincolati');
+  const btnSq=document.getElementById('tab-rose-squadre');
+  const btnSv=document.getElementById('tab-rose-svincolati');
+  if(tab==='squadre'){
+    sqDiv.style.display='block';svDiv.style.display='none';
+    btnSq.style.cssText='background:var(--verde);color:var(--nero);font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer';
+    btnSv.style.cssText='background:var(--grigio-medio);color:var(--testo);font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer';
+  }else{
+    sqDiv.style.display='none';svDiv.style.display='block';
+    btnSv.style.cssText='background:var(--verde);color:var(--nero);font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer';
+    btnSq.style.cssText='background:var(--grigio-medio);color:var(--testo);font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer';
+    if(!svincolatiCaricati) caricaSvincolati();
+  }
+}
+
+// ===== SVINCOLATI =====
+let svincolatiDB=[],svincolatiFiltrati=[];
+const SERIE_A_BASE=[
+  {nome:'Lookman',ruolo:'A',club:'Atalanta'},{nome:'Retegui',ruolo:'A',club:'Atalanta'},{nome:'De Ketelaere',ruolo:'A',club:'Atalanta'},{nome:'Kolasinac',ruolo:'D',club:'Atalanta'},{nome:'Toloi',ruolo:'D',club:'Atalanta'},{nome:'Hateboer',ruolo:'D',club:'Atalanta'},{nome:'Ruggeri',ruolo:'D',club:'Atalanta'},{nome:'Samardzic',ruolo:'C',club:'Atalanta'},{nome:'Kossounou',ruolo:'D',club:'Atalanta'},{nome:'Carnesecchi',ruolo:'P',club:'Atalanta'},{nome:'Bellanova',ruolo:'D',club:'Atalanta'},
+  {nome:'Orsolini',ruolo:'A',club:'Bologna'},{nome:'Ndoye',ruolo:'A',club:'Bologna'},{nome:'Dallinga',ruolo:'A',club:'Bologna'},{nome:'Odgaard',ruolo:'C',club:'Bologna'},{nome:'Freuler',ruolo:'C',club:'Bologna'},{nome:'Fabbian',ruolo:'C',club:'Bologna'},{nome:'Lucumi',ruolo:'D',club:'Bologna'},{nome:'Beukema',ruolo:'D',club:'Bologna'},{nome:'Skorupski',ruolo:'P',club:'Bologna'},
+  {nome:'Luvumbo',ruolo:'A',club:'Cagliari'},{nome:'Piccoli',ruolo:'A',club:'Cagliari'},{nome:'Gaetano',ruolo:'C',club:'Cagliari'},{nome:'Prati',ruolo:'C',club:'Cagliari'},{nome:'Luperto',ruolo:'D',club:'Cagliari'},{nome:'Lapadula',ruolo:'A',club:'Cagliari'},{nome:'Scuffet',ruolo:'P',club:'Cagliari'},
+  {nome:'Nico Paz',ruolo:'C',club:'Como'},{nome:'Diao',ruolo:'A',club:'Como'},{nome:'Cutrone',ruolo:'A',club:'Como'},{nome:'Goldaniga',ruolo:'D',club:'Como'},{nome:'Smolcic',ruolo:'D',club:'Como'},{nome:'Reina',ruolo:'P',club:'Como'},
+  {nome:'Esposito S.',ruolo:'A',club:'Empoli'},{nome:'Solbakken',ruolo:'A',club:'Empoli'},{nome:'Anjorin',ruolo:'C',club:'Empoli'},{nome:'Maleh',ruolo:'C',club:'Empoli'},{nome:'Ismajli',ruolo:'D',club:'Empoli'},{nome:'Goglichidze',ruolo:'D',club:'Empoli'},
+  {nome:'Kean',ruolo:'A',club:'Fiorentina'},{nome:'Beltran',ruolo:'A',club:'Fiorentina'},{nome:'Colpani',ruolo:'A',club:'Fiorentina'},{nome:'Adli',ruolo:'C',club:'Fiorentina'},{nome:'Bove',ruolo:'C',club:'Fiorentina'},{nome:'Cataldi',ruolo:'C',club:'Fiorentina'},{nome:'Comuzzo',ruolo:'D',club:'Fiorentina'},{nome:'De Gea',ruolo:'P',club:'Fiorentina'},
+  {nome:'Vitinha',ruolo:'A',club:'Genoa'},{nome:'Pinamonti',ruolo:'A',club:'Genoa'},{nome:'Malinovskyi',ruolo:'C',club:'Genoa'},{nome:'Thorsby',ruolo:'C',club:'Genoa'},{nome:'Vasquez',ruolo:'D',club:'Genoa'},{nome:'De Winter',ruolo:'D',club:'Genoa'},
+  {nome:'Lautaro Martinez',ruolo:'A',club:'Inter'},{nome:'Thuram M.',ruolo:'A',club:'Inter'},{nome:'Taremi',ruolo:'A',club:'Inter'},{nome:'Mkhitaryan',ruolo:'C',club:'Inter'},{nome:'Asllani',ruolo:'C',club:'Inter'},{nome:'Zielinski',ruolo:'C',club:'Inter'},{nome:'Bastoni',ruolo:'D',club:'Inter'},{nome:'Acerbi',ruolo:'D',club:'Inter'},{nome:'Pavard',ruolo:'D',club:'Inter'},{nome:'Darmian',ruolo:'D',club:'Inter'},{nome:'Sommer',ruolo:'P',club:'Inter'},
+  {nome:'Vlahovic',ruolo:'A',club:'Juventus'},{nome:'Yildiz',ruolo:'A',club:'Juventus'},{nome:'Conceicao',ruolo:'A',club:'Juventus'},{nome:'McKennie',ruolo:'C',club:'Juventus'},{nome:'Locatelli',ruolo:'C',club:'Juventus'},{nome:'Douglas Luiz',ruolo:'C',club:'Juventus'},{nome:'Bremer',ruolo:'D',club:'Juventus'},{nome:'Gatti',ruolo:'D',club:'Juventus'},{nome:'Savona',ruolo:'D',club:'Juventus'},{nome:'Di Gregorio',ruolo:'P',club:'Juventus'},
+  {nome:'Castellanos',ruolo:'A',club:'Lazio'},{nome:'Isaksen',ruolo:'A',club:'Lazio'},{nome:'Guendouzi',ruolo:'C',club:'Lazio'},{nome:'Rovella',ruolo:'C',club:'Lazio'},{nome:'Dele-Bashiru',ruolo:'C',club:'Lazio'},{nome:'Romagnoli',ruolo:'D',club:'Lazio'},{nome:'Gila',ruolo:'D',club:'Lazio'},{nome:'Marusic',ruolo:'D',club:'Lazio'},{nome:'Provedel',ruolo:'P',club:'Lazio'},
+  {nome:'Krstovic',ruolo:'A',club:'Lecce'},{nome:'Banda',ruolo:'A',club:'Lecce'},{nome:'Oudin',ruolo:'C',club:'Lecce'},{nome:'Ramadani',ruolo:'C',club:'Lecce'},{nome:'Baschirotto',ruolo:'D',club:'Lecce'},{nome:'Gendrey',ruolo:'D',club:'Lecce'},{nome:'Falcone',ruolo:'P',club:'Lecce'},
+  {nome:'Leao',ruolo:'A',club:'Milan'},{nome:'Morata',ruolo:'A',club:'Milan'},{nome:'Abraham',ruolo:'A',club:'Milan'},{nome:'Reijnders',ruolo:'C',club:'Milan'},{nome:'Fofana',ruolo:'C',club:'Milan'},{nome:'Theo Hernandez',ruolo:'D',club:'Milan'},{nome:'Gabbia',ruolo:'D',club:'Milan'},{nome:'Tomori',ruolo:'D',club:'Milan'},{nome:'Maignan',ruolo:'P',club:'Milan'},
+  {nome:'Maldini D.',ruolo:'A',club:'Monza'},{nome:'Djuric',ruolo:'A',club:'Monza'},{nome:'Caprari',ruolo:'A',club:'Monza'},{nome:'Pessina',ruolo:'C',club:'Monza'},{nome:'Bondo',ruolo:'C',club:'Monza'},{nome:'Izzo',ruolo:'D',club:'Monza'},
+  {nome:'Lukaku',ruolo:'A',club:'Napoli'},{nome:'Politano',ruolo:'A',club:'Napoli'},{nome:'Neres',ruolo:'A',club:'Napoli'},{nome:'McTominay',ruolo:'C',club:'Napoli'},{nome:'Anguissa',ruolo:'C',club:'Napoli'},{nome:'Lobotka',ruolo:'C',club:'Napoli'},{nome:'Di Lorenzo',ruolo:'D',club:'Napoli'},{nome:'Rrahmani',ruolo:'D',club:'Napoli'},{nome:'Meret',ruolo:'P',club:'Napoli'},
+  {nome:'Bonny',ruolo:'A',club:'Parma'},{nome:'Man',ruolo:'A',club:'Parma'},{nome:'Mihaila',ruolo:'A',club:'Parma'},{nome:'Bernabe',ruolo:'C',club:'Parma'},{nome:'Hernani',ruolo:'C',club:'Parma'},{nome:'Delprato',ruolo:'D',club:'Parma'},{nome:'Circati',ruolo:'D',club:'Parma'},
+  {nome:'Dovbyk',ruolo:'A',club:'Roma'},{nome:'Dybala',ruolo:'A',club:'Roma'},{nome:'Saelemaekers',ruolo:'A',club:'Roma'},{nome:'Pellegrini',ruolo:'C',club:'Roma'},{nome:'Cristante',ruolo:'C',club:'Roma'},{nome:'Mancini G.',ruolo:'D',club:'Roma'},{nome:'Ndicka',ruolo:'D',club:'Roma'},{nome:'Angelino',ruolo:'D',club:'Roma'},{nome:'Svilar',ruolo:'P',club:'Roma'},
+  {nome:'Adams',ruolo:'A',club:'Torino'},{nome:'Sanabria',ruolo:'A',club:'Torino'},{nome:'Ilic',ruolo:'C',club:'Torino'},{nome:'Linetty',ruolo:'C',club:'Torino'},{nome:'Coco',ruolo:'D',club:'Torino'},{nome:'Vojvoda',ruolo:'D',club:'Torino'},{nome:'Milinkovic-Savic V.',ruolo:'P',club:'Torino'},
+  {nome:'Lucca',ruolo:'A',club:'Udinese'},{nome:'Thauvin',ruolo:'A',club:'Udinese'},{nome:'Davis',ruolo:'A',club:'Udinese'},{nome:'Lovric',ruolo:'C',club:'Udinese'},{nome:'Payero',ruolo:'C',club:'Udinese'},{nome:'Bijol',ruolo:'D',club:'Udinese'},{nome:'Okoye',ruolo:'P',club:'Udinese'},
+  {nome:'Pohjanpalo',ruolo:'A',club:'Venezia'},{nome:'Oristanio',ruolo:'A',club:'Venezia'},{nome:'Busio',ruolo:'C',club:'Venezia'},{nome:'Idzes',ruolo:'D',club:'Venezia'},{nome:'Joronen',ruolo:'P',club:'Venezia'},
+  {nome:'Tengstedt',ruolo:'A',club:'Verona'},{nome:'Suslov',ruolo:'A',club:'Verona'},{nome:'Belahyane',ruolo:'C',club:'Verona'},{nome:'Serdar',ruolo:'C',club:'Verona'},{nome:'Magnani',ruolo:'D',club:'Verona'},{nome:'Dawidowicz',ruolo:'D',club:'Verona'},
+];
+
+function mapRuolo(pos){
+  if(!pos) return '—';
+  pos=pos.toLowerCase();
+  if(pos.includes('goalkeeper')) return 'P';
+  if(pos.includes('defender')) return 'D';
+  if(pos.includes('midfielder')) return 'C';
+  if(pos.includes('attacker')||pos.includes('forward')) return 'A';
+  return '—';
+}
+
+async function caricaSvincolati(){
+  svincolatiCaricati=true;
+  const grid=document.getElementById('svincolati-grid');
+  if(grid) grid.innerHTML='<div class="loading"><div class="loading-spinner"></div>Elaborazione...</div>';
+
+  const nomiNelleRose=new Set(
+    giocatoriDB.filter(g=>g.squadra_id&&g.lista!=='svincolato').map(g=>g.nome.toLowerCase().trim())
+  );
+
+  // Carica prima gli svincolati dal DB (lista='svincolato')
+  const svincolatiNelDB=giocatoriDB.filter(g=>
+    (!g.squadra_id||g.lista==='svincolato')&&g.nome
+  ).map(g=>({
+    nome:g.nome, ruolo:g.ruolo||'—', club:g.club_reale||null,
+    eta:g.eta||null, foto:g.foto_url||null,
+    quotazione:g.quotazione||null, stipendio:g.stipendio||null,
+    dbId:g.id, // id nel DB, usato per rimuovere
+    daDB:true,
+  }));
+
+  // Dataset base hardcoded (solo chi NON è già nelle rose E non è già nel DB)
+  const nomiNelDB=new Set(svincolatiNelDB.map(p=>p.nome.toLowerCase()));
+  const svincolatiBase=SERIE_A_BASE.filter(p=>{
+    const nL=p.nome.toLowerCase();
+    if(nomiNelDB.has(nL)) return false; // già nel DB
+    return ![...nomiNelleRose].some(r=>r===nL||
+      (r.split(' ')[0]===nL.split(' ')[0]&&nL.length>4));
+  });
+
+  svincolatiDB=[...svincolatiNelDB, ...svincolatiBase];
+
+  // Prova arricchimento API (silenzioso)
+  try{
+    const res=await fetch('https://v3.football.api-sports.io/players?league=135&season=2024&page=1',
+      {headers:{'x-rapidapi-key':RAPIDAPI_KEY,'x-rapidapi-host':'v3.football.api-sports.io'}});
+    if(res.ok){
+      const data=await res.json();
+      if(data?.response?.length){
+        const nomiBase=new Set(svincolatiDB.map(p=>p.nome.toLowerCase()));
+        data.response.forEach(p=>{
+          const nome=p.player?.name;
+          if(!nome||nomiBase.has(nome.toLowerCase())) return;
+          if([...nomiNelleRose].some(r=>r===nome.toLowerCase())) return;
+          svincolatiDB.push({nome,ruolo:mapRuolo(p.statistics?.[0]?.games?.position),
+            club:p.statistics?.[0]?.team?.name, eta:p.player?.age,
+            foto:p.player?.photo});
+        });
+      }
+    }
+  }catch(e){}
+
+  const squadreUniche=[...new Set(svincolatiDB.map(p=>p.club).filter(Boolean))].sort();
+  const sel=document.getElementById('svincola-squadra');
+  if(sel) sel.innerHTML='<option value="">Tutte le squadre</option>'+
+    squadreUniche.map(s=>`<option value="${s}">${s}</option>`).join('');
+  filtraSvincolati();
+}
+
+function filtraSvincolati(val){
+  const search=(val||document.getElementById('svincola-search')?.value||'').toLowerCase();
+  const ruolo=document.getElementById('svincola-ruolo')?.value||'';
+  const squadra=document.getElementById('svincola-squadra')?.value||'';
+  svincolatiFiltrati=svincolatiDB.filter(p=>{
+    if(search&&!p.nome.toLowerCase().includes(search)) return false;
+    if(ruolo&&p.ruolo!==ruolo) return false;

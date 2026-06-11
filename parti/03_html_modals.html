@@ -1,0 +1,555 @@
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-giocatore" onclick="closeModal('modal-giocatore',event)">
+  <div class="modal" style="border-color:var(--verde)">
+    <div class="modal-header">
+      <div class="modal-title" id="mg-title">SCHEDA GIOCATORE</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="mg-edit-btn" style="display:none;background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:6px 12px;border-radius:8px;border:none;cursor:pointer" onclick="apriModificaDaScheda()">✏️ MODIFICA</button>
+        <button id="mg-trattativa-btn" style="display:none;background:var(--blu);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:6px 12px;border-radius:8px;border:none;cursor:pointer" onclick="apriTrattativaDaScheda()">🔄 TRATTATIVA</button>
+        <button class="modal-close" onclick="document.getElementById('modal-giocatore').classList.remove('open')">×</button>
+      </div>
+    </div>
+    <div id="mg-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-tifosi" onclick="closeModal('modal-tifosi',event)">
+  <div class="modal" style="border-color:var(--blu)">
+    <div class="modal-header"><div class="modal-title" id="mt-title" style="color:var(--blu)">STORICO TIFOSI</div><button class="modal-close" onclick="document.getElementById('modal-tifosi').classList.remove('open')">×</button></div>
+    <div id="mt-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-museo" onclick="closeModal('modal-museo',event)">
+  <div class="modal" style="border-color:var(--oro)">
+    <div class="modal-header"><div class="modal-title" id="mm-title" style="color:var(--oro)">MUSEO</div><button class="modal-close" onclick="document.getElementById('modal-museo').classList.remove('open')">×</button></div>
+    <div id="mm-body"></div>
+  </div>
+</div>
+
+<!-- MODAL TRATTATIVA -->
+<div class="modal-overlay" id="modal-trattativa" onclick="closeModal('modal-trattativa',event)">
+  <div class="modal" style="border-color:var(--blu);max-width:580px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--blu)">🔄 NUOVA TRATTATIVA</div><button class="modal-close" onclick="document.getElementById('modal-trattativa').classList.remove('open')">×</button></div>
+    <div style="padding:20px" id="trattativa-form">
+
+      <!-- GIOCATORE TARGET -->
+      <div id="trattativa-giocatore-info" style="display:none;background:var(--grigio-scuro);border-radius:10px;padding:12px;margin-bottom:16px;align-items:center;gap:10px">
+        <div class="gsi-avatar" id="trat-avatar"></div>
+        <div><div id="trat-nome" style="font-family:'Bebas Neue',sans-serif;font-size:16px"></div><div id="trat-squadra" style="font-size:11px;color:var(--testo-dim)"></div></div>
+      </div>
+
+      <!-- TIPO -->
+      <div class="form-group">
+        <label class="form-label">Tipo Trattativa</label>
+        <select class="form-select" id="trat-tipo" onchange="aggiornaCampiTrattativa()">
+          <option value="Titolo Definitivo">💰 Titolo Definitivo</option>
+          <option value="Titolo Definitivo con Clausola Recompra">🔒 Titolo Definitivo + Clausola Recompra</option>
+          <option value="Scambio">🔄 Scambio (1 o più giocatori)</option>
+          <option value="Prestito Secco">🤝 Prestito Secco</option>
+          <option value="Prestito con Diritto di Riscatto">🔓 Prestito con Diritto di Riscatto</option>
+          <option value="Prestito con Diritto che diventa Obbligo">⚡ Prestito: Diritto → Obbligo con Condizioni</option>
+          <option value="Prestito con Obbligo di Riscatto">🔒 Prestito con Obbligo di Riscatto</option>
+        </select>
+      </div>
+
+      <!-- CASH -->
+      <div id="campo-importo">
+        <div class="form-group"><label class="form-label">Importo (FM)</label><input class="form-input" type="number" id="trat-importo" placeholder="Es. 15000000" step="100000"></div>
+      </div>
+
+      <!-- SCAMBIO MULTIPLO BIDIREZIONALE -->
+      <div id="campo-scambio" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <!-- I MIEI -->
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--verde);margin-bottom:6px">I MIEI CHE OFFRO</div>
+            <div id="trat-miei-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--grigio-chiaro);border-radius:8px"></div>
+            <div style="font-size:10px;color:var(--testo-dim);margin-top:4px">Selezionati: <span id="miei-count" style="color:var(--verde)">0</span></div>
+          </div>
+          <!-- SUOI -->
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--blu);margin-bottom:6px">SUOI CHE VOGLIO</div>
+            <div id="trat-suoi-lista" style="max-height:200px;overflow-y:auto;border:1px solid var(--grigio-chiaro);border-radius:8px"></div>
+            <div style="font-size:10px;color:var(--testo-dim);margin-top:4px">Selezionati: <span id="suoi-count" style="color:var(--blu)">0</span></div>
+          </div>
+        </div>
+        <div style="background:var(--grigio-scuro);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--testo-dim)">
+          💡 Puoi selezionare più giocatori da entrambe le parti. Es: 2 tuoi per 3 suoi.
+        </div>
+        <div class="form-group"><label class="form-label">Conguaglio aggiuntivo (FM, opzionale)</label><input class="form-input" type="number" id="trat-conguaglio" placeholder="0 se scambio puro" step="100000"></div>
+      </div>
+
+      <!-- PRESTITO -->
+      <div id="campo-prestito-trat" style="display:none">
+        <div class="form-group"><label class="form-label">Scadenza Prestito</label><input class="form-input" type="date" id="trat-scadenza-prestito"></div>
+      </div>
+
+      <!-- RISCATTO (diritto/obbligo) -->
+      <div id="campo-riscatto-trat" style="display:none">
+        <div class="form-group"><label class="form-label">Importo Riscatto (FM)</label><input class="form-input" type="number" id="trat-importo-riscatto" step="100000"></div>
+        <div class="form-group"><label class="form-label">Scadenza Esercizio Riscatto</label><input class="form-input" type="date" id="trat-scadenza-riscatto"></div>
+      </div>
+
+      <!-- CONDIZIONI OBBLIGO (diritto → obbligo) -->
+      <div id="campo-condizioni-obbligo" style="display:none">
+        <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--oro);letter-spacing:1px;margin-bottom:10px">⚡ CONDIZIONI CHE TRASFORMANO IN OBBLIGO</div>
+          <div style="font-size:12px;color:var(--testo-dim);margin-bottom:12px">Il prestito diventa obbligo di acquisto al verificarsi di UNA di queste condizioni (compilare solo quelle che si vogliono attivare):</div>
+
+          <div class="form-group"><label class="form-label" style="color:var(--testo-dim)">Dopo tot. Presenze</label>
+            <input class="form-input" type="number" id="cond-presenze" placeholder="Es. 10 (0 = non attiva)" min="0" step="1"></div>
+
+          <div class="form-group"><label class="form-label" style="color:var(--testo-dim)">Dopo tot. Gol</label>
+            <input class="form-input" type="number" id="cond-gol" placeholder="Es. 5 (0 = non attiva)" min="0" step="1"></div>
+
+          <div class="form-group"><label class="form-label" style="color:var(--testo-dim)">Dopo tot. Assist</label>
+            <input class="form-input" type="number" id="cond-assist" placeholder="Es. 5 (0 = non attiva)" min="0" step="1"></div>
+
+          <div class="form-group"><label class="form-label" style="color:var(--testo-dim)">Se la squadra finisce tra le prime N in campionato</label>
+            <input class="form-input" type="number" id="cond-classifica" placeholder="Es. 4 = top 4 (0 = non attiva)" min="0" max="12" step="1"></div>
+
+          <div style="font-size:11px;color:var(--testo-dim);margin-top:8px">💡 Es: 10 presenze O 5 gol O top 4 → scatta l'obbligo con la prima condizione verificata</div>
+        </div>
+
+        <div class="form-group"><label class="form-label">Importo Riscatto/Obbligo (FM)</label><input class="form-input" type="number" id="trat-importo-riscatto-cond" step="100000" placeholder="Importo da pagare se scatta obbligo"></div>
+        <div class="form-group"><label class="form-label">Scadenza Massima (anche se condizioni non scattano)</label><input class="form-input" type="date" id="trat-scadenza-riscatto-cond"></div>
+      </div>
+
+      <!-- CLAUSOLA RECOMPRA -->
+      <div id="campo-recompra" style="display:none">
+        <div class="form-group"><label class="form-label">Importo Clausola Recompra (FM)</label><input class="form-input" type="number" id="trat-importo-recompra" step="100000"></div>
+        <div class="form-group"><label class="form-label">Scadenza Esercizio Recompra</label><input class="form-input" type="date" id="trat-scadenza-recompra"></div>
+      </div>
+
+      <!-- % RIVENDITA -->
+      <div class="form-group">
+        <label class="form-label">% Futura Rivendita (opzionale)</label>
+        <input class="form-input" type="number" id="trat-rivendita" placeholder="Es. 10" min="0" max="50" step="0.5">
+      </div>
+
+      <!-- RATEIZZAZIONE (sempre disponibile) -->
+      <div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <input type="checkbox" id="trat-usa-rate" onchange="toggleRate()" style="width:16px;height:16px;cursor:pointer">
+          <label for="trat-usa-rate" style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--oro);cursor:pointer;letter-spacing:1px">📅 RATEIZZA IL PAGAMENTO</label>
+        </div>
+        <div id="campo-rate-inline" style="display:none">
+          <div class="form-group"><label class="form-label">Importo Totale (FM)</label><input class="form-input" type="number" id="trat-importo-totale" placeholder="Es. 20000000" step="100000"></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <label class="form-label" style="margin:0">Rate di pagamento</label>
+            <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="aggiungiRata()">+ Rata</button>
+          </div>
+          <div id="rate-lista"></div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-top:6px">💡 Inserisci importo e data per ogni rata. Le date devono essere future.</div>
+        </div>
+      </div>
+
+      <!-- BONUS LEGATI A PERFORMANCE -->
+      <div style="background:rgba(0,255,135,0.04);border:1px solid rgba(0,255,135,0.15);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <input type="checkbox" id="trat-usa-bonus" onchange="toggleBonus()" style="width:16px;height:16px;cursor:pointer">
+          <label for="trat-usa-bonus" style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--verde);cursor:pointer;letter-spacing:1px">🎯 AGGIUNGI BONUS PERFORMANCE</label>
+        </div>
+        <div id="campo-bonus" style="display:none">
+          <div style="font-size:12px;color:var(--testo-dim);margin-bottom:12px">Aggiungi fino a 5 bonus che si pagano al raggiungimento di obiettivi specifici:</div>
+          <div id="bonus-lista"></div>
+          <button onclick="aggiungiBonus()" class="btn-secondary" style="font-size:12px;padding:6px 14px;margin-top:6px">+ Aggiungi Bonus</button>
+          <div style="font-size:11px;color:var(--testo-dim);margin-top:8px">💡 Es: 2.5M se fa 13 gol + 2.5M se fa 3 assist + 5M se top 4</div>
+        </div>
+      </div>
+
+      <div class="form-group"><label class="form-label">Note aggiuntive</label><input class="form-input" type="text" id="trat-note" placeholder="Condizioni particolari..."></div>
+      <button class="btn-primary" id="btn-invia-trattativa" onclick="inviaTrattativa()">📤 INVIA PROPOSTA</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MODIFICA GIOCATORE -->
+<div class="modal-overlay" id="modal-modifica" onclick="closeModal('modal-modifica',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:520px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--oro)">✏️ MODIFICA GIOCATORE</div><button class="modal-close" onclick="document.getElementById('modal-modifica').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="modifica-step1">
+        <div class="form-group"><label class="form-label">Cerca giocatore</label><input class="form-input" type="text" id="search-giocatore-admin" placeholder="Scrivi il nome..." oninput="cercaGiocatoreAdmin(this.value)"></div>
+        <div class="giocatori-search-list" id="lista-giocatori-admin"></div>
+      </div>
+      <div id="modifica-step2" style="display:none">
+        <!-- Header con avatar cliccabile per cambiare foto -->
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:20px">
+          <div style="position:relative;cursor:pointer" onclick="cambiaFotoInModifica()" title="Clicca per cambiare foto">
+            <div class="gc-avatar" id="edit-avatar" style="width:52px;height:52px;font-size:16px;flex-shrink:0"></div>
+            <div style="position:absolute;bottom:0;right:0;background:var(--verde);border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px">📷</div>
+          </div>
+          <div style="flex:1">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="edit-nome-display"></div>
+            <div style="font-size:12px;color:var(--testo-dim)" id="edit-squadra-display"></div>
+          </div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px;flex-shrink:0" onclick="tornaRicercaAdmin()">← Cambia</button>
+        </div>
+        <!-- Input foto inline (nascosto, aperto da clic sull'avatar) -->
+        <div id="edit-foto-inline" style="display:none;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;color:var(--verde);letter-spacing:1px;margin-bottom:10px">📸 CAMBIA FOTO</div>
+          <div class="form-group"><label class="form-label">URL foto</label>
+            <input class="form-input" type="url" id="edit-foto-url" placeholder="https://..." oninput="aggiornaPreviewFotoModifica(this.value)">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <div id="edit-foto-preview" style="width:48px;height:48px;border-radius:50%;background:var(--grigio-chiaro);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0"></div>
+            <div>
+              <label style="display:block;font-size:12px;color:var(--verde);cursor:pointer;padding:6px 12px;background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);border-radius:6px">
+                📁 Carica file
+                <input type="file" accept="image/*" style="display:none" onchange="caricaFileInModifica(this)">
+              </label>
+            </div>
+            <button onclick="document.getElementById('edit-foto-inline').style.display='none'" style="font-size:11px;background:none;border:none;color:var(--testo-dim);cursor:pointer">✕ Chiudi</button>
+          </div>
+        </div>
+        <div class="form-group"><label class="form-label">Nome Giocatore</label><input class="form-input" type="text" id="edit-nome" placeholder="Nome completo..."></div>
+        <div class="form-group"><label class="form-label">Ruolo</label><select class="form-select" id="edit-ruolo"><option value="P">P — Portiere</option><option value="D">D — Difensore</option><option value="C">C — Centrocampista</option><option value="A">A — Attaccante</option></select></div>
+        <div class="form-group"><label class="form-label">Età</label><input class="form-input" type="number" id="edit-eta" min="15" max="45"></div>
+        <div class="form-group"><label class="form-label">Data di Nascita</label><input class="form-input" type="date" id="edit-data-nascita"></div>
+        <div class="form-group"><label class="form-label">Numero Maglia</label><input class="form-input" type="number" id="edit-maglia" min="1" max="99"></div>
+        <div class="form-group"><label class="form-label">Club Attuale (Serie A)</label><input class="form-input" type="text" id="edit-club-reale" placeholder="Es. Inter, Milan..."></div>
+        <div class="form-group"><label class="form-label">Tipo Contratto</label>
+          <select class="form-select" id="edit-contratto" onchange="aggiornaFormContratto()">
+            <option value="Titolo Definitivo">Titolo Definitivo</option>
+            <option value="Titolo Definitivo con Clausola Recompra">Titolo Definitivo + Clausola Recompra</option>
+            <option value="Prestito Secco">Prestito Secco</option>
+            <option value="Prestito con Diritto di Riscatto">Prestito con Diritto di Riscatto</option>
+            <option value="Prestito con Obbligo di Riscatto">Prestito con Obbligo di Riscatto</option>
+          </select>
+        </div>
+        <div id="campi-prestito" style="display:none">
+          <div class="form-group"><label class="form-label">Squadra Proprietaria</label><input class="form-input" type="text" id="edit-squadra-propr"></div>
+          <div class="form-group"><label class="form-label">Scadenza Prestito</label><input class="form-input" type="date" id="edit-scadenza"></div>
+        </div>
+        <div id="campo-riscatto" style="display:none">
+          <div class="form-group"><label class="form-label">Importo Riscatto (FM)</label><input class="form-input" type="number" id="edit-riscatto" step="0.01"></div>
+          <div class="form-group"><label class="form-label">Scadenza Riscatto</label><input class="form-input" type="date" id="edit-scadenza-riscatto"></div>
+        </div>
+        <div id="campo-clausola" style="display:none">
+          <div class="form-group"><label class="form-label">Importo Clausola Recompra (FM)</label><input class="form-input" type="number" id="edit-clausola" step="0.01"></div>
+        </div>
+        <div class="form-group"><label class="form-label">% Futura Rivendita</label><input class="form-input" type="number" id="edit-rivendita" min="0" max="50" step="0.5"></div>
+        <div class="form-group"><label class="form-label">Quotazione Transfermarkt (M€)</label><input class="form-input" type="number" id="edit-quotazione" step="0.001"></div>
+        <div class="form-group"><label class="form-label">Stipendio Netto (M€)</label><input class="form-input" type="number" id="edit-stipendio" step="0.01"></div>
+        <button class="btn-primary" id="btn-salva" onclick="salvaModificaGiocatore()">💾 SALVA MODIFICHE</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FOTO -->
+<div class="modal-overlay" id="modal-foto" onclick="closeModal('modal-foto',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:440px">
+    <div class="modal-header"><div class="modal-title">📸 CARICA FOTO GIOCATORE</div><button class="modal-close" onclick="document.getElementById('modal-foto').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="foto-step1">
+        <div class="form-group"><label class="form-label">Cerca giocatore</label><input class="form-input" type="text" id="search-giocatore-foto" placeholder="Scrivi il nome..." oninput="cercaGiocatoreFoto(this.value)"></div>
+        <div class="giocatori-search-list" id="lista-giocatori-foto"></div>
+      </div>
+      <div id="foto-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px">
+          <div class="gc-avatar" id="foto-avatar" style="width:44px;height:44px;overflow:hidden"></div>
+          <div><div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="foto-nome-display"></div><div style="font-size:12px;color:var(--testo-dim)" id="foto-squadra-display"></div></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaRicercaFoto()">← Cambia</button>
+        </div>
+        <div class="foto-upload-area">
+          <input type="file" id="foto-file-input" accept="image/*" onchange="previewFoto(event)">
+          <div class="foto-preview" id="foto-preview-box">📷</div>
+          <div style="font-size:13px;color:var(--testo-dim);margin-bottom:4px">Clicca per scegliere una foto</div>
+          <div style="font-size:11px;color:var(--testo-dim)">JPG, PNG • Max 5MB</div>
+        </div>
+        <div class="form-group" style="margin-top:14px"><label class="form-label">Oppure incolla URL foto</label><input class="form-input" type="url" id="foto-url-input" placeholder="https://..." oninput="previewFotoUrl(this.value)"></div>
+        <button class="btn-primary" id="btn-salva-foto" onclick="salvaFoto()">📸 SALVA FOTO</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LOGO + MAGLIA + NOME -->
+<div class="modal-overlay" id="modal-logo" onclick="closeModal('modal-logo',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:460px">
+    <div class="modal-header"><div class="modal-title">🖼️ LOGO & MAGLIA SQUADRA</div><button class="modal-close" onclick="document.getElementById('modal-logo').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="logo-step1">
+        <div class="form-group"><label class="form-label">Seleziona squadra</label></div>
+        <div class="squadre-search-list" id="lista-squadre-logo"></div>
+      </div>
+      <div id="logo-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px">
+          <div class="gsi-sq-logo" id="logo-preview-small"></div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="logo-sq-nome-display"></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaSceltaSquadraLogo()">← Cambia</button>
+        </div>
+
+        <!-- NOME SQUADRA -->
+        <div class="form-group">
+          <label class="form-label">Nome Squadra</label>
+          <input class="form-input" type="text" id="logo-nome-squadra" placeholder="Es. Mjolnir FC">
+        </div>
+
+        <!-- LOGO -->
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--verde);margin-bottom:8px">🖼️ LOGO</div>
+        <div class="foto-upload-area" onclick="document.getElementById('logo-file-input').click()">
+          <input type="file" id="logo-file-input" accept="image/*" style="display:none" onchange="previewLogo(event)">
+          <div class="logo-preview" id="logo-preview-box">🏟️</div>
+          <div style="font-size:12px;color:var(--testo-dim)">Clicca per scegliere il logo</div>
+        </div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Oppure URL logo</label><input class="form-input" type="url" id="logo-url-input" placeholder="https://..." oninput="previewLogoUrl(this.value)"></div>
+
+        <!-- MAGLIA -->
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--oro);margin:14px 0 8px">👕 MAGLIA UFFICIALE</div>
+        <div class="foto-upload-area" onclick="document.getElementById('maglia-file-input').click()">
+          <input type="file" id="maglia-file-input" accept="image/*" style="display:none" onchange="previewMaglia(event)">
+          <div id="maglia-preview-box" style="width:70px;height:70px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:30px">👕</div>
+          <div style="font-size:12px;color:var(--testo-dim)">Clicca per caricare la maglia</div>
+        </div>
+        <div class="form-group" style="margin-top:10px"><label class="form-label">Oppure URL maglia</label><input class="form-input" type="url" id="maglia-url-input" placeholder="https://..." oninput="previewMagliaUrl(this.value)"></div>
+
+        <button class="btn-primary" id="btn-salva-logo" onclick="salvaLogo()">💾 SALVA TUTTO</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRESIDENTE -->
+<div class="modal-overlay" id="modal-presidente" onclick="closeModal('modal-presidente',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--oro)">👑 FOTO PRESIDENTE</div><button class="modal-close" onclick="document.getElementById('modal-presidente').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="pres-step1">
+        <div class="form-group"><label class="form-label">Seleziona squadra</label></div>
+        <div class="squadre-search-list" id="lista-squadre-pres"></div>
+      </div>
+      <div id="pres-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="pres-sq-nome-display"></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaSceltaSquadraPres()">← Cambia</button>
+        </div>
+        <div id="presidenti-editor"></div>
+        <button class="btn-primary" id="btn-salva-pres" onclick="salvaPresidenti()">👑 SALVA PRESIDENTI</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EMAIL -->
+<div class="modal-overlay" id="modal-email" onclick="closeModal('modal-email',event)">
+  <div class="modal" style="border-color:var(--blu);max-width:500px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--blu)">📧 GESTIONE EMAIL</div><button class="modal-close" onclick="document.getElementById('modal-email').classList.remove('open')">×</button></div>
+    <div style="padding:20px">
+      <div id="email-step1">
+        <div class="form-group"><label class="form-label">Seleziona squadra</label></div>
+        <div class="squadre-search-list" id="lista-squadre-email"></div>
+      </div>
+      <div id="email-step2" style="display:none">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:16px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px" id="email-sq-nome"></div>
+          <button class="btn-secondary" style="margin-left:auto;font-size:12px;padding:6px 12px" onclick="tornaSceltaSquadraEmail()">← Cambia</button>
+        </div>
+        <div id="email-editor"></div>
+        <div class="form-group" style="margin-top:12px"><label class="form-label">Password Accesso</label><input class="form-input" type="text" id="email-password" placeholder="Password per questa squadra..."></div>
+        <button class="btn-primary" id="btn-salva-email" onclick="salvaEmail()">💾 SALVA ACCESSI</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- MODAL NUOVO GIOCATORE -->
+<div class="modal-overlay" id="modal-nuovo-giocatore" onclick="closeModal('modal-nuovo-giocatore',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:500px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--verde)">➕ NUOVO GIOCATORE</div>
+      <button class="modal-close" onclick="document.getElementById('modal-nuovo-giocatore').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px">
+      <div class="form-group">
+        <label class="form-label">Squadra</label>
+        <select class="form-select" id="nuovo-squadra-id" onchange="aggiornaNuovoCountRosa()">
+          <option value="">— Seleziona squadra —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lista</label>
+        <select class="form-select" id="nuovo-lista" onchange="aggiornaNuovoCountRosa()">
+          <option value="principale">🟢 Principale</option>
+          <option value="marginale">🟡 Marginale</option>
+          <option value="primavera">🔵 Primavera</option>
+        </select>
+      </div>
+      <div id="nuovo-rosa-count" style="font-size:11px;color:var(--testo-dim);margin-top:-10px;margin-bottom:14px"></div>
+      <div class="form-group"><label class="form-label">Nome Giocatore *</label><input class="form-input" type="text" id="nuovo-nome" placeholder="Es. Mario Rossi"></div>
+      <div class="form-group"><label class="form-label">Ruolo *</label>
+        <select class="form-select" id="nuovo-ruolo">
+          <option value="P">🧤 P — Portiere</option>
+          <option value="D">🛡️ D — Difensore</option>
+          <option value="C">⚙️ C — Centrocampista</option>
+          <option value="A">⚡ A — Attaccante</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group"><label class="form-label">Numero Maglia</label><input class="form-input" type="number" id="nuovo-maglia" min="1" max="99"></div>
+        <div class="form-group"><label class="form-label">Età</label><input class="form-input" type="number" id="nuovo-eta" min="14" max="45"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Data di Nascita</label><input class="form-input" type="date" id="nuovo-data-nascita"></div>
+      <div class="form-group"><label class="form-label">Club Attuale (Serie A)</label><input class="form-input" type="text" id="nuovo-club" placeholder="Es. Inter, Milan..."></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group"><label class="form-label">Quotazione TM (M€)</label><input class="form-input" type="number" id="nuovo-quotazione" step="0.1" placeholder="Es. 10"></div>
+        <div class="form-group"><label class="form-label">Stipendio (M€)</label><input class="form-input" type="number" id="nuovo-stipendio" step="0.1" placeholder="Es. 2.5"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Tipo Contratto</label>
+        <select class="form-select" id="nuovo-contratto">
+          <option value="Titolo Definitivo">Titolo Definitivo</option>
+          <option value="Prestito Secco">Prestito Secco</option>
+          <option value="Prestito con Diritto di Riscatto">Prestito con Diritto di Riscatto</option>
+          <option value="Prestito con Obbligo di Riscatto">Prestito con Obbligo di Riscatto</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">URL Foto (opzionale)</label><input class="form-input" type="url" id="nuovo-foto" placeholder="https://..."></div>
+      <div class="form-group"><label class="form-label">Note / Nazionalità</label><input class="form-input" type="text" id="nuovo-note" placeholder="Es. Italiano, in prova..."></div>
+      <button onclick="salvaNuovoGiocatore()" class="btn-primary">➕ AGGIUNGI ALLA ROSA</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL SPOSTA GIOCATORE -->
+<div class="modal-overlay" id="modal-sposta" onclick="closeModal('modal-sposta',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">🔄 SPOSTA GIOCATORE</div>
+      <button class="modal-close" onclick="document.getElementById('modal-sposta').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px">
+      <div id="sposta-step1">
+        <div class="form-group"><label class="form-label">Cerca giocatore</label>
+          <input class="form-input" type="text" id="sposta-search" placeholder="Scrivi il nome..." oninput="cercaGiocatoreSposta(this.value)">
+        </div>
+        <div id="sposta-lista" class="giocatori-search-list"></div>
+      </div>
+      <div id="sposta-step2" style="display:none">
+        <div style="background:var(--grigio-scuro);border-radius:10px;padding:12px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+          <div class="gc-avatar" id="sposta-avatar" style="width:44px;height:44px;font-size:14px"></div>
+          <div style="flex:1">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px" id="sposta-nome"></div>
+            <div style="font-size:11px;color:var(--testo-dim)" id="sposta-info-attuale"></div>
+          </div>
+          <button class="btn-secondary" style="font-size:11px;padding:5px 10px" onclick="tornaSpostaStep1()">← Cambia</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nuova Squadra</label>
+          <select class="form-select" id="sposta-squadra-id" onchange="aggiornaCountSposta()">
+            <option value="">— Lascia nella stessa squadra —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nuova Lista</label>
+          <select class="form-select" id="sposta-lista" onchange="aggiornaCountSposta()">
+            <option value="principale">🟢 Principale</option>
+            <option value="marginale">🟡 Marginale</option>
+            <option value="primavera">🔵 Primavera</option>
+          </select>
+        </div>
+        <div id="sposta-count" style="font-size:11px;color:var(--testo-dim);margin-top:-10px;margin-bottom:14px"></div>
+        <button onclick="salvaSposta()" class="btn-primary">🔄 SPOSTA GIOCATORE</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-aggiungi-svincolo" onclick="closeModal('modal-aggiungi-svincolo',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:440px">
+    <div class="modal-header"><div class="modal-title">➕ AGGIUNGI ALLA ROSA</div><button class="modal-close" onclick="document.getElementById('modal-aggiungi-svincolo').classList.remove('open')">×</button></div>
+    <div style="padding:20px" id="aggiungi-svincolo-body"></div>
+  </div>
+</div>
+
+<!-- MODAL CSV IMPORT -->
+<div class="modal-overlay" id="modal-csv" onclick="closeModal('modal-csv',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:600px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--verde)">📊 IMPORT CSV TRANSFERMARKT</div>
+      <button class="modal-close" onclick="document.getElementById('modal-csv').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px">
+
+      <!-- ISTRUZIONI -->
+      <div style="background:rgba(0,255,135,0.05);border:1px solid rgba(0,255,135,0.2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--verde);letter-spacing:1px;margin-bottom:8px">📋 COME PREPARARE IL CSV</div>
+        <div style="color:var(--testo-dim);line-height:1.7">
+          Il CSV deve avere queste colonne (intestazione obbligatoria):<br>
+          <code style="background:var(--grigio-scuro);padding:2px 6px;border-radius:4px;color:var(--verde)">nome,quotazione,eta,data_nascita,stipendio</code><br><br>
+          Solo <strong>nome</strong> è obbligatorio — gli altri sono opzionali.<br>
+          • <strong>quotazione</strong>: valore TM in milioni (es. <code style="background:var(--grigio-scuro);padding:1px 4px;border-radius:3px">25.5</code>)<br>
+          • <strong>eta</strong>: anni interi (es. <code style="background:var(--grigio-scuro);padding:1px 4px;border-radius:3px">26</code>)<br>
+          • <strong>data_nascita</strong>: formato YYYY-MM-DD (es. <code style="background:var(--grigio-scuro);padding:1px 4px;border-radius:3px">1998-04-15</code>)<br>
+          • <strong>stipendio</strong>: netto in milioni (es. <code style="background:var(--grigio-scuro);padding:1px 4px;border-radius:3px">3.2</code>)
+        </div>
+        <button onclick="scaricaCSVEsempio()" style="margin-top:10px;background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);color:var(--verde);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer">⬇️ SCARICA CSV DI ESEMPIO</button>
+      </div>
+
+      <!-- UPLOAD -->
+      <div style="border:2px dashed var(--grigio-chiaro);border-radius:10px;padding:20px;text-align:center;margin-bottom:14px;cursor:pointer;transition:border-color 0.2s" id="csv-drop-zone" onclick="document.getElementById('csv-file-input').click()" ondragover="event.preventDefault();this.style.borderColor='var(--verde)'" ondragleave="this.style.borderColor='var(--grigio-chiaro)'" ondrop="handleCSVDrop(event)">
+        <input type="file" id="csv-file-input" accept=".csv,.txt" style="display:none" onchange="leggiCSVFile(this)">
+        <div style="font-size:32px;margin-bottom:8px">📄</div>
+        <div style="font-size:13px;font-weight:600">Clicca o trascina il CSV qui</div>
+        <div style="font-size:11px;color:var(--testo-dim);margin-top:4px">File .csv o .txt</div>
+      </div>
+
+      <!-- OPPURE INCOLLA -->
+      <div style="text-align:center;color:var(--testo-dim);font-size:12px;margin-bottom:10px">— oppure incolla il contenuto —</div>
+      <textarea id="csv-testo" placeholder="nome,quotazione,eta&#10;Lukaku,28.5,31&#10;Lautaro Martinez,85,26&#10;Leao,75,25" style="width:100%;height:120px;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:10px;color:var(--testo);font-family:'Space Mono',monospace;font-size:11px;resize:vertical;outline:none" oninput="anteprimeCSV()"></textarea>
+
+      <!-- ANTEPRIMA -->
+      <div id="csv-anteprima" style="margin-top:12px"></div>
+
+      <!-- BOTTONE IMPORT -->
+      <button id="btn-import-csv" onclick="eseguiImportCSV()" style="display:none;width:100%;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px;border-radius:10px;border:none;cursor:pointer;margin-top:12px">
+        ⚡ IMPORTA E AGGIORNA GIOCATORI
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL BILANCIO VOCE -->
+<div class="modal-overlay" id="modal-bilancio-voce" onclick="closeModal('modal-bilancio-voce',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:440px">
+    <div class="modal-header"><div class="modal-title" style="color:var(--oro)">💰 NUOVA VOCE BILANCIO</div><button class="modal-close" onclick="document.getElementById('modal-bilancio-voce').classList.remove('open')">×</button></div>
+    <div style="padding:20px" id="bilancio-voce-body"></div>
+  </div>
+</div>
+
+<!-- MODAL NUOVO POST SOCIAL -->
+<div class="modal-overlay" id="modal-social-post" onclick="closeModal('modal-social-post',event)">
+  <div class="modal" style="border-color:var(--verde);max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--verde)">✏️ NUOVO POST</div>
+      <button class="modal-close" onclick="document.getElementById('modal-social-post').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="social-post-body"></div>
+  </div>
+</div>
+
+<!-- MODAL COMMENTI -->
+<div class="modal-overlay" id="modal-commenti" onclick="closeModal('modal-commenti',event)">
+  <div class="modal" style="border-color:var(--blu);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--blu)">💬 COMMENTI</div>
+      <button class="modal-close" onclick="document.getElementById('modal-commenti').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="commenti-body"></div>
+  </div>
+</div>
+
+<!-- MODAL PROFILO SOCIAL -->
+<div class="modal-overlay" id="modal-profilo-social" onclick="closeModal('modal-profilo-social',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">👤 PROFILO SOCIAL</div>
+      <button class="modal-close" onclick="document.getElementById('modal-profilo-social').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="profilo-social-body"></div>
