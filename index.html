@@ -6,9 +6,6 @@
 <title>FantaManager</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js"></script>
-<script src="js/auth.js"></script>
-<script src="js/utils.js"></script>
 <style>
 :root{--verde:#00ff87;--nero:#0a0a0a;--grigio-scuro:#111111;--grigio:#1a1a1a;--grigio-medio:#2a2a2a;--grigio-chiaro:#3a3a3a;--testo:#e8e8e8;--testo-dim:#888;--oro:#ffd700;--argento:#c0c0c0;--rosso:#ff4444;--blu:#4488ff;}
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -1177,6 +1174,120 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 </div>
 
 <script>
+const SUPABASE_URL='https://fithrsazeeawjzpfoowg.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpdGhyc2F6ZWVhd2p6cGZvb3dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU4NTg0MjUsImV4cCI6MjA5MTQzNDQyNX0.gRI7mjgahc7qEittJWVDEBqGttY1BuJOL3t_DY3BBbg';
+const RAPIDAPI_KEY='73e7e8737bmsh406835bcadaa067p1fde41jsnd72004371828';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const ADMIN_PWD='Ultimo96!';
+
+let adminLoggato=false;
+let utenteLoggato=null; // squadra dell'utente loggato
+let squadreDB=[],giocatoriDB=[],tifosi_logDB=[],trattativeDB=[];
+let squadraAttiva=null,tabAttivoSq='principale',ricercaSq='';
+let giocatoreInModifica=null,giocatoreInFoto=null,squadraInLogo=null,squadraInPres=null,squadraInEmail=null;
+let fotoScelta=null,logoScelto=null;
+let giocatoreSchedaAttiva=null;
+let trattativaGiocatoreTarget=null;
+let filtroTrattative='tutte';
+let rateList=[];
+
+const competizioni=[
+  {id:'campionato',nome:'CAMPIONATO',icon:'⚽',tipo:'campionato',premi:[{pos:'1° posto',euro:null,fm:'Automatico'}],museo:{fm:2.5,label:'2.5M (1°) • 0.8M (2°) • 0.3M (3°)'}},
+  {id:'coppa_italia',nome:'COPPA ITALIA',icon:'🇮🇹',tipo:'coppa',premi:[{pos:'Vincitore',euro:'30€',fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
+  {id:'champions',nome:'CHAMPIONS LEAGUE',icon:'⭐',tipo:'coppa',premi:[{pos:'1° posto',euro:'50€',fm:null},{pos:'2° posto',euro:'10€',fm:null}],museo:{fm:1.5,label:'1.5M annui'}},
+  {id:'europa',nome:'EUROPA LEAGUE',icon:'🌍',tipo:'coppa',premi:[{pos:'1° posto',euro:'20€',fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
+  {id:'coglioni',nome:'COPPA DEI COGLIONI',icon:'🤡',tipo:'speciale',premi:[{pos:'Punteggio più basso',euro:'10€',fm:null}],museo:{fm:0.2,label:'0.2M annui'}},
+  {id:'coopmeiners',nome:'COOPMEINERS',icon:'🔥',tipo:'coppa',premi:[{pos:'1° posto',euro:'35€',fm:null},{pos:'2° posto',euro:'10€',fm:null}],museo:{fm:1.0,label:'1M annui'}},
+  {id:'formula1',nome:'FORMULA 1',icon:'🏎️',tipo:'coppa',premi:[{pos:'1° posto',euro:'50€',fm:null},{pos:'2° posto',euro:'20€',fm:null}],museo:{fm:1.8,label:'1.8M annui'}},
+  {id:'coppa_tua',nome:'COPPA TUA',icon:'🏅',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:0.6,label:'0.6M annui'}},
+  {id:'konami',nome:'COPPA KONAMI',icon:'🎮',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:0.5,label:'0.5M annui'}},
+  {id:'crediti',nome:'COPPA CREDITI',icon:'💳',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
+  {id:'talent',nome:'TALENT BOY',icon:'🌟',tipo:'speciale',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:1.0,label:'1M annui'}},
+  {id:'eroi',nome:'COPPA DEGLI EROI',icon:'🦸',tipo:'coppa',premi:[{pos:'Vincitore',euro:null,fm:null}],museo:{fm:1.0,label:'1M annui'}},
+  {id:'miglior_g',nome:'MIGLIOR PUNTEGGIO GIORNATA',icon:'📈',tipo:'speciale',premi:[{pos:'Ogni giornata',euro:'5€',fm:null}],museo:null},
+  {id:'miglior_a',nome:'PUNTEGGIO PIÙ ALTO ANNO',icon:'🥇',tipo:'speciale',premi:[{pos:'Fine stagione',euro:'25€',fm:null}],museo:null},
+];
+
+function fmtBudget(n){return new Intl.NumberFormat('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0)+' FM';}
+function fmtNum(n){return new Intl.NumberFormat('it-IT').format(n||0);}
+function ruoloColor(r){return{P:'ruolo-p',D:'ruolo-d',C:'ruolo-c',A:'ruolo-a'}[r]||'';}
+function ruoloNome(r){return{P:'Portiere',D:'Difensore',C:'Centrocampista',A:'Attaccante'}[r]||r;}
+function getMolt(n){return[0,1,2.5,4,5,7][Math.min(n,5)]||0;}
+function iniziali(nome){return(nome||'??').replace(/[^a-zA-Z ]/g,'').split(' ').map(p=>p[0]||'').join('').substring(0,2).toUpperCase()||'??';}
+
+let _toastTimer=null;
+function showToast(msg,tipo){
+  const t=document.getElementById('toast');
+  if(!t) return;
+  t.textContent=msg;
+  t.classList.toggle('error',tipo==='error');
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+// ===== LOGIN =====
+function entraAppDiretto(){
+  utenteLoggato=null;
+  adminLoggato=false;
+  document.getElementById('login-screen').classList.add('hide');
+  document.getElementById('home').style.display='flex';
+}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim().toLowerCase();
+  const pwd=document.getElementById('login-password').value.trim();
+  const err=document.getElementById('login-error');
+  err.style.display='none';
+  if(!email||!pwd){err.style.display='block';err.textContent='❌ Inserisci email e password';return;}
+  const btn=document.querySelector('#login-screen .btn-primary');
+  if(btn){btn.disabled=true;btn.textContent='⏳...';}
+  try{
+    // Seleziona solo le colonne necessarie per evitare timeout
+    const{data:squadre,error:sqErr}=await sb.from('squadre')
+      .select('id,nome,nome_squadra,owner_name,emails,password_accesso,budget,tifosi,avatar,avatar_bg,logo_url,maglia_url,allenatore,stip_all');
+    if(sqErr) throw sqErr;
+    if(!squadre||!squadre.length){
+      err.style.display='block';err.textContent='❌ Errore connessione';
+      if(btn){btn.disabled=false;btn.textContent='ENTRA NELLA LEGA →';}
+      return;
+    }
+    const trovata=squadre.find(s=>{
+      let emails=[];
+      if(Array.isArray(s.emails)) emails=s.emails.map(e=>String(e).toLowerCase().trim());
+      else if(s.emails) emails=[String(s.emails).toLowerCase().trim()];
+      if(pwd===ADMIN_PWD) return emails.includes(email);
+      return emails.includes(email)&&s.password_accesso===pwd;
+    });
+    if(!trovata){
+      err.style.display='block';
+      err.textContent='❌ Email o password non corretta';
+      if(btn){btn.disabled=false;btn.textContent='ENTRA NELLA LEGA →';}
+      return;
+    }
+
+    utenteLoggato=trovata;
+    adminLoggato=(pwd===ADMIN_PWD);
+    document.getElementById('login-screen').classList.add('hide');
+    document.getElementById('home').style.display='flex';
+    showToast('👋 Benvenuto '+trovata.owner_name+'!');
+
+  }catch(e){
+    err.style.display='block';
+    err.textContent='❌ Errore: '+e.message;
+  }
+  if(btn){btn.disabled=false;btn.textContent='ENTRA NELLA LEGA →';}
+}
+
+function doLogout(){
+  utenteLoggato=null;adminLoggato=false;
+  document.getElementById('app').classList.remove('show');
+  document.getElementById('home').style.display='none';
+  document.getElementById('login-screen').classList.remove('hide');
+  document.getElementById('login-email').value='';
+  document.getElementById('login-password').value='';
+}
+
 // ===== CARICA DATI =====
 async function ricaricaDati(){
   document.getElementById('squadre-overview').innerHTML='<div class="loading"><div class="loading-spinner"></div>Riconnessione...</div>';
@@ -1914,20 +2025,16 @@ async function inviaTrattativa(){
   if(usaRate){
     dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;
   }
-  if (tipo.includes('Prestito')) {
-    dati.scadenza_prestito = document.getElementById('trat-scadenza-prestito').value || null;
-    // Se è un prestito ma non uno scambio, aggiungi l'importo iniziale (se presente)
-    if (!tipo.includes('Scambio')) {
-      dati.importo = parseFloat(document.getElementById('trat-importo').value) || 0;
-    }
+  if(tipo.includes('Prestito')){
+    dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
-  if (tipo.includes('Diritto di Riscatto') || tipo.includes('Obbligo di Riscatto')) {
-    dati.importo_riscatto = parseFloat(document.getElementById('trat-importo-riscatto').value) || null;
-    dati.scadenza_riscatto = document.getElementById('trat-scadenza-riscatto').value || null;
+  if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
+    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto').value)||null;
+    dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
   }
-  if (hasCondizioni) {
-    dati.importo_riscatto = parseFloat(document.getElementById('trat-importo-riscatto-cond').value) || null;
-    dati.scadenza_riscatto = document.getElementById('trat-scadenza-riscatto-cond').value || null;
+  if(hasCondizioni){
+    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto-cond').value)||null;
+    dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
   }
 
   // Costruisci nota automatica per condizioni
