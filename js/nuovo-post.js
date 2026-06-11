@@ -179,3 +179,10 @@ async function pubblicaPost(tipo){
   try{
     const{data,error}=await sb.from('social_posts').insert(payload).select();
     if(error) throw error;
+} 
+} 
+} 
+  } catch(e){ 
+    showToast('Errore: '+e.message,'error'); 
+  } 
+} 
