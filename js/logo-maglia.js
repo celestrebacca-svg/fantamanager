@@ -77,8 +77,20 @@ function previewMagliaUrl(url){
 async function salvaLogo(){
   if(!squadraInLogo) return;
   // Prendi nuovi valori — se campo vuoto mantieni quello esistente
-  const logoUrl=logoScelto||document.getElementById('logo-url-input').value.trim()||squadraInLogo.logo_url||null;
-  const magliaUrl=magliaScelta||document.getElementById('maglia-url-input').value.trim()||squadraInLogo.maglia_url||null;
+  let logoUrl=document.getElementById('logo-url-input').value.trim()||null;
+  if(logoScelto && logoScelto.startsWith('data:')){
+    showToast('⏳ Caricamento logo...', 'info');
+    logoUrl = await uploadBase64ToCloudinary(logoScelto, 'loghi');
+    if(!logoUrl) return;
+  } else if(logoScelto){ logoUrl=logoScelto; }
+  logoUrl = logoUrl || squadraInLogo.logo_url || null;
+  let magliaUrl=document.getElementById('maglia-url-input').value.trim()||null;
+  if(magliaScelta && magliaScelta.startsWith('data:')){
+    showToast('⏳ Caricamento maglia...', 'info');
+    magliaUrl = await uploadBase64ToCloudinary(magliaScelta, 'maglie');
+    if(!magliaUrl) return;
+  } else if(magliaScelta){ magliaUrl=magliaScelta; }
+  magliaUrl = magliaUrl || squadraInLogo.maglia_url || null;
   const nomeInput=document.getElementById('logo-nome-squadra').value.trim();
   const nomeSquadra=nomeInput||squadraInLogo.nome_squadra||null;
   const btn=document.getElementById('btn-salva-logo');

@@ -55,7 +55,15 @@ function previewFotoUrl(url){
 
 async function salvaFoto(){
   if(!giocatoreInFoto) return;
-  const fotoUrl=fotoScelta||document.getElementById('foto-url-input').value.trim()||null;
+  let fotoUrl=document.getElementById('foto-url-input').value.trim()||null;
+  // Se c'è una foto base64 scelta, caricala su Cloudinary
+  if(fotoScelta && fotoScelta.startsWith('data:')){
+    showToast('⏳ Caricamento foto...', 'info');
+    fotoUrl = await uploadBase64ToCloudinary(fotoScelta, 'giocatori');
+    if(!fotoUrl){return;}
+  } else if(fotoScelta){
+    fotoUrl = fotoScelta;
+  }
   if(!fotoUrl){showToast('❌ Nessuna foto','error');return;}
   const btn=document.getElementById('btn-salva-foto');
   btn.disabled=true;btn.textContent='Salvataggio...';
