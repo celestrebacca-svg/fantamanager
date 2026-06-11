@@ -153,7 +153,7 @@ function aggiornaCampiTrattativa(){
   const isRecompra=tipo.includes('Clausola');
 
   document.getElementById('campo-importo').style.display=(!isScambio&&!isPresto)?'block':'none';
-  document.getElementById('campo-importo-prestito').style.display=isPresto?'block':'none';
+  const elImpPrestito=document.getElementById('campo-importo-prestito'); if(elImpPrestito) elImpPrestito.style.display=isPresto?'block':'none';
   document.getElementById('campo-scambio').style.display=isScambio?'block':'none';
   document.getElementById('campo-prestito-trat').style.display=isPresto?'block':'none';
   document.getElementById('campo-riscatto-trat').style.display=(hasRiscatto||hasObbligo)?'block':'none';

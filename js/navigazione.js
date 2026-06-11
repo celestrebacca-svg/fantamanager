@@ -1,3 +1,10 @@
+// ===== CLOSE MODAL =====
+function closeModal(id, event){
+  if(!event || event.target.classList.contains('modal-overlay')){
+    document.getElementById(id)?.classList.remove('open');
+  }
+}
+
 // ===== NAVIGAZIONE =====
 async function entraApp(sezione){
   document.getElementById('home').style.display='none';
