@@ -1,3 +1,19 @@
+// ===== DIREZIONE IMPORTO =====
+function setDirezioneImporto(dir){
+  const el=document.getElementById('trat-direzione-importo');
+  if(el) el.value=dir;
+  const btnPago=document.getElementById('btn-pago');
+  const btnRicevo=document.getElementById('btn-ricevo');
+  if(!btnPago||!btnRicevo) return;
+  if(dir==='pago'){
+    btnPago.style.borderColor='var(--rosso)';btnPago.style.background='rgba(255,68,68,0.15)';btnPago.style.color='var(--rosso)';
+    btnRicevo.style.borderColor='var(--grigio-chiaro)';btnRicevo.style.background='transparent';btnRicevo.style.color='var(--testo-dim)';
+  } else {
+    btnRicevo.style.borderColor='var(--verde)';btnRicevo.style.background='rgba(0,255,135,0.15)';btnRicevo.style.color='var(--verde)';
+    btnPago.style.borderColor='var(--grigio-chiaro)';btnPago.style.background='transparent';btnPago.style.color='var(--testo-dim)';
+  }
+}
+
 // ===== BONUS =====
 let bonusList=[];
 const TIPI_BONUS=['gol','assist','presenze','media_voto','classifica'];
@@ -71,6 +87,7 @@ function apriNuovaTrattativa(giocatore=null){
   // Reset
   document.getElementById('trat-tipo').value='Titolo Definitivo';
   document.getElementById('trat-importo').value='';
+  setDirezioneImporto('pago');
   document.getElementById('trat-note').value='';
   document.getElementById('trat-rivendita').value='';
   document.getElementById('trat-conguaglio').value='';
@@ -84,6 +101,7 @@ function apriNuovaTrattativa(giocatore=null){
   document.getElementById('modal-trattativa').classList.add('open');
 }
 
+let giocatoriCambioSelezionati=[];
 let giocatoriSuoiSelezionati=[];
 
 function renderGiocatoriCambio(){
@@ -135,6 +153,7 @@ function aggiornaCampiTrattativa(){
   const isRecompra=tipo.includes('Clausola');
 
   document.getElementById('campo-importo').style.display=(!isScambio&&!isPresto)?'block':'none';
+  document.getElementById('campo-importo-prestito').style.display=isPresto?'block':'none';
   document.getElementById('campo-scambio').style.display=isScambio?'block':'none';
   document.getElementById('campo-prestito-trat').style.display=isPresto?'block':'none';
   document.getElementById('campo-riscatto-trat').style.display=(hasRiscatto||hasObbligo)?'block':'none';
@@ -215,6 +234,14 @@ async function inviaTrattativa(){
 
   if(!tipo.includes('Scambio')&&!tipo.includes('Prestito')){
     dati.importo=parseFloat(document.getElementById('trat-importo').value)||0;
+    const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
+    dati.direzione_importo=dir;
+    // Se ricevo i soldi, inverti la direzione nel DB
+    if(dir==='ricevo'){
+      const tmp=dati.squadra_offerente_id;
+      dati.squadra_offerente_id=dati.squadra_ricevente_id;
+      dati.squadra_ricevente_id=tmp;
+    }
   }
   if(tipo.includes('Clausola Recompra')){
     dati.importo_recompra=parseFloat(document.getElementById('trat-importo-recompra').value)||null;
@@ -230,6 +257,7 @@ async function inviaTrattativa(){
     dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;
   }
   if(tipo.includes('Prestito')){
+    dati.importo=parseFloat(document.getElementById('trat-cifra-prestito')?.value)||0;
     dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
   if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
