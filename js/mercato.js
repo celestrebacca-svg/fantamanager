@@ -13,7 +13,7 @@ function renderTrattative(){
   container.innerHTML=lista.map(t=>{
     const off=squadreDB.find(s=>s.id===t.squadra_offerente_id);
     const ric=squadreDB.find(s=>s.id===t.squadra_ricevente_id);
-    const g=giocatoriDB.find(x=>x.id===t.giocatore_id);
+    const g=giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id));
     const gc=t.giocatore_cambio_id?giocatoriDB.find(x=>x.id===t.giocatore_cambio_id):null;
     const statoClass={'in_attesa':'stato-attesa','approvata':'stato-approvata','completata':'stato-completata','rifiutata':'stato-rifiutata'}[t.stato]||'stato-attesa';
     const statoLabel={'in_attesa':'⏳ In attesa','approvata':'✅ Approvata','completata':'🏁 Completata','rifiutata':'❌ Rifiutata'}[t.stato]||t.stato;
@@ -50,11 +50,55 @@ function renderTrattative(){
 
 async function cambiaStatoTrattativa(id,stato){
   try{
+    const t=trattativeDB.find(x=>x.id===id);
+    if(!t) throw new Error('Trattativa non trovata');
+
+    // Aggiorna stato trattativa
     const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
     if(error) throw error;
-    const idx=trattativeDB.findIndex(t=>t.id===id);
+
+    if(stato==='approvata'){
+      // TRASFERIMENTO GIOCATORE
+      if(t.giocatore_id){
+        const sqRic=t.squadra_ricevente_id;
+        const sqOff=t.squadra_offerente_id;
+
+        // Trasferisci giocatore alla squadra ricevente
+        await sb.from('giocatori').update({squadra_id:sqRic}).eq('id',t.giocatore_id);
+
+        // Aggiorna budget: offerente paga, ricevente incassa (o viceversa)
+        if(t.importo){
+          const dir=t.direzione_importo||'pago';
+          const sqPaga=dir==='pago'?sqOff:sqRic;
+          const sqIncassa=dir==='pago'?sqRic:sqOff;
+          const sqPagaDB=squadreDB.find(s=>s.id===sqPaga);
+          const sqIncassaDB=squadreDB.find(s=>s.id===sqIncassa);
+          if(sqPagaDB) await sb.from('squadre').update({budget:sqPagaDB.budget-t.importo}).eq('id',sqPaga);
+          if(sqIncassaDB) await sb.from('squadre').update({budget:sqIncassaDB.budget+t.importo}).eq('id',sqIncassa);
+        }
+
+        // Aggiorna DB locale
+        const gIdx=giocatoriDB.findIndex(g=>g.id===t.giocatore_id);
+        if(gIdx>=0) giocatoriDB[gIdx].squadra_id=t.squadra_ricevente_id;
+        const sqOffIdx=squadreDB.findIndex(s=>s.id===t.squadra_offerente_id);
+        const sqRicIdx=squadreDB.findIndex(s=>s.id===t.squadra_ricevente_id);
+        if(t.importo){
+          const dir=t.direzione_importo||'pago';
+          if(dir==='pago'){
+            if(sqOffIdx>=0) squadreDB[sqOffIdx].budget-=t.importo;
+            if(sqRicIdx>=0) squadreDB[sqRicIdx].budget+=t.importo;
+          } else {
+            if(sqRicIdx>=0) squadreDB[sqRicIdx].budget-=t.importo;
+            if(sqOffIdx>=0) squadreDB[sqOffIdx].budget+=t.importo;
+          }
+        }
+      }
+    }
+
+    const idx=trattativeDB.findIndex(x=>x.id===id);
     if(idx>=0) trattativeDB[idx].stato=stato;
-    showToast(stato==='approvata'?'✅ Trattativa approvata!':'❌ Trattativa rifiutata!');
+    showToast(stato==='approvata'?'✅ Trattativa approvata! Giocatore trasferito!':'❌ Trattativa rifiutata!');
     renderTrattative();
+    if(stato==='approvata') renderOverview();
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
 }
