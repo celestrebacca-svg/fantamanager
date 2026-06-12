@@ -89,7 +89,7 @@ document.addEventListener('input',function(e){
   }
 });
 
-(giocatore=null){
+function apriNuovaTrattativa(giocatore=null){
   if(!utenteLoggato){showToast('❌ Devi essere loggato','error');return;}
   trattativaGiocatoreTarget=giocatore;
   rateList=[];
