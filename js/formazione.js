@@ -368,7 +368,8 @@ function calcolaRateBilancio(sqId){
       t.rate.forEach((r,i)=>{
         if(!r.pagata&&r.data&&r.importo){
           const scad=new Date(r.data);
-          const isAcquirente=t.squadra_acquirente_id===sqId;
+          const sqOffT=t.squadra_offerente_id||t.squadra_cedente_id;
+          const isAcquirente=sqOffT===sqId; // offerente paga sempre
           rate.push({
             trattativa:t.giocatore_nome||'—',
             data:r.data,

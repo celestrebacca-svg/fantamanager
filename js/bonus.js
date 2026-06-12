@@ -1,3 +1,16 @@
+// ===== PARSER IMPORTO FM (es. 5M, 1.5M, 500K) =====
+function parseFM(val){
+  if(!val) return 0;
+  const s=String(val).trim().replace(',','.');
+  const m=s.match(/^([0-9.]+)\s*([MKmk]?)$/);
+  if(!m) return parseFloat(s)||0;
+  const n=parseFloat(m[1])||0;
+  const u=m[2].toUpperCase();
+  if(u==='M') return Math.round(n*1000000);
+  if(u==='K') return Math.round(n*1000);
+  return n;
+}
+
 // ===== DIREZIONE IMPORTO =====
 function setDirezioneImporto(dir){
   const el=document.getElementById('trat-direzione-importo');
@@ -68,7 +81,7 @@ function renderBonusLista(){
       </div>
       <div>
         <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">IMPORTO BONUS (FM)</div>
-        <input class="form-input" type="number" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2500000" step="100000" style="padding:7px 8px;font-size:13px">
+        <input class="form-input" type="number" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2.5M" style="padding:7px 8px;font-size:13px">
       </div>
     </div>`).join('');
 }
@@ -202,7 +215,7 @@ function renderRateLista(){
   document.getElementById('rate-lista').innerHTML=rateList.map((r,i)=>`
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
       <span style="font-size:11px;color:var(--testo-dim);width:50px;flex-shrink:0">Rata ${i+1}</span>
-      <input class="form-input" type="number" value="${r.importo}" oninput="rateList[${i}].importo=this.value" placeholder="FM" style="flex:1;padding:8px;font-size:13px" step="100000">
+      <input class="form-input" type="number" value="${r.importo}" oninput="rateList[${i}].importo=this.value" placeholder="Es. 1M" style="flex:1;padding:8px;font-size:13px">
       <input class="form-input" type="date" value="${r.data}" oninput="rateList[${i}].data=this.value" style="flex:1;padding:8px;font-size:13px">
       <button onclick="rateList.splice(${i},1);renderRateLista()" style="background:rgba(255,68,68,0.15);border:none;color:var(--rosso);border-radius:6px;padding:8px 10px;cursor:pointer;flex-shrink:0">✕</button>
     </div>`).join('');
@@ -260,7 +273,7 @@ async function inviaTrattativa(){
   };
 
   if(!tipo.includes('Scambio')&&!tipo.includes('Prestito')){
-    dati.importo=parseFloat(document.getElementById('trat-importo').value)||0;
+    dati.importo=parseFM(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
     // Se ricevo i soldi, inverti la direzione nel DB
@@ -271,11 +284,11 @@ async function inviaTrattativa(){
     }
   }
   if(tipo.includes('Clausola Recompra')){
-    dati.importo_recompra=parseFloat(document.getElementById('trat-importo-recompra').value)||null;
+    dati.importo_recompra=parseFM(document.getElementById('trat-importo-recompra').value)||null;
     dati.scadenza_recompra=document.getElementById('trat-scadenza-recompra').value||null;
   }
   if(tipo.includes('Scambio')){
-    dati.importo=parseFloat(document.getElementById('trat-conguaglio').value)||0;
+    dati.importo=parseFM(document.getElementById('trat-conguaglio').value)||0;
     dati.giocatori_cambio_ids=giocatoriMiei; // miei che offro
     dati.giocatori_ids_richiesti=giocatoriSuoi; // suoi che voglio
     if(!giocatoriMiei.length&&!giocatoriSuoi.length){showToast('❌ Seleziona almeno un giocatore per parte','error');return;}
@@ -291,18 +304,18 @@ async function inviaTrattativa(){
     }
   }
   if(usaRate){
-    dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;
+    dati.importo=parseFM(document.getElementById('trat-importo-totale').value)||0;
   }
   if(tipo.includes('Prestito')){
-    dati.importo=parseFloat(document.getElementById('trat-cifra-prestito')?.value)||0;
+    dati.importo=parseFM(document.getElementById('trat-cifra-prestito')?.value)||0;
     dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
   if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
-    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto').value)||null;
+    dati.importo_riscatto=parseFM(document.getElementById('trat-importo-riscatto').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
   }
   if(hasCondizioni){
-    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto-cond').value)||null;
+    dati.importo_riscatto=parseFM(document.getElementById('trat-importo-riscatto-cond').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
   }
 
