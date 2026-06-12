@@ -70,7 +70,7 @@ async function cambiaStatoTrattativa(id,stato){
       if(t.giocatore_id){
         const destId=isPrestito?sqRic:sqOff;
         await sb.from('giocatori').update({squadra_id:destId}).eq('id',t.giocatore_id);
-        const gIdx=giocatoriDB.findIndex(g=>g.id===t.giocatore_id);
+        const gIdx=giocatoriDB.findIndex(g=>g.id==t.giocatore_id);
         if(gIdx>=0) giocatoriDB[gIdx].squadra_id=destId;
       }
 
@@ -82,12 +82,12 @@ async function cambiaStatoTrattativa(id,stato){
         const suoi=t.giocatori_ids_richiesti||[];
         for(const gId of miei){
           await sb.from('giocatori').update({squadra_id:sqRic}).eq('id',gId);
-          const idx=giocatoriDB.findIndex(g=>g.id===gId);
+          const idx=giocatoriDB.findIndex(g=>g.id==gId);
           if(idx>=0) giocatoriDB[idx].squadra_id=sqRic;
         }
         for(const gId of suoi){
           await sb.from('giocatori').update({squadra_id:sqOff}).eq('id',gId);
-          const idx=giocatoriDB.findIndex(g=>g.id===gId);
+          const idx=giocatoriDB.findIndex(g=>g.id==gId);
           if(idx>=0) giocatoriDB[idx].squadra_id=sqOff;
         }
       }
