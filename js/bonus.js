@@ -14,7 +14,23 @@ function setDirezioneImporto(dir){
   }
 }
 
-// ===== BONUS =====
+// ===== DIREZIONE CONGUAGLIO SCAMBIO =====
+function setDirezioneConguaglio(dir){
+  const el=document.getElementById('trat-direzione-conguaglio');
+  if(el) el.value=dir;
+  const btnPago=document.getElementById('btn-conguaglio-pago');
+  const btnRicevo=document.getElementById('btn-conguaglio-ricevo');
+  if(!btnPago||!btnRicevo) return;
+  if(dir==='pago'){
+    btnPago.style.borderColor='var(--rosso)';btnPago.style.background='rgba(255,68,68,0.15)';btnPago.style.color='var(--rosso)';
+    btnRicevo.style.borderColor='var(--grigio-chiaro)';btnRicevo.style.background='transparent';btnRicevo.style.color='var(--testo-dim)';
+  } else {
+    btnRicevo.style.borderColor='var(--verde)';btnRicevo.style.background='rgba(0,255,135,0.15)';btnRicevo.style.color='var(--verde)';
+    btnPago.style.borderColor='var(--grigio-chiaro)';btnPago.style.background='transparent';btnPago.style.color='var(--testo-dim)';
+  }
+}
+
+
 let bonusList=[];
 const TIPI_BONUS=['gol','assist','presenze','media_voto','classifica'];
 const LABEL_BONUS={gol:'⚽ Gol',assist:'🎯 Assist',presenze:'👟 Presenze',media_voto:'⭐ Media Voto',classifica:'🏆 Posizione in classifica'};
@@ -64,7 +80,16 @@ document.addEventListener('change',function(e){
   }
 });
 
-function apriNuovaTrattativa(giocatore=null){
+// Mostra direzione conguaglio solo se c'è un importo
+document.addEventListener('input',function(e){
+  if(e.target.id==='trat-conguaglio'){
+    const val=parseFloat(e.target.value)||0;
+    const campo=document.getElementById('campo-direzione-conguaglio');
+    if(campo) campo.style.display=val>0?'block':'none';
+  }
+});
+
+(giocatore=null){
   if(!utenteLoggato){showToast('❌ Devi essere loggato','error');return;}
   trattativaGiocatoreTarget=giocatore;
   rateList=[];
@@ -91,6 +116,8 @@ function apriNuovaTrattativa(giocatore=null){
   document.getElementById('trat-note').value='';
   document.getElementById('trat-rivendita').value='';
   document.getElementById('trat-conguaglio').value='';
+  setDirezioneConguaglio('pago');
+  document.getElementById('campo-direzione-conguaglio').style.display='none';
   document.getElementById('rate-lista').innerHTML='';
   document.getElementById('trat-usa-rate').checked=false;
   document.getElementById('campo-rate-inline').style.display='none';
@@ -236,7 +263,12 @@ async function inviaTrattativa(){
     dati.importo=parseFloat(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
-    // direzione_importo è sufficiente per sapere chi paga chi — nessuno swap necessario
+    // Se ricevo i soldi, inverti la direzione nel DB
+    if(dir==='ricevo'){
+      const tmp=dati.squadra_offerente_id;
+      dati.squadra_offerente_id=dati.squadra_ricevente_id;
+      dati.squadra_ricevente_id=tmp;
+    }
   }
   if(tipo.includes('Clausola Recompra')){
     dati.importo_recompra=parseFloat(document.getElementById('trat-importo-recompra').value)||null;
@@ -247,6 +279,16 @@ async function inviaTrattativa(){
     dati.giocatori_cambio_ids=giocatoriMiei; // miei che offro
     dati.giocatori_ids_richiesti=giocatoriSuoi; // suoi che voglio
     if(!giocatoriMiei.length&&!giocatoriSuoi.length){showToast('❌ Seleziona almeno un giocatore per parte','error');return;}
+    if(dati.importo>0){
+      const dirCong=document.getElementById('trat-direzione-conguaglio')?.value||'pago';
+      dati.direzione_importo=dirCong;
+      // Se ricevo il conguaglio, swappa le squadre (coerente con la logica titolo definitivo)
+      if(dirCong==='ricevo'){
+        const tmp=dati.squadra_offerente_id;
+        dati.squadra_offerente_id=dati.squadra_ricevente_id;
+        dati.squadra_ricevente_id=tmp;
+      }
+    }
   }
   if(usaRate){
     dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;

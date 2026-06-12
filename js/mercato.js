@@ -58,40 +58,47 @@ async function cambiaStatoTrattativa(id,stato){
     if(error) throw error;
 
     if(stato==='approvata'){
-      // TRASFERIMENTO GIOCATORE
+      const sqRic=t.squadra_ricevente_id;
+      const sqOff=t.squadra_offerente_id;
+      const isScambio=t.tipo&&t.tipo.includes('Scambio');
+
+      // ── TRASFERIMENTO GIOCATORE PRINCIPALE ──
       if(t.giocatore_id){
-        const sqRic=t.squadra_ricevente_id;
-        const sqOff=t.squadra_offerente_id;
-
-        // Trasferisci giocatore alla squadra ricevente
         await sb.from('giocatori').update({squadra_id:sqRic}).eq('id',t.giocatore_id);
-
-        // Aggiorna budget: offerente paga, ricevente incassa (o viceversa)
-        if(t.importo){
-          const dir=t.direzione_importo||'pago';
-          const sqPaga=dir==='pago'?sqOff:sqRic;
-          const sqIncassa=dir==='pago'?sqRic:sqOff;
-          const sqPagaDB=squadreDB.find(s=>s.id===sqPaga);
-          const sqIncassaDB=squadreDB.find(s=>s.id===sqIncassa);
-          if(sqPagaDB) await sb.from('squadre').update({budget:sqPagaDB.budget-t.importo}).eq('id',sqPaga);
-          if(sqIncassaDB) await sb.from('squadre').update({budget:sqIncassaDB.budget+t.importo}).eq('id',sqIncassa);
-        }
-
-        // Aggiorna DB locale
         const gIdx=giocatoriDB.findIndex(g=>g.id===t.giocatore_id);
-        if(gIdx>=0) giocatoriDB[gIdx].squadra_id=t.squadra_ricevente_id;
-        const sqOffIdx=squadreDB.findIndex(s=>s.id===t.squadra_offerente_id);
-        const sqRicIdx=squadreDB.findIndex(s=>s.id===t.squadra_ricevente_id);
-        if(t.importo){
-          const dir=t.direzione_importo||'pago';
-          if(dir==='pago'){
-            if(sqOffIdx>=0) squadreDB[sqOffIdx].budget-=t.importo;
-            if(sqRicIdx>=0) squadreDB[sqRicIdx].budget+=t.importo;
-          } else {
-            if(sqRicIdx>=0) squadreDB[sqRicIdx].budget-=t.importo;
-            if(sqOffIdx>=0) squadreDB[sqOffIdx].budget+=t.importo;
-          }
+        if(gIdx>=0) giocatoriDB[gIdx].squadra_id=sqRic;
+      }
+
+      // ── TRASFERIMENTO GIOCATORI SCAMBIO ──
+      // giocatori_cambio_ids = miei che offro → vanno a sqRic
+      // giocatori_ids_richiesti = suoi che voglio → tornano a sqOff
+      if(isScambio){
+        const miei=t.giocatori_cambio_ids||[];
+        const suoi=t.giocatori_ids_richiesti||[];
+        for(const gId of miei){
+          await sb.from('giocatori').update({squadra_id:sqRic}).eq('id',gId);
+          const idx=giocatoriDB.findIndex(g=>g.id===gId);
+          if(idx>=0) giocatoriDB[idx].squadra_id=sqRic;
         }
+        for(const gId of suoi){
+          await sb.from('giocatori').update({squadra_id:sqOff}).eq('id',gId);
+          const idx=giocatoriDB.findIndex(g=>g.id===gId);
+          if(idx>=0) giocatoriDB[idx].squadra_id=sqOff;
+        }
+      }
+
+      // ── BUDGET ──
+      // Lo swap sqOff/sqRic è già avvenuto in bonus.js se dir='ricevo'
+      // quindi sqOff paga SEMPRE e sqRic incassa SEMPRE
+      if(t.importo){
+        const sqOffDB=squadreDB.find(s=>s.id===sqOff);
+        const sqRicDB=squadreDB.find(s=>s.id===sqRic);
+        const sqOffIdx=squadreDB.findIndex(s=>s.id===sqOff);
+        const sqRicIdx=squadreDB.findIndex(s=>s.id===sqRic);
+        if(sqOffDB) await sb.from('squadre').update({budget:sqOffDB.budget-t.importo}).eq('id',sqOff);
+        if(sqRicDB) await sb.from('squadre').update({budget:sqRicDB.budget+t.importo}).eq('id',sqRic);
+        if(sqOffIdx>=0) squadreDB[sqOffIdx].budget-=t.importo;
+        if(sqRicIdx>=0) squadreDB[sqRicIdx].budget+=t.importo;
       }
     }
 
