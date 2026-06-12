@@ -236,12 +236,7 @@ async function inviaTrattativa(){
     dati.importo=parseFloat(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
-    // Se ricevo i soldi, inverti la direzione nel DB
-    if(dir==='ricevo'){
-      const tmp=dati.squadra_offerente_id;
-      dati.squadra_offerente_id=dati.squadra_ricevente_id;
-      dati.squadra_ricevente_id=tmp;
-    }
+    // direzione_importo è sufficiente per sapere chi paga chi — nessuno swap necessario
   }
   if(tipo.includes('Clausola Recompra')){
     dati.importo_recompra=parseFloat(document.getElementById('trat-importo-recompra').value)||null;
