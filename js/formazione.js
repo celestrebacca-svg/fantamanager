@@ -197,21 +197,22 @@ function renderBilancioSquadra(sqId, isProprietario=false){
     const isIncassante=sqIncassa===sqId;
     if(!isPagante&&!isIncassante) return;
 
-    // Importo già pagato (transazione completata)
-    if(t.stato==='completata'){
-      const imp=parseFloat(t.importo)||0;
-      if(isPagante) totAcquisti+=imp;      // uscita
-      else if(isIncassante) totCessioni+=imp; // entrata
+    // Importo base: già avvenuto se completata O approvata (giocatore già trasferito)
+    const imp=parseFloat(t.importo)||0;
+    if(imp>0){
+      if(isPagante) totAcquisti+=imp;
+      else if(isIncassante) totCessioni+=imp;
     }
 
-    // Rate future non ancora pagate (solo quelle con data >= oggi)
+    // Rate di questa stagione (data <= 30 giugno stagione corrente)
     if(t.rate&&t.rate.length){
-      const oggi=new Date(); oggi.setHours(0,0,0,0);
       t.rate.forEach(r=>{
         if(r.pagata) return;
         const imp=parseFloat(r.importo)||0;
         if(imp<=0) return;
-        if(r.data&&new Date(r.data)<oggi) return;
+        if(!r.data) return;
+        const dataRata=new Date(r.data);
+        if(dataRata>dataChiusura) return; // rata di stagione futura, non contarla
         if(isPagante) totAcquisti+=imp;
         else if(isIncassante) totCessioni+=imp;
       });
