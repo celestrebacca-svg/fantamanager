@@ -53,16 +53,20 @@ async function cambiaStatoTrattativa(id,stato){
     const t=trattativeDB.find(x=>x.id===id);
     if(!t) throw new Error('Trattativa non trovata');
 
-    // Aggiorna stato trattativa
     const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
     if(error) throw error;
 
     if(stato==='approvata'){
-      const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+      // Leggo entrambi i nomi colonna possibili
       const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
-      const isScambio=t.tipo&&t.tipo.includes('Scambio');
+      const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+      const tipo=t.tipo||'';
+      const isScambio=tipo.includes('Scambio');
+      const isPrestito=tipo.includes('Prestito');
 
       // ── TRASFERIMENTO GIOCATORE PRINCIPALE ──
+      // Prestito: va a sqRic temporaneamente (torna alla scadenza)
+      // Tutti gli altri: va a sqRic definitivamente
       if(t.giocatore_id){
         await sb.from('giocatori').update({squadra_id:sqRic}).eq('id',t.giocatore_id);
         const gIdx=giocatoriDB.findIndex(g=>g.id===t.giocatore_id);
@@ -71,7 +75,7 @@ async function cambiaStatoTrattativa(id,stato){
 
       // ── TRASFERIMENTO GIOCATORI SCAMBIO ──
       // giocatori_cambio_ids = miei che offro → vanno a sqRic
-      // giocatori_ids_richiesti = suoi che voglio → tornano a sqOff
+      // giocatori_ids_richiesti = suoi che voglio → vengono a sqOff
       if(isScambio){
         const miei=t.giocatori_cambio_ids||[];
         const suoi=t.giocatori_ids_richiesti||[];
