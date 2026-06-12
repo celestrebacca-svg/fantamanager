@@ -58,8 +58,8 @@ async function cambiaStatoTrattativa(id,stato){
     if(error) throw error;
 
     if(stato==='approvata'){
-      const sqRic=t.squadra_ricevente_id;
-      const sqOff=t.squadra_offerente_id;
+      const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+      const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
       const isScambio=t.tipo&&t.tipo.includes('Scambio');
 
       // ── TRASFERIMENTO GIOCATORE PRINCIPALE ──
