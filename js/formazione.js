@@ -374,7 +374,7 @@ function calcolaRateBilancio(sqId){
             data:r.data,
             importo:parseFloat(r.importo),
             tipo:isAcquirente?'uscita':'entrata',
-            scaduta:scad<OGGI,
+            scaduta:scad<new Date(),
             idx:i,
             tid:t.id,
           });
