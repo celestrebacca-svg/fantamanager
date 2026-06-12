@@ -92,18 +92,37 @@ async function cambiaStatoTrattativa(id,stato){
         }
       }
 
-      // ── BUDGET ──
-      // Lo swap sqOff/sqRic è già avvenuto in bonus.js se dir='ricevo'
-      // quindi sqOff paga SEMPRE e sqRic incassa SEMPRE
+      // ── BUDGET + STORICO MOVIMENTI ──
+      // sqOff paga SEMPRE, sqRic incassa SEMPRE
+      const g=giocatoriDB.find(x=>x.id==t.giocatore_id);
+      const nomeG=g?g.nome:(t.giocatore_nome||'Giocatore');
+      const sqOffDB=squadreDB.find(s=>s.id===sqOff);
+      const sqRicDB=squadreDB.find(s=>s.id===sqRic);
+      const sqOffIdx=squadreDB.findIndex(s=>s.id===sqOff);
+      const sqRicIdx=squadreDB.findIndex(s=>s.id===sqRic);
+
       if(t.importo){
-        const sqOffDB=squadreDB.find(s=>s.id===sqOff);
-        const sqRicDB=squadreDB.find(s=>s.id===sqRic);
-        const sqOffIdx=squadreDB.findIndex(s=>s.id===sqOff);
-        const sqRicIdx=squadreDB.findIndex(s=>s.id===sqRic);
         if(sqOffDB) await sb.from('squadre').update({budget:sqOffDB.budget-t.importo}).eq('id',sqOff);
         if(sqRicDB) await sb.from('squadre').update({budget:sqRicDB.budget+t.importo}).eq('id',sqRic);
         if(sqOffIdx>=0) squadreDB[sqOffIdx].budget-=t.importo;
         if(sqRicIdx>=0) squadreDB[sqRicIdx].budget+=t.importo;
+
+        // Log storico movimenti
+        const budgetOffDopo=(sqOffDB?sqOffDB.budget:0)-t.importo;
+        const budgetRicDopo=(sqRicDB?sqRicDB.budget:0)+t.importo;
+        await sb.from('movimenti_budget').insert([
+          {squadra_id:sqOff,importo:-t.importo,tipo:'uscita',
+           descrizione:`${t.tipo}: ${nomeG}`,
+           saldo_prima:sqOffDB?sqOffDB.budget:null,saldo_dopo:budgetOffDopo},
+          {squadra_id:sqRic,importo:t.importo,tipo:'entrata',
+           descrizione:`${t.tipo}: ${nomeG}`,
+           saldo_prima:sqRicDB?sqRicDB.budget:null,saldo_dopo:budgetRicDopo}
+        ]);
+      } else {
+        // Scambio senza importo — log solo il trasferimento
+        if(sqOff) await sb.from('movimenti_budget').insert(
+          {squadra_id:sqOff,importo:0,tipo:'uscita',descrizione:`${t.tipo}: ${nomeG} (scambio)`,saldo_dopo:sqOffDB?sqOffDB.budget:null}
+        );
       }
     }
 

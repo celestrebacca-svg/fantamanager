@@ -85,6 +85,15 @@ async function salvaFormazione(sqId){
   }catch(e){showToast('❌ '+e.message,'error');}
 }
 
+
+// Formatta importo in milioni FM (es. 5.000.000 → 5,00 M FM)
+function fmtM(val){
+  const n=parseFloat(val)||0;
+  if(Math.abs(n)>=1000000) return (n/1000000).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+' M FM';
+  if(Math.abs(n)>=1000) return (n/1000).toLocaleString('it-IT',{minimumFractionDigits:0,maximumFractionDigits:1})+' K FM';
+  return n.toLocaleString('it-IT')+' FM';
+}
+
 function renderBilancioSquadra(sqId, isProprietario=false){
   const sq=squadreDB.find(s=>s.id===sqId);
   const c=document.getElementById('bilancio-inline-content');
@@ -182,17 +191,17 @@ function renderBilancioSquadra(sqId, isProprietario=false){
   // Mercato — acquisti/cessioni (completate + rate future approvate)
   let totAcquisti=0, totCessioni=0;
   trattativeDB.filter(t=>t.stato==='completata'||t.stato==='approvata').forEach(t=>{
-    const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
-    const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
-    const isAcquirente=sqRic===sqId;
-    const isCedente=sqOff===sqId;
-    if(!isAcquirente&&!isCedente) return;
+    const sqPaga=t.squadra_offerente_id||t.squadra_cedente_id; // offerente paga sempre
+    const sqIncassa=t.squadra_ricevente_id||t.squadra_acquirente_id; // ricevente incassa
+    const isPagante=sqPaga===sqId;
+    const isIncassante=sqIncassa===sqId;
+    if(!isPagante&&!isIncassante) return;
 
-    // Importo già pagato (transazione principale già avvenuta se completata)
+    // Importo già pagato (transazione completata)
     if(t.stato==='completata'){
       const imp=parseFloat(t.importo)||0;
-      if(isAcquirente) totAcquisti+=imp;
-      else if(isCedente) totCessioni+=imp;
+      if(isPagante) totAcquisti+=imp;      // uscita
+      else if(isIncassante) totCessioni+=imp; // entrata
     }
 
     // Rate future non ancora pagate (solo quelle con data >= oggi)
@@ -202,9 +211,9 @@ function renderBilancioSquadra(sqId, isProprietario=false){
         if(r.pagata) return;
         const imp=parseFloat(r.importo)||0;
         if(imp<=0) return;
-        if(r.data&&new Date(r.data)<oggi) return; // rata scaduta, non contarla nelle future
-        if(isAcquirente) totAcquisti+=imp;
-        else if(isCedente) totCessioni+=imp;
+        if(r.data&&new Date(r.data)<oggi) return;
+        if(isPagante) totAcquisti+=imp;
+        else if(isIncassante) totCessioni+=imp;
       });
     }
   });
@@ -243,23 +252,23 @@ function renderBilancioSquadra(sqId, isProprietario=false){
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--grigio-chiaro)">
         <div style="background:var(--grigio-scuro);padding:14px;text-align:center">
           <div style="font-size:9px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Budget Attuale</div>
-          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${inAttivo?'var(--verde)':'var(--rosso)'}">${fmtBudget(budget)}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${inAttivo?'var(--verde)':'var(--rosso)'}">${fmtM(budget)}</div>
           <div style="font-size:9px;color:var(--testo-dim);margin-top:2px">${inAttivo?'✅ In attivo':'⚠️ In passivo'}</div>
         </div>
         <div style="background:var(--grigio-scuro);padding:14px;text-align:center">
           <div style="font-size:9px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Proiezione 30/06/${annoFine}</div>
-          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${proiezioneOk?'var(--verde)':'var(--rosso)'}">${fmtBudget(budgetProiettato)}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:${proiezioneOk?'var(--verde)':'var(--rosso)'}">${fmtM(budgetProiettato)}</div>
           <div style="font-size:9px;color:${proiezioneOk?'var(--verde)':'var(--rosso)'};margin-top:2px">${proiezioneOk?'✅ Sarà in attivo':'⚠️ ATTENZIONE: sarà in passivo'}</div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--grigio-chiaro)">
         <div style="background:var(--grigio-scuro);padding:10px;text-align:center">
           <div style="font-size:9px;color:var(--testo-dim);margin-bottom:2px">Entrate Est.</div>
-          <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--verde)">+${fmtBudget(totEntrateM)}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--verde)">+${fmtM(totEntrateM)}</div>
         </div>
         <div style="background:var(--grigio-scuro);padding:10px;text-align:center">
           <div style="font-size:9px;color:var(--testo-dim);margin-bottom:2px">Uscite Est.</div>
-          <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--rosso)">-${fmtBudget(totUsciteM)}</div>
+          <div style="font-family:'Space Mono',monospace;font-size:12px;color:var(--rosso)">-${fmtM(totUsciteM)}</div>
         </div>
         <div style="background:var(--grigio-scuro);padding:10px;text-align:center">
           <div style="font-size:9px;color:var(--testo-dim);margin-bottom:2px">Tifosi</div>
@@ -277,7 +286,7 @@ function renderBilancioSquadra(sqId, isProprietario=false){
           <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--rosso);letter-spacing:1px">💸 STIPENDI — 30 GIU ${annoFine}</div>
           <div style="font-size:10px;color:var(--testo-dim)">Pagati a fine stagione ${labelStagione}</div>
         </div>
-        <div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--rosso);font-weight:700">-${fmtBudget(totStipendi*1000000)}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--rosso);font-weight:700">-${fmtM(totStipendi*1000000)}</div>
       </div>
       <div style="padding:8px 14px">
         ${righeStipendi.length===0?'<div style="font-size:12px;color:var(--testo-dim);padding:6px 0">Nessuno stipendio da pagare</div>':
@@ -289,7 +298,7 @@ function renderBilancioSquadra(sqId, isProprietario=false){
             </div>
             <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
               ${r.nota!=='Intero'?`<span style="font-size:10px;color:var(--testo-dim)">${r.nota}</span>`:''}
-              <span style="font-family:'Space Mono',monospace;color:var(--rosso)">-${fmtBudget(r.stip*1000000)}</span>
+              <span style="font-family:'Space Mono',monospace;color:var(--rosso)">-${fmtM(r.stip*1000000)}</span>
             </div>
           </div>`).join('')}
         <div style="padding:8px 0 2px;font-size:10px;color:var(--testo-dim);line-height:1.6">
@@ -307,7 +316,7 @@ function renderBilancioSquadra(sqId, isProprietario=false){
         <div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--verde);letter-spacing:1px">📈 ENTRATE STIMATE ${labelStagione}</div>
         </div>
-        <div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--verde);font-weight:700">+${fmtBudget(totEntrateM)}</div>
+        <div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--verde);font-weight:700">+${fmtM(totEntrateM)}</div>
       </div>
       <div style="padding:8px 14px">
         <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px">
@@ -315,22 +324,22 @@ function renderBilancioSquadra(sqId, isProprietario=false){
             <span>🏛️ Rendita Museo</span>
             <span style="font-size:10px;color:var(--testo-dim);margin-left:6px">accreditata il 2 Luglio ${annoFine}</span>
           </div>
-          <span style="font-family:'Space Mono',monospace;color:var(--verde)">+${fmtBudget(renditaMuseo*1000000)}</span>
+          <span style="font-family:'Space Mono',monospace;color:var(--verde)">+${fmtM(renditaMuseo*1000000)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px">
           <div>
             <span>🏟️ Stadio</span>
             <span style="font-size:10px;color:var(--testo-dim);margin-left:6px">${tifosi.toLocaleString()} tifosi × 80€ × ${gareStimate} gare</span>
           </div>
-          <span style="font-family:'Space Mono',monospace;color:var(--verde)">+${fmtBudget(entrateTifosi)}</span>
+          <span style="font-family:'Space Mono',monospace;color:var(--verde)">+${fmtM(entrateTifosi)}</span>
         </div>
         ${totCessioni?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px">
           <span>🔄 Cessioni completate</span>
-          <span style="font-family:'Space Mono',monospace;color:var(--verde)">+${fmtBudget(totCessioni)}</span>
+          <span style="font-family:'Space Mono',monospace;color:var(--verde)">+${fmtM(totCessioni)}</span>
         </div>`:''}
         ${totAcquisti?`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px">
           <span>🛒 Acquisti completati</span>
-          <span style="font-family:'Space Mono',monospace;color:var(--rosso)">-${fmtBudget(totAcquisti)}</span>
+          <span style="font-family:'Space Mono',monospace;color:var(--rosso)">-${fmtM(totAcquisti)}</span>
         </div>`:''}
         <div style="font-size:10px;color:var(--testo-dim);margin-top:6px">
           ℹ️ Sponsor settimanali e premi competizioni aggiunti dall'admin durante la stagione
@@ -364,14 +373,15 @@ function renderBilancioSquadra(sqId, isProprietario=false){
 function calcolaRateBilancio(sqId){
   const rate=[];
   trattativeDB.forEach(t=>{
-    if((t.squadra_acquirente_id===sqId||t.squadra_offerente_id===sqId)&&t.rate&&t.rate.length){
+    const sqPagaT=t.squadra_offerente_id||t.squadra_cedente_id;
+    const sqIncassaT=t.squadra_ricevente_id||t.squadra_acquirente_id;
+    if((sqPagaT===sqId||sqIncassaT===sqId)&&t.rate&&t.rate.length){
       t.rate.forEach((r,i)=>{
         if(!r.pagata&&r.data&&r.importo){
           const scad=new Date(r.data);
-          const sqOffT=t.squadra_offerente_id||t.squadra_cedente_id;
-          const isAcquirente=sqOffT===sqId; // offerente paga sempre
+          const isAcquirente=sqPagaT===sqId; // offerente paga sempre
           rate.push({
-            trattativa:t.giocatore_nome||'—',
+            trattativa:(()=>{const g=giocatoriDB.find(x=>x.id==t.giocatore_id);return g?g.nome:(t.giocatore_nome||'—');})(),
             data:r.data,
             importo:parseFloat(r.importo),
             tipo:isAcquirente?'uscita':'entrata',
@@ -391,7 +401,7 @@ function calcolaRateBilancio(sqId){
         <div style="font-size:10px;color:${r.scaduta?'var(--rosso)':'var(--testo-dim)'}">📅 ${r.data}${r.scaduta?' ⚠️ SCADUTA':''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:'Space Mono',monospace;color:${r.tipo==='uscita'?'var(--rosso)':'var(--verde)'}">${r.tipo==='uscita'?'-':'+'}${fmtBudget(r.importo)}</span>
+        <span style="font-family:'Space Mono',monospace;color:${r.tipo==='uscita'?'var(--rosso)':'var(--verde)'}">${r.tipo==='uscita'?'-':'+'}${fmtM(r.importo)}</span>
         ${adminLoggato?`<button onclick="marcaRataBilancio(${r.tid},${r.idx})" style="font-size:10px;background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);color:var(--verde);padding:3px 8px;border-radius:4px;cursor:pointer">✓ Pagata</button>`:''}
       </div>
     </div>`).join('');
