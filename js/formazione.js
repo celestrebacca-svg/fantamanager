@@ -179,12 +179,34 @@ function renderBilancioSquadra(sqId, isProprietario=false){
   const gareStimate=11; // ~11 gare casalinghe di campionato
   const entrateTifosi=tifosi*80*gareStimate;
 
-  // Mercato — acquisti/cessioni completati
+  // Mercato — acquisti/cessioni (completate + rate future approvate)
   let totAcquisti=0, totCessioni=0;
-  trattativeDB.filter(t=>t.stato==='completata').forEach(t=>{
-    const imp=parseFloat(t.importo)||0;
-    if(t.squadra_acquirente_id===sqId) totAcquisti+=imp;
-    else if(t.squadra_offerente_id===sqId||t.squadra_cedente_id===sqId) totCessioni+=imp;
+  trattativeDB.filter(t=>t.stato==='completata'||t.stato==='approvata').forEach(t=>{
+    const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
+    const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+    const isAcquirente=sqRic===sqId;
+    const isCedente=sqOff===sqId;
+    if(!isAcquirente&&!isCedente) return;
+
+    // Importo già pagato (transazione principale già avvenuta se completata)
+    if(t.stato==='completata'){
+      const imp=parseFloat(t.importo)||0;
+      if(isAcquirente) totAcquisti+=imp;
+      else if(isCedente) totCessioni+=imp;
+    }
+
+    // Rate future non ancora pagate (solo quelle con data >= oggi)
+    if(t.rate&&t.rate.length){
+      const oggi=new Date(); oggi.setHours(0,0,0,0);
+      t.rate.forEach(r=>{
+        if(r.pagata) return;
+        const imp=parseFloat(r.importo)||0;
+        if(imp<=0) return;
+        if(r.data&&new Date(r.data)<oggi) return; // rata scaduta, non contarla nelle future
+        if(isAcquirente) totAcquisti+=imp;
+        else if(isCedente) totCessioni+=imp;
+      });
+    }
   });
 
   // ===== PROIEZIONE BUDGET a fine stagione =====
