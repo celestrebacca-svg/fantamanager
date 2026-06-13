@@ -81,6 +81,7 @@ function showSection(nome,btn){
   else if(nome==='mercato') renderTrattative();
   else if(nome==='classifica') renderClassifica();
   else if(nome==='social') renderSocial();
+  else if(nome==='risiko') renderRisiko();
   else if(nome==='rose'){
     const lista=document.getElementById('lista-squadre');
     const pagina=document.getElementById('pagina-squadra');
