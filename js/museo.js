@@ -49,7 +49,8 @@ function apriMuseoSquadra(sqId){
         Object.entries(perComp).map(([cid,arr])=>{
           const comp=competizioni.find(c=>c.id===cid);
           const molt=getMolt(arr.length);
-          const rendC=comp&&comp.museo?comp.museo.fm*molt:0;
+          const fmTotC=arr.reduce((s,t)=>s+(t.fmMuseo||comp.museo.fm),0);
+          const rendC=comp&&comp.museo?fmTotC*molt:0;
           return `<div style="background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid var(--oro)">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px">
               <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro)">${comp?comp.icon:''} ${comp?comp.nome:cid}</div>
@@ -116,6 +117,7 @@ function apriModificaTrofei(sqId){
     </div>
   `;
   m.classList.add('open');
+  setTimeout(aggiornaPosizioni,0);
 }
 
 function aggiornaPosizioni(){
