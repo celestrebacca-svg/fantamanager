@@ -350,8 +350,9 @@ function renderBilancioSquadra(sqId, isProprietario=false){
 
     <!-- RATE IN SCADENZA -->
     <div style="background:var(--grigio);border:1px solid rgba(255,215,0,0.2);border-radius:12px;overflow:hidden;margin-bottom:12px">
-      <div style="background:var(--grigio-scuro);padding:12px 16px;border-bottom:1px solid var(--grigio-chiaro)">
+      <div style="background:var(--grigio-scuro);padding:12px 16px;border-bottom:1px solid var(--grigio-chiaro);display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro);letter-spacing:1px">💳 RATE IN SCADENZA</div>
+        ${isProprietario?`<button onclick="apriNuovaRata('${sqId}')" style="background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--oro);font-size:18px;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>`:''}
       </div>
       <div style="padding:8px 14px">${calcolaRateBilancio(sqId)}</div>
     </div>
@@ -374,18 +375,23 @@ function renderBilancioSquadra(sqId, isProprietario=false){
 function calcolaRateBilancio(sqId){
   const rate=[];
   trattativeDB.forEach(t=>{
+    if(t.stato==='rifiutata') return;
     const sqPagaT=t.squadra_offerente_id||t.squadra_cedente_id;
     const sqIncassaT=t.squadra_ricevente_id||t.squadra_acquirente_id;
-    if((sqPagaT===sqId||sqIncassaT===sqId)&&t.rate&&t.rate.length){
+    // Rate manuali: squadra_offerente = chi paga, squadra_ricevente = chi incassa
+    const isManuale=t.tipo==='Rata Manuale'||t.tipo==='Bonus Manuale';
+    const coinvolto=(sqPagaT===sqId||sqIncassaT===sqId);
+    if(coinvolto&&t.rate&&t.rate.length){
       t.rate.forEach((r,i)=>{
         if(!r.pagata&&r.data&&r.importo){
           const scad=new Date(r.data);
-          const isAcquirente=sqPagaT===sqId; // offerente paga sempre
+          const isPagante=sqPagaT===sqId;
+          const nome=isManuale?(t.giocatore_nome||'—'):(()=>{const g=giocatoriDB.find(x=>x.id==t.giocatore_id);return g?g.nome:(t.giocatore_nome||'—');})();
           rate.push({
-            trattativa:(()=>{const g=giocatoriDB.find(x=>x.id==t.giocatore_id);return g?g.nome:(t.giocatore_nome||'—');})(),
+            trattativa:nome,
             data:r.data,
             importo:parseFloat(r.importo),
-            tipo:isAcquirente?'uscita':'entrata',
+            tipo:isPagante?'uscita':'entrata',
             scaduta:scad<new Date(),
             idx:i,
             tid:t.id,
@@ -422,6 +428,89 @@ async function marcaRataBilancio(tid,idx){
       renderBilancioSquadra(bilancioSquadraAttiva);
     }
   }catch(e){showToast('❌ Errore','error');}
+}
+
+
+async function apriNuovaRata(sqId){
+  // Crea modal dinamico se non esiste
+  let m=document.getElementById('modal-nuova-rata');
+  if(!m){
+    m=document.createElement('div');
+    m.id='modal-nuova-rata';
+    m.className='modal-overlay';
+    m.innerHTML=`
+      <div class="modal-content" style="max-width:420px">
+        <div class="modal-header">
+          <h2 class="modal-title">💳 NUOVA RATA / BONUS</h2>
+          <button class="modal-close" onclick="document.getElementById('modal-nuova-rata').classList.remove('open')">✕</button>
+        </div>
+        <div class="modal-body" id="nuova-rata-body"></div>
+      </div>`;
+    document.body.appendChild(m);
+  }
+  document.getElementById('nuova-rata-body').innerHTML=`
+    <div class="form-group">
+      <label class="form-label">Nome / Descrizione</label>
+      <input class="form-input" type="text" id="rata-nome" placeholder="Es. Palestra, Bonus gol, Quota acquisto...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tipo</label>
+      <select class="form-select" id="rata-tipo">
+        <option value="uscita-rata">💸 Rata da pagare</option>
+        <option value="entrata-rata">💰 Rata da ricevere</option>
+        <option value="uscita-bonus">📉 Bonus uscita</option>
+        <option value="entrata-bonus">📈 Bonus entrata</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Importo (es. 1M, 500K)</label>
+      <input class="form-input" type="text" id="rata-importo" placeholder="Es. 1.5M">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data scadenza</label>
+      <input class="form-input" type="date" id="rata-data">
+    </div>
+    <button onclick="salvaRataManuale('${sqId}')" class="btn-primary" style="width:100%;margin-top:8px">💾 AGGIUNGI</button>
+  `;
+  m.classList.add('open');
+}
+
+async function salvaRataManuale(sqId){
+  const nome=document.getElementById('rata-nome').value.trim();
+  const tipo=document.getElementById('rata-tipo').value;
+  const importoRaw=document.getElementById('rata-importo').value;
+  const data=document.getElementById('rata-data').value;
+  const importo=parseFM(importoRaw);
+  if(!nome){showToast('❌ Inserisci un nome','error');return;}
+  if(!importo){showToast('❌ Inserisci un importo valido','error');return;}
+  if(!data){showToast('❌ Inserisci una data','error');return;}
+
+  const isUscita=tipo.includes('uscita');
+  const isBonus=tipo.includes('bonus');
+
+  // Salva come trattativa speciale
+  const dati={
+    tipo: isBonus?'Bonus Manuale':'Rata Manuale',
+    stato:'approvata',
+    squadra_offerente_id: isUscita?sqId:null,
+    squadra_ricevente_id: isUscita?null:sqId,
+    giocatore_nome: nome,
+    importo: 0, // l'importo è tutto nelle rate
+    rate:[{importo,data,pagata:false}],
+    direzione_importo: isUscita?'pago':'ricevo',
+    created_at: new Date().toISOString(),
+  };
+
+  try{
+    const{error}=await sb.from('trattative').insert(dati);
+    if(error) throw error;
+    // Ricarica trattative
+    const{data:tDB}=await sb.from('trattative').select('*').order('created_at',{ascending:false});
+    if(tDB) trattativeDB=tDB;
+    document.getElementById('modal-nuova-rata').classList.remove('open');
+    showToast('✅ Rata aggiunta!');
+    renderBilancioSquadra(sqId,true);
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
 }
 
 function apriNuovaVoceBilancio(sqId){
