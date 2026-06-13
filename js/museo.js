@@ -38,6 +38,7 @@ function apriMuseoSquadra(sqId){
       <div><div style="font-size:10px;color:var(--testo-dim)">TROFEI</div><div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--oro)">${trofei.length}</div></div>
       <div><div style="font-size:10px;color:var(--testo-dim)">RENDITA</div><div style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--verde)">${rendita.toFixed(1)}M FM</div></div>
     </div>
+    ${adminLoggato?`<div style="padding:8px 16px 0"><button onclick="apriModificaTrofei('${sqId}')" class="btn-primary" style="width:100%">✏️ MODIFICA TROFEI</button></div>`:''}
     <div style="padding:16px 20px">
       ${trofei.length===0?'<div style="color:var(--testo-dim);font-size:14px;text-align:center;padding:20px 0">Nessun trofeo ancora 🏆</div>':
         Object.entries(perComp).map(([cid,arr])=>{
@@ -54,22 +55,7 @@ function apriMuseoSquadra(sqId){
           </div>`;
         }).join('')}
     </div>`;
-  // Aggiungo pulsante modifica se admin
-  const footerEl=document.getElementById('mm-footer');
-  if(footerEl){
-    footerEl.innerHTML=adminLoggato?`<button onclick="apriModificaTrofei('${sqId}')" class="btn-primary" style="width:100%;margin-top:8px">✏️ MODIFICA TROFEI</button>`:'';
-  } else {
-    // Aggiunge footer se non esiste
-    const modal=document.getElementById('modal-museo');
-    let footer=modal.querySelector('.modal-footer');
-    if(!footer){
-      footer=document.createElement('div');
-      footer.className='modal-footer';
-      footer.id='mm-footer';
-      modal.querySelector('.modal-content').appendChild(footer);
-    }
-    footer.innerHTML=adminLoggato?`<button onclick="apriModificaTrofei('${sqId}')" class="btn-primary" style="width:100%;margin-top:8px">✏️ MODIFICA TROFEI</button>`:'';
-  }
+  // Pulsante modifica trofei per admin — iniettato nel mm-body
   document.getElementById('modal-museo').classList.add('open');
 }
 
