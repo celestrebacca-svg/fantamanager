@@ -19,7 +19,7 @@ function fmtBudget(n){return new Intl.NumberFormat('it-IT',{minimumFractionDigit
 function fmtNum(n){return new Intl.NumberFormat('it-IT').format(n||0);}
 function ruoloColor(r){return{P:'ruolo-p',D:'ruolo-d',C:'ruolo-c',A:'ruolo-a'}[r]||'';}
 function ruoloNome(r){return{P:'Portiere',D:'Difensore',C:'Centrocampista',A:'Attaccante'}[r]||r;}
-function getMolt(n){return[0,1,2.5,4,5,7][Math.min(n,5)]||0;}
+function getMolt(n){const base=[0,1,2.5,4,5,7];if(n<=0)return 0;if(n<base.length)return base[n];return 7+(n-5);}
 function iniziali(nome){return(nome||'??').replace(/[^a-zA-Z ]/g,'').split(' ').map(p=>p[0]||'').join('').substring(0,2).toUpperCase()||'??';}
 
 let _toastTimer=null;

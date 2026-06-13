@@ -54,5 +54,100 @@ function apriMuseoSquadra(sqId){
           </div>`;
         }).join('')}
     </div>`;
+  // Aggiungo pulsante modifica se admin
+  const footerEl=document.getElementById('mm-footer');
+  if(footerEl){
+    footerEl.innerHTML=adminLoggato?`<button onclick="apriModificaTrofei('${sqId}')" class="btn-primary" style="width:100%;margin-top:8px">✏️ MODIFICA TROFEI</button>`:'';
+  } else {
+    // Aggiunge footer se non esiste
+    const modal=document.getElementById('modal-museo');
+    let footer=modal.querySelector('.modal-footer');
+    if(!footer){
+      footer=document.createElement('div');
+      footer.className='modal-footer';
+      footer.id='mm-footer';
+      modal.querySelector('.modal-content').appendChild(footer);
+    }
+    footer.innerHTML=adminLoggato?`<button onclick="apriModificaTrofei('${sqId}')" class="btn-primary" style="width:100%;margin-top:8px">✏️ MODIFICA TROFEI</button>`:'';
+  }
   document.getElementById('modal-museo').classList.add('open');
+}
+
+// ===== MODIFICA TROFEI (solo admin) =====
+function apriModificaTrofei(sqId){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  if(!sq) return;
+  let m=document.getElementById('modal-modifica-trofei');
+  if(!m){
+    m=document.createElement('div');
+    m.id='modal-modifica-trofei';
+    m.className='modal-overlay';
+    m.innerHTML=`<div class="modal-content" style="max-width:480px">
+      <div class="modal-header">
+        <h2 class="modal-title">🏆 MODIFICA TROFEI</h2>
+        <button class="modal-close" onclick="document.getElementById('modal-modifica-trofei').classList.remove('open')">✕</button>
+      </div>
+      <div class="modal-body" id="modifica-trofei-body"></div>
+    </div>`;
+    document.body.appendChild(m);
+  }
+
+  const trofei=sq.trofei||[];
+  document.getElementById('modifica-trofei-body').innerHTML=`
+    <div style="margin-bottom:16px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--testo-dim);margin-bottom:8px">TROFEI ATTUALI</div>
+      <div id="lista-trofei-edit" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;margin-bottom:12px">
+        ${trofei.map((t,i)=>`<span style="background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.3);color:var(--oro);padding:4px 10px;border-radius:20px;font-size:12px;display:flex;align-items:center;gap:6px">
+          🏆 ${t.coppa} ${t.anno}
+          <span onclick="rimuoviTrofeo('${sqId}',${i})" style="cursor:pointer;color:var(--rosso);font-weight:700">✕</span>
+        </span>`).join('')||'<span style="color:var(--testo-dim);font-size:12px">Nessun trofeo</span>'}
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--grigio-chiaro);padding-top:16px">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--testo-dim);margin-bottom:10px">AGGIUNGI TROFEO</div>
+      <div class="form-group">
+        <label class="form-label">Competizione</label>
+        <select class="form-select" id="trofeo-comp">
+          ${(competizioni||[]).filter(c=>c.museo).map(c=>`<option value="${c.id}">${c.icon||'🏆'} ${c.nome}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Anno</label>
+        <input class="form-input" type="text" id="trofeo-anno" placeholder="Es. 2026/27">
+      </div>
+      <button onclick="aggiungiTrofeo('${sqId}')" class="btn-primary" style="width:100%">➕ AGGIUNGI TROFEO</button>
+    </div>
+  `;
+  m.classList.add('open');
+}
+
+async function aggiungiTrofeo(sqId){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  if(!sq) return;
+  const compId=document.getElementById('trofeo-comp').value;
+  const anno=document.getElementById('trofeo-anno').value.trim();
+  if(!anno){showToast('❌ Inserisci anno','error');return;}
+  const comp=competizioni.find(c=>c.id===compId);
+  const trofei=[...(sq.trofei||[]),{compId,coppa:comp?comp.nome:compId,anno}];
+  const{error}=await sb.from('squadre').update({trofei}).eq('id',sqId);
+  if(error){showToast('❌ Errore: '+error.message,'error');return;}
+  const idx=squadreDB.findIndex(s=>s.id===sqId);
+  if(idx>=0) squadreDB[idx].trofei=trofei;
+  showToast('🏆 Trofeo aggiunto!');
+  apriModificaTrofei(sqId);
+  renderMuseo();
+}
+
+async function rimuoviTrofeo(sqId,idx){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  if(!sq) return;
+  const trofei=[...(sq.trofei||[])];
+  trofei.splice(idx,1);
+  const{error}=await sb.from('squadre').update({trofei}).eq('id',sqId);
+  if(error){showToast('❌ Errore: '+error.message,'error');return;}
+  const sIdx=squadreDB.findIndex(s=>s.id===sqId);
+  if(sIdx>=0) squadreDB[sIdx].trofei=trofei;
+  showToast('🗑️ Trofeo rimosso');
+  apriModificaTrofei(sqId);
+  renderMuseo();
 }
