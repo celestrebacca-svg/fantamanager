@@ -6,7 +6,10 @@ function renderMuseo(){
     trofei.forEach(t=>{if(!perComp[t.compId])perComp[t.compId]=[];perComp[t.compId].push(t);});
     const rendita=Object.entries(perComp).reduce((tot,[cid,arr])=>{
       const comp=competizioni.find(c=>c.id===cid);
-      return comp&&comp.museo?tot+comp.museo.fm*getMolt(arr.length):tot;
+      if(!comp||!comp.museo) return tot;
+      // Somma fm per ogni trofeo (può avere fm diverso per posizione)
+      const fmTot=arr.reduce((s,t)=>s+(t.fmMuseo||comp.museo.fm),0);
+      return tot+fmTot*getMolt(arr.length);
     },0);
     const logoHtml=sq.logo_url?`<img src="${sq.logo_url}">`:(sq.avatar||'⚽');
     return `<div class="museo-card" onclick="apriMuseoSquadra('${sq.id}')">
@@ -30,7 +33,9 @@ function apriMuseoSquadra(sqId){
   trofei.forEach(t=>{if(!perComp[t.compId])perComp[t.compId]=[];perComp[t.compId].push(t);});
   const rendita=Object.entries(perComp).reduce((tot,[cid,arr])=>{
     const comp=competizioni.find(c=>c.id===cid);
-    return comp&&comp.museo?tot+comp.museo.fm*getMolt(arr.length):tot;
+    if(!comp||!comp.museo) return tot;
+    const fmTot=arr.reduce((s,t)=>s+(t.fmMuseo||comp.museo.fm),0);
+    return tot+fmTot*getMolt(arr.length);
   },0);
   document.getElementById('mm-title').textContent=sq.nome+' — MUSEO';
   document.getElementById('mm-body').innerHTML=`
@@ -50,7 +55,7 @@ function apriMuseoSquadra(sqId){
               <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro)">${comp?comp.icon:''} ${comp?comp.nome:cid}</div>
               <span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--verde)">${rendC.toFixed(1)}M/anno</span>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${arr.map(t=>`<span class="trofeo-badge">🏆 ${t.anno}</span>`).join('')}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${arr.map(t=>`<span class="trofeo-badge">🏆 ${t.posLabel?t.posLabel+' ':''} ${t.anno}</span>`).join('')}</div>
             <div style="font-size:11px;color:var(--testo-dim)">${arr.length} vittorie • ×${molt}</div>
           </div>`;
         }).join('')}
@@ -93,8 +98,14 @@ function apriModificaTrofei(sqId){
       <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--testo-dim);margin-bottom:10px">AGGIUNGI TROFEO</div>
       <div class="form-group">
         <label class="form-label">Competizione</label>
-        <select class="form-select" id="trofeo-comp">
+        <select class="form-select" id="trofeo-comp" onchange="aggiornaPosizioni()">
           ${(competizioni||[]).filter(c=>c.museo).map(c=>`<option value="${c.id}">${c.icon||'🏆'} ${c.nome}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" id="campo-posizione">
+        <label class="form-label">Posizione</label>
+        <select class="form-select" id="trofeo-posto">
+          <option value="1">🥇 1° posto</option>
         </select>
       </div>
       <div class="form-group">
@@ -107,6 +118,25 @@ function apriModificaTrofei(sqId){
   m.classList.add('open');
 }
 
+function aggiornaPosizioni(){
+  const compId=document.getElementById('trofeo-comp')?.value;
+  const comp=(competizioni||[]).find(c=>c.id===compId);
+  const sel=document.getElementById('trofeo-posto');
+  const campo=document.getElementById('campo-posizione');
+  if(!sel||!comp) return;
+  // Campionato ha posti multipli, altri hanno solo vincitore
+  if(compId==='campionato'){
+    campo.style.display='block';
+    sel.innerHTML=`
+      <option value="1">🥇 1° posto (2.5M)</option>
+      <option value="2">🥈 2° posto (0.8M)</option>
+      <option value="3">🥉 3° posto (0.3M)</option>`;
+  } else {
+    campo.style.display='none';
+    sel.innerHTML='<option value="1">🏆 Vincitore</option>';
+  }
+}
+
 async function aggiungiTrofeo(sqId){
   const sq=squadreDB.find(s=>s.id===sqId);
   if(!sq) return;
@@ -114,7 +144,16 @@ async function aggiungiTrofeo(sqId){
   const anno=document.getElementById('trofeo-anno').value.trim();
   if(!anno){showToast('❌ Inserisci anno','error');return;}
   const comp=competizioni.find(c=>c.id===compId);
-  const trofei=[...(sq.trofei||[]),{compId,coppa:comp?comp.nome:compId,anno}];
+  const posto=parseInt(document.getElementById('trofeo-posto')?.value)||1;
+  // FM diverso per posizione nel campionato
+  let fmMuseo=comp&&comp.museo?comp.museo.fm:0;
+  if(compId==='campionato'){
+    if(posto===1) fmMuseo=2.5;
+    else if(posto===2) fmMuseo=0.8;
+    else if(posto===3) fmMuseo=0.3;
+  }
+  const posLabel=compId==='campionato'?['','1°','2°','3°'][posto]||'1°':'Vincitore';
+  const trofei=[...(sq.trofei||[]),{compId,coppa:comp?comp.nome:compId,anno,posto,posLabel,fmMuseo}];
   const{error}=await sb.from('squadre').update({trofei}).eq('id',sqId);
   if(error){showToast('❌ Errore: '+error.message,'error');return;}
   const idx=squadreDB.findIndex(s=>s.id===sqId);
