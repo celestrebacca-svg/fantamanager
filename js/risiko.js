@@ -27,6 +27,52 @@ const OBIETTIVI_FACILI = [
   'Avere almeno 8 giocatori nella rosa marginale'
 ];
 
+const OBIETTIVI_NORMALI = [
+  'Superare gli 80 punti in almeno 6 giornate',
+  'I centrocampisti titolari segnano almeno 12 gol durante la stagione',
+  'Fare almeno 8 acquisti entro settembre e almeno 3 entro febbraio',
+  'Avere almeno 4 giornate con 5 titolari che prendono voto ≥7',
+  'Chiudere almeno 15 operazioni di mercato con altri fantallenatori',
+  'Avere in rosa almeno 6 italiani con almeno 1 per ogni ruolo',
+  'Fare almeno una trattativa con ogni altro fantallenatore della lega',
+  'Almeno 7 giornate in cui 3 difensori titolari prendono voto ≥6.5',
+  'Gli attaccanti titolari totalizzano almeno 40 bonus durante la stagione',
+  'I titolari totalizzano almeno 18 assist durante la stagione',
+  'Svincolare giocatori per un valore totale di almeno 25 fantamilioni',
+  'Fare almeno 7 cessioni entro settembre e almeno 3 entro febbraio',
+  'Avere almeno 5 giocatori sudamericani nella rosa principale',
+  'Avere almeno 6 giocatori che superano i 5 gol durante la stagione',
+  'Avere almeno 4 difensori con almeno 3 bonus ciascuno durante la stagione',
+  'Avere almeno 5 giocatori in rosa che hanno cambiato squadra nell\'ultimo mercato',
+  'Avere almeno 3 giocatori nati dal 1995 in poi e almeno 4 nati nel 2003',
+  'Avere almeno 4 giocatori con 100 o più presenze in Serie A',
+  'Avere almeno 9 giocatori della rosa principale di nazionalità diverse',
+  'Avere almeno 10 giocatori della rosa principale con voto medio ≥6 a fine stagione'
+];
+
+const OBIETTIVI_DIFFICILI = [
+  'Avere almeno 5 giocatori che totalizzano 10 o più bonus durante la stagione',
+  'Avere almeno 14 giocatori con almeno 1 bonus durante la stagione',
+  'I difensori totalizzano almeno 20 bonus durante la stagione',
+  'Obiettivo combinato centrocampisti: almeno 15 gol + 20 assist + 3 giocatori con media ≥6.5',
+  'Obiettivo combinato attaccanti: almeno 25 gol + 15 assist + 2 giocatori con media ≥7',
+  'Avere almeno 10 italiani nella rosa principale a fine stagione',
+  'Avere almeno 10 giocatori nati dal 2003 in poi tra principale e primavera',
+  'Avere almeno 11 nazionalità diverse nella rosa principale',
+  'Avere almeno 7 giocatori provenienti da squadre neopromosse',
+  'Cambiare almeno 15 giocatori rispetto alla rosa dell\'anno scorso',
+  'Promuovere almeno 7 giovani dalla primavera durante la stagione',
+  'Avere almeno 13 giocatori provenienti da 13 squadre diverse nella rosa principale',
+  'Avere almeno 9 giocatori nati nello stesso mese nella rosa principale',
+  'Avere almeno 12 giocatori africani tra rosa principale e marginale',
+  'Avere almeno 5 giocatori della Juventus e 4 della Fiorentina (portieri marginali esclusi)',
+  'Schierare la difesa a 5 per almeno 10 giornate durante la stagione',
+  'Alternare due portieri titolari per almeno 10 giornate durante la stagione',
+  'Avere almeno 4 giocatori del Milan + 3 del Venezia + 3 del Bologna nella rosa principale',
+  'Obiettivo combinato multiplo: acquisto a gennaio + 1 giocatore alto ≥1.90 + 3 italiani + 2 sudamericani + 1 nato nel 2004',
+  'Avere almeno 15 giocatori alti almeno 1.90m tra rosa principale e marginale'
+];
+
 // ===== CARICA DATI DAL DB =====
 async function caricaRisiko() {
   try {
@@ -43,26 +89,13 @@ async function caricaRisiko() {
   }
 }
 
-// ===== RENDER SEZIONE RISIKO =====
+// ===== RENDER PRINCIPALE =====
 async function renderRisiko() {
   const container = document.getElementById('risiko-content');
   if (!container) return;
   container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Caricamento...</div>';
   await caricaRisiko();
 
-  // Se non ci sono obiettivi nel DB, mostra setup per admin
-  if (risikoObiettivi.length === 0 && adminLoggato) {
-    container.innerHTML = `
-      <div style="text-align:center;padding:40px 20px">
-        <div style="font-size:50px;margin-bottom:16px">🎯</div>
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--oro);letter-spacing:2px;margin-bottom:8px">NESSUN OBIETTIVO CARICATO</div>
-        <div style="color:var(--testo-dim);font-size:14px;margin-bottom:24px">Carica prima gli obiettivi nel database, poi assegnali alle squadre.</div>
-        <button onclick="apriAdminRisiko()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px 28px;border-radius:10px;border:none;cursor:pointer">⚙️ GESTISCI OBIETTIVI</button>
-      </div>`;
-    return;
-  }
-
-  // Vista utente normale
   const sqId = utenteLoggato ? utenteLoggato.id : null;
   const mieAssegnazioni = sqId ? risikoAssegnazioni.filter(a => a.squadra_id === sqId) : [];
 
@@ -77,14 +110,24 @@ async function renderRisiko() {
 
   // I MIEI OBIETTIVI
   if (sqId) {
-    const sq = squadreDB.find(s => s.id === sqId);
     html += `
       <div style="background:linear-gradient(135deg,rgba(255,215,0,0.08),rgba(255,215,0,0.03));border:1px solid rgba(255,215,0,0.3);border-radius:14px;padding:20px;margin-bottom:24px">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--oro);letter-spacing:2px;margin-bottom:4px">🎯 I MIEI OBIETTIVI</div>
         <div style="font-size:12px;color:var(--testo-dim);margin-bottom:16px">Solo tu puoi vedere i tuoi obiettivi</div>`;
 
     if (mieAssegnazioni.length === 0) {
-      html += `<div style="text-align:center;padding:20px 0;color:var(--testo-dim)">⏳ Gli obiettivi non sono ancora stati assegnati dall'admin</div>`;
+      // Controlla se ci sono obiettivi nel DB da pescare
+      const totObiettivi = risikoObiettivi.length;
+      if (totObiettivi === 0) {
+        html += `<div style="text-align:center;padding:20px 0;color:var(--testo-dim)">⏳ Gli obiettivi non sono ancora stati caricati dall'admin</div>`;
+      } else {
+        html += `
+          <div style="text-align:center;padding:20px 0">
+            <div style="font-size:40px;margin-bottom:12px">🎲</div>
+            <div style="font-size:14px;color:var(--testo);margin-bottom:16px">Non hai ancora pescato i tuoi obiettivi!</div>
+            <button onclick="pescaObiettivi()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px 28px;border-radius:10px;border:none;cursor:pointer">🎲 PESCA I TUOI OBIETTIVI</button>
+          </div>`;
+      }
     } else {
       const colori = { facile: 'var(--verde)', normale: 'var(--oro)', difficile: 'var(--rosso)' };
       const premi = { facile: '5M', normale: '15M', difficile: '45M' };
@@ -110,6 +153,7 @@ async function renderRisiko() {
             </div>
           </div>`;
       });
+
       const completati = mieAssegnazioni.filter(a => a.completato).length;
       const totFM = mieAssegnazioni.filter(a => a.completato).reduce((s, a) => {
         const o = risikoObiettivi.find(x => x.id === a.obiettivo_id);
@@ -125,11 +169,56 @@ async function renderRisiko() {
     html += `</div>`;
   }
 
-  // CLASSIFICA GENERALE (quanti hanno completato)
   html += renderClassificaRisiko();
   container.innerHTML = html;
 }
 
+// ===== PESCA OBIETTIVI (utente) =====
+async function pescaObiettivi() {
+  if (!utenteLoggato) return;
+  if (!confirm('Vuoi pescare i tuoi 3 obiettivi segreti? Questa azione è irreversibile!')) return;
+
+  const sqId = utenteLoggato.id;
+
+  // Obiettivi già assegnati ad altre squadre per ogni difficoltà
+  const getUsati = (diff) => risikoAssegnazioni
+    .filter(a => a.squadra_id !== sqId)
+    .filter(a => { const o = risikoObiettivi.find(x => x.id === a.obiettivo_id); return o && o.difficolta === diff; })
+    .map(a => a.obiettivo_id);
+
+  const pesca = (diff) => {
+    const usati = getUsati(diff);
+    const disponibili = risikoObiettivi.filter(o => o.difficolta === diff && o.attivo && !usati.includes(o.id));
+    if (disponibili.length === 0) return null;
+    return disponibili[Math.floor(Math.random() * disponibili.length)];
+  };
+
+  const facile = pesca('facile');
+  const normale = pesca('normale');
+  const difficile = pesca('difficile');
+
+  if (!facile || !normale || !difficile) {
+    showToast('❌ Non ci sono abbastanza obiettivi disponibili!', 'error');
+    return;
+  }
+
+  try {
+    const rows = [
+      { squadra_id: sqId, obiettivo_id: facile.id, difficolta: 'facile', completato: false, stagione: STAGIONE_RISIKO },
+      { squadra_id: sqId, obiettivo_id: normale.id, difficolta: 'normale', completato: false, stagione: STAGIONE_RISIKO },
+      { squadra_id: sqId, obiettivo_id: difficile.id, difficolta: 'difficile', completato: false, stagione: STAGIONE_RISIKO }
+    ];
+    const { data, error } = await sb.from('risiko_assegnazioni').insert(rows).select();
+    if (error) throw error;
+    risikoAssegnazioni = [...risikoAssegnazioni, ...data];
+    showToast('🎯 Obiettivi pescati! Buona fortuna!');
+    renderRisiko();
+  } catch (e) {
+    showToast('❌ Errore: ' + e.message, 'error');
+  }
+}
+
+// ===== CLASSIFICA =====
 function renderClassificaRisiko() {
   const righe = squadreDB.map(sq => {
     const assegn = risikoAssegnazioni.filter(a => a.squadra_id === sq.id);
@@ -138,40 +227,40 @@ function renderClassificaRisiko() {
       const o = risikoObiettivi.find(x => x.id === a.obiettivo_id);
       return s + (o ? o.premio : 0);
     }, 0);
-    const assegnati = assegn.length;
-    return { sq, completati, totFM, assegnati };
+    const haPescato = assegn.length > 0;
+    return { sq, completati, totFM, haPescato };
   }).sort((a, b) => b.completati - a.completati || b.totFM - a.totFM);
 
   const logoHtml = sq => sq.logo_url
     ? `<img src="${sq.logo_url}" style="width:28px;height:28px;object-fit:contain;border-radius:4px">`
-    : `<span style="font-family:'Bebas Neue',sans-serif;font-size:12px;color:var(--nero)">${sq.avatar || '⚽'}</span>`;
+    : `<div style="width:28px;height:28px;border-radius:6px;background:${sq.avatar_bg||'#333'};display:flex;align-items:center;justify-content:center;font-size:12px">${sq.avatar||'⚽'}</div>`;
 
   return `
     <div style="margin-bottom:20px">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--testo);letter-spacing:2px;margin-bottom:14px">📊 CLASSIFICA RISIKO</div>
       <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden">
-        <div style="display:grid;grid-template-columns:40px 1fr 80px 80px;gap:0;padding:10px 16px;border-bottom:1px solid var(--grigio-chiaro);font-size:10px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px">
+        <div style="display:grid;grid-template-columns:36px 1fr 90px 80px;padding:10px 16px;border-bottom:1px solid var(--grigio-chiaro);font-size:10px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px">
           <div>#</div><div>Squadra</div><div style="text-align:center">Completati</div><div style="text-align:right">FM</div>
         </div>
         ${righe.map((r, i) => {
-          const rankCol = i === 0 ? 'var(--oro)' : i === 1 ? 'var(--argento)' : i === 2 ? '#cd7f32' : 'var(--testo-dim)';
+          const rankCol = i===0?'var(--oro)':i===1?'var(--argento)':i===2?'#cd7f32':'var(--testo-dim)';
           return `
-          <div style="display:grid;grid-template-columns:40px 1fr 80px 80px;gap:0;padding:12px 16px;border-bottom:1px solid var(--grigio-chiaro);align-items:center${i === righe.length - 1 ? ';border-bottom:none' : ''}">
-            <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:${rankCol}">${i + 1}</div>
+          <div style="display:grid;grid-template-columns:36px 1fr 90px 80px;padding:12px 16px;border-bottom:1px solid var(--grigio-chiaro);align-items:center${i===righe.length-1?';border-bottom:none':''}">
+            <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:${rankCol}">${i+1}</div>
             <div style="display:flex;align-items:center;gap:10px">
-              <div style="width:28px;height:28px;border-radius:6px;background:${r.sq.avatar_bg || '#333'};display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden">${logoHtml(r.sq)}</div>
+              ${logoHtml(r.sq)}
               <div>
                 <div style="font-size:13px;font-weight:600">${r.sq.nome}</div>
-                <div style="font-size:10px;color:var(--testo-dim)">${r.assegnati > 0 ? `${r.assegnati} obiettivi assegnati` : 'Nessun obiettivo'}</div>
+                <div style="font-size:10px;color:var(--testo-dim)">${r.haPescato ? '🎯 Obiettivi pescati' : '⏳ Non ancora pescato'}</div>
               </div>
             </div>
             <div style="text-align:center">
-              ${r.assegnati > 0
-                ? `<span style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:${r.completati > 0 ? 'var(--verde)' : 'var(--testo-dim)'}">${r.completati}/${r.assegnati}</span>`
+              ${r.haPescato
+                ? `<span style="font-family:'Space Mono',monospace;font-size:15px;font-weight:700;color:${r.completati>0?'var(--verde)':'var(--testo-dim)'}">${r.completati}/3</span>`
                 : `<span style="color:var(--testo-dim);font-size:12px">—</span>`}
             </div>
-            <div style="text-align:right;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${r.totFM > 0 ? 'var(--oro)' : 'var(--testo-dim)'}">
-              ${r.totFM > 0 ? '+' + (r.totFM / 1000000).toFixed(0) + 'M' : '—'}
+            <div style="text-align:right;font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${r.totFM>0?'var(--oro)':'var(--testo-dim)'}">
+              ${r.totFM>0?'+'+(r.totFM/1000000).toFixed(0)+'M':'—'}
             </div>
           </div>`;
         }).join('')}
@@ -179,7 +268,7 @@ function renderClassificaRisiko() {
     </div>`;
 }
 
-// ===== PANNELLO ADMIN RISIKO =====
+// ===== ADMIN =====
 function apriAdminRisiko() {
   if (!adminLoggato) return;
   document.getElementById('modal-risiko-admin').classList.add('open');
@@ -191,8 +280,8 @@ function renderAdminRisiko() {
   body.innerHTML = `
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
       <button onclick="showAdminRisikoTab('obiettivi',this)" id="tab-robj" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer">📋 OBIETTIVI</button>
-      <button onclick="showAdminRisikoTab('assegna',this)" id="tab-rassegna" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">🎯 ASSEGNA</button>
       <button onclick="showAdminRisikoTab('gestisci',this)" id="tab-rgestisci" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">✅ GESTISCI</button>
+      <button onclick="showAdminRisikoTab('reset',this)" id="tab-rreset" style="background:var(--grigio-medio);color:var(--rosso);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid rgba(255,68,68,0.3);cursor:pointer">🔄 RESET</button>
     </div>
     <div id="risiko-admin-tab-content"></div>`;
   showAdminRisikoTab('obiettivi', document.getElementById('tab-robj'));
@@ -200,31 +289,37 @@ function renderAdminRisiko() {
 
 function showAdminRisikoTab(tab, btn) {
   document.querySelectorAll('[id^="tab-r"]').forEach(b => {
-    b.style.background = 'var(--grigio-medio)';
-    b.style.color = 'var(--testo)';
-    b.style.border = '1px solid var(--grigio-chiaro)';
+    b.style.background = b.id==='tab-rreset' ? 'var(--grigio-medio)' : 'var(--grigio-medio)';
+    b.style.color = b.id==='tab-rreset' ? 'var(--rosso)' : 'var(--testo)';
+    b.style.border = b.id==='tab-rreset' ? '1px solid rgba(255,68,68,0.3)' : '1px solid var(--grigio-chiaro)';
   });
-  btn.style.background = 'var(--oro)';
-  btn.style.color = 'var(--nero)';
-  btn.style.border = 'none';
+  btn.style.background = tab==='reset' ? 'rgba(255,68,68,0.2)' : 'var(--oro)';
+  btn.style.color = tab==='reset' ? 'var(--rosso)' : 'var(--nero)';
+  btn.style.border = tab==='reset' ? '1px solid rgba(255,68,68,0.5)' : 'none';
 
   const content = document.getElementById('risiko-admin-tab-content');
-  if (tab === 'obiettivi') renderTabObiettivi(content);
-  else if (tab === 'assegna') renderTabAssegna(content);
-  else if (tab === 'gestisci') renderTabGestisci(content);
+  if (tab==='obiettivi') renderTabObiettivi(content);
+  else if (tab==='gestisci') renderTabGestisci(content);
+  else if (tab==='reset') renderTabReset(content);
 }
 
-// TAB OBIETTIVI — visualizza e modifica i 60 obiettivi
+// TAB OBIETTIVI
 function renderTabObiettivi(container) {
-  const diff = ['facile', 'normale', 'difficile'];
-  const colori = { facile: 'var(--verde)', normale: 'var(--oro)', difficile: 'var(--rosso)' };
-  const premi = { facile: 5000000, normale: 15000000, difficile: 45000000 };
+  const diff = ['facile','normale','difficile'];
+  const colori = { facile:'var(--verde)', normale:'var(--oro)', difficile:'var(--rosso)' };
+  const premi = { facile:5000000, normale:15000000, difficile:45000000 };
+
+  const totNelDB = risikoObiettivi.length;
+  const mancanti = 60 - totNelDB;
 
   let html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-      <div style="font-size:13px;color:var(--testo-dim)">${risikoObiettivi.length} obiettivi caricati</div>
-      ${risikoObiettivi.length === 0 ? `<button onclick="caricaObiettiviDefault()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer">⚡ CARICA OBIETTIVI FACILI</button>` : ''}
-      <button onclick="apriNuovoObiettivo()" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 16px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">➕ NUOVO</button>
+      <div style="font-size:13px;color:var(--testo-dim)">${totNelDB}/60 obiettivi caricati</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${totNelDB === 0 ? `<button onclick="caricaTuttiObiettivi()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 16px;border-radius:8px;border:none;cursor:pointer">⚡ CARICA TUTTI I 60</button>` : ''}
+        ${mancanti > 0 && totNelDB > 0 ? `<button onclick="caricaTuttiObiettivi()" style="background:rgba(0,255,135,0.1);color:var(--verde);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 16px;border-radius:8px;border:1px solid rgba(0,255,135,0.3);cursor:pointer">⚡ CARICA MANCANTI (${mancanti})</button>` : ''}
+        <button onclick="apriNuovoObiettivo()" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 16px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">➕ NUOVO</button>
+      </div>
     </div>`;
 
   diff.forEach(d => {
@@ -236,7 +331,7 @@ function renderTabObiettivi(container) {
           <div style="font-size:11px;color:var(--testo-dim);background:var(--grigio-scuro);padding:2px 8px;border-radius:8px">${lista.length}/20</div>
           <div style="font-family:'Space Mono',monospace;font-size:11px;color:${colori[d]}">${(premi[d]/1000000).toFixed(0)}M FM</div>
         </div>
-        ${lista.length === 0 ? `<div style="color:var(--testo-dim);font-size:13px;padding:10px 0">Nessun obiettivo caricato</div>` :
+        ${lista.length===0 ? `<div style="color:var(--testo-dim);font-size:13px;padding:10px 0">Nessun obiettivo</div>` :
         lista.map(o => `
           <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--grigio-scuro);border-radius:8px;margin-bottom:6px;border-left:2px solid ${colori[d]}">
             <div style="flex:1;font-size:13px;color:var(--testo);line-height:1.5">${o.testo}</div>
@@ -250,70 +345,64 @@ function renderTabObiettivi(container) {
   container.innerHTML = html;
 }
 
-// FORM NUOVO/MODIFICA OBIETTIVO
 function apriNuovoObiettivo() {
   document.getElementById('risiko-admin-tab-content').innerHTML = `
     <button onclick="showAdminRisikoTab('obiettivi',document.getElementById('tab-robj'))" style="background:none;border:none;color:var(--testo-dim);cursor:pointer;font-size:13px;margin-bottom:16px">← Torna alla lista</button>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--verde);letter-spacing:1px;margin-bottom:16px">➕ NUOVO OBIETTIVO</div>
     ${formObiettivo(null)}
-    <button onclick="salvaObiettivo(null)" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:8px" id="btn-salva-obj">💾 SALVA OBIETTIVO</button>`;
+    <button onclick="salvaObiettivo(null)" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:8px" id="btn-salva-obj">💾 SALVA</button>`;
 }
 
 function apriModificaObiettivo(id) {
-  const obj = risikoObiettivi.find(o => o.id === id);
+  const obj = risikoObiettivi.find(o => o.id===id);
   if (!obj) return;
   document.getElementById('risiko-admin-tab-content').innerHTML = `
     <button onclick="showAdminRisikoTab('obiettivi',document.getElementById('tab-robj'))" style="background:none;border:none;color:var(--testo-dim);cursor:pointer;font-size:13px;margin-bottom:16px">← Torna alla lista</button>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--oro);letter-spacing:1px;margin-bottom:16px">✏️ MODIFICA OBIETTIVO</div>
     ${formObiettivo(obj)}
-    <button onclick="salvaObiettivo(${id})" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:8px" id="btn-salva-obj">💾 AGGIORNA OBIETTIVO</button>`;
+    <button onclick="salvaObiettivo(${id})" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:12px;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:8px" id="btn-salva-obj">💾 AGGIORNA</button>`;
 }
 
 function formObiettivo(obj) {
   return `
     <div class="form-group">
       <label class="form-label">Testo obiettivo *</label>
-      <textarea id="obj-testo" rows="3" style="width:100%;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:10px 14px;color:var(--testo);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:vertical" placeholder="Descrivi l'obiettivo...">${obj ? obj.testo : ''}</textarea>
+      <textarea id="obj-testo" rows="3" style="width:100%;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:10px 14px;color:var(--testo);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;resize:vertical">${obj?obj.testo:''}</textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Difficoltà *</label>
       <select id="obj-difficolta" class="form-select">
-        <option value="facile" ${obj && obj.difficolta === 'facile' ? 'selected' : ''}>🟢 Facile — 5M FM</option>
-        <option value="normale" ${obj && obj.difficolta === 'normale' ? 'selected' : ''}>🟡 Normale — 15M FM</option>
-        <option value="difficile" ${obj && obj.difficolta === 'difficile' ? 'selected' : ''}>🔴 Difficile — 45M FM</option>
+        <option value="facile" ${obj&&obj.difficolta==='facile'?'selected':''}>🟢 Facile — 5M FM</option>
+        <option value="normale" ${obj&&obj.difficolta==='normale'?'selected':''}>🟡 Normale — 15M FM</option>
+        <option value="difficile" ${obj&&obj.difficolta==='difficile'?'selected':''}>🔴 Difficile — 45M FM</option>
       </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Stagione</label>
-      <input id="obj-stagione" class="form-input" type="text" value="${obj ? obj.stagione : STAGIONE_RISIKO}">
     </div>`;
 }
 
 async function salvaObiettivo(id) {
   const testo = document.getElementById('obj-testo').value.trim();
   const difficolta = document.getElementById('obj-difficolta').value;
-  const stagione = document.getElementById('obj-stagione').value.trim() || STAGIONE_RISIKO;
-  if (!testo) { showToast('❌ Inserisci il testo dell\'obiettivo', 'error'); return; }
-  const premi = { facile: 5000000, normale: 15000000, difficile: 45000000 };
+  if (!testo) { showToast('❌ Inserisci il testo', 'error'); return; }
+  const premi = { facile:5000000, normale:15000000, difficile:45000000 };
   const btn = document.getElementById('btn-salva-obj');
   btn.disabled = true; btn.textContent = 'Salvataggio...';
   try {
     if (id) {
-      const { error } = await sb.from('risiko_obiettivi_master').update({ testo, difficolta, premio: premi[difficolta], stagione }).eq('id', id);
+      const { error } = await sb.from('risiko_obiettivi_master').update({ testo, difficolta, premio: premi[difficolta] }).eq('id', id);
       if (error) throw error;
-      const idx = risikoObiettivi.findIndex(o => o.id === id);
-      if (idx >= 0) risikoObiettivi[idx] = { ...risikoObiettivi[idx], testo, difficolta, premio: premi[difficolta], stagione };
-      showToast('✅ Obiettivo aggiornato!');
+      const idx = risikoObiettivi.findIndex(o => o.id===id);
+      if (idx>=0) risikoObiettivi[idx] = { ...risikoObiettivi[idx], testo, difficolta, premio: premi[difficolta] };
+      showToast('✅ Aggiornato!');
     } else {
-      const { data, error } = await sb.from('risiko_obiettivi_master').insert({ testo, difficolta, premio: premi[difficolta], stagione, attivo: true }).select().single();
+      const { data, error } = await sb.from('risiko_obiettivi_master').insert({ testo, difficolta, premio: premi[difficolta], stagione: STAGIONE_RISIKO, attivo: true }).select().single();
       if (error) throw error;
       risikoObiettivi.push(data);
-      showToast('✅ Obiettivo creato!');
+      showToast('✅ Creato!');
     }
     showAdminRisikoTab('obiettivi', document.getElementById('tab-robj'));
-  } catch (e) {
-    showToast('❌ Errore: ' + e.message, 'error');
-    btn.disabled = false; btn.textContent = id ? '💾 AGGIORNA' : '💾 SALVA';
+  } catch(e) {
+    showToast('❌ '+e.message, 'error');
+    btn.disabled=false;
   }
 }
 
@@ -322,249 +411,145 @@ async function eliminaObiettivo(id) {
   try {
     const { error } = await sb.from('risiko_obiettivi_master').delete().eq('id', id);
     if (error) throw error;
-    risikoObiettivi = risikoObiettivi.filter(o => o.id !== id);
-    showToast('🗑️ Obiettivo eliminato');
+    risikoObiettivi = risikoObiettivi.filter(o => o.id!==id);
+    showToast('🗑️ Eliminato');
     showAdminRisikoTab('obiettivi', document.getElementById('tab-robj'));
-  } catch (e) { showToast('❌ Errore: ' + e.message, 'error'); }
+  } catch(e) { showToast('❌ '+e.message, 'error'); }
 }
 
-// Carica i 20 obiettivi facili di default nel DB
-async function caricaObiettiviDefault() {
-  if (!confirm(`Caricare i 20 obiettivi FACILI nel database?`)) return;
-  showToast('⏳ Caricamento in corso...', 'info');
+// Carica tutti e 60 gli obiettivi (solo quelli mancanti)
+async function caricaTuttiObiettivi() {
+  const esistenti = risikoObiettivi.map(o => o.testo.substring(0,30));
+  const tuttiGliObiettivi = [
+    ...OBIETTIVI_FACILI.map(t => ({ testo:t, difficolta:'facile', premio:5000000 })),
+    ...OBIETTIVI_NORMALI.map(t => ({ testo:t, difficolta:'normale', premio:15000000 })),
+    ...OBIETTIVI_DIFFICILI.map(t => ({ testo:t, difficolta:'difficile', premio:45000000 }))
+  ];
+  const daInserire = tuttiGliObiettivi.filter(o => !esistenti.some(e => e === o.testo.substring(0,30)));
+  if (daInserire.length === 0) { showToast('✅ Tutti gli obiettivi sono già presenti!'); return; }
+  if (!confirm(`Caricare ${daInserire.length} obiettivi nel database?`)) return;
+  showToast('⏳ Caricamento...', 'info');
   try {
-    const rows = OBIETTIVI_FACILI.map(testo => ({ testo, difficolta: 'facile', premio: 5000000, stagione: STAGIONE_RISIKO, attivo: true }));
+    const rows = daInserire.map(o => ({ ...o, stagione: STAGIONE_RISIKO, attivo: true }));
     const { data, error } = await sb.from('risiko_obiettivi_master').insert(rows).select();
     if (error) throw error;
     risikoObiettivi = [...risikoObiettivi, ...data];
     showToast(`✅ ${data.length} obiettivi caricati!`);
     showAdminRisikoTab('obiettivi', document.getElementById('tab-robj'));
-  } catch (e) { showToast('❌ Errore: ' + e.message, 'error'); }
+  } catch(e) { showToast('❌ '+e.message, 'error'); }
 }
 
-// TAB ASSEGNA — assegna obiettivi a ogni squadra
-function renderTabAssegna(container) {
-  if (risikoObiettivi.length === 0) {
-    container.innerHTML = `<div style="text-align:center;padding:30px;color:var(--testo-dim)">Prima carica gli obiettivi nel tab "OBIETTIVI"</div>`;
-    return;
-  }
-
-  const facili = risikoObiettivi.filter(o => o.difficolta === 'facile' && o.attivo);
-  const normali = risikoObiettivi.filter(o => o.difficolta === 'normale' && o.attivo);
-  const difficili = risikoObiettivi.filter(o => o.difficolta === 'difficile' && o.attivo);
-
-  let html = `
-    <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--testo-dim);line-height:1.7">
-      ⚠️ Ogni squadra riceve 1 obiettivo per difficoltà. Lo stesso obiettivo non può essere assegnato a più squadre nella stessa stagione.
-    </div>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--testo);letter-spacing:1px;margin-bottom:12px">ASSEGNA OBIETTIVI PER SQUADRA</div>`;
-
-  squadreDB.forEach(sq => {
-    const assegn = risikoAssegnazioni.filter(a => a.squadra_id === sq.id);
-    const haFacile = assegn.find(a => { const o = risikoObiettivi.find(x => x.id === a.obiettivo_id); return o && o.difficolta === 'facile'; });
-    const haNormale = assegn.find(a => { const o = risikoObiettivi.find(x => x.id === a.obiettivo_id); return o && o.difficolta === 'normale'; });
-    const haDifficile = assegn.find(a => { const o = risikoObiettivi.find(x => x.id === a.obiettivo_id); return o && o.difficolta === 'difficile'; });
-
-    // Obiettivi già assegnati ad altre squadre
-    const usatiFacili = risikoAssegnazioni.filter(a => a.squadra_id !== sq.id).map(a => a.obiettivo_id);
-
-    html += `
-      <div style="background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:12px;padding:16px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-          ${sq.logo_url ? `<img src="${sq.logo_url}" style="width:28px;height:28px;object-fit:contain;border-radius:4px">` : ''}
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px">${sq.nome}</div>
-          <div style="font-size:11px;color:var(--testo-dim);margin-left:auto">${assegn.length}/3 assegnati</div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
-          ${renderSelectObiettivo(sq.id, 'facile', facili, haFacile, usatiFacili)}
-          ${renderSelectObiettivo(sq.id, 'normale', normali, haNormale, usatiFacili)}
-          ${renderSelectObiettivo(sq.id, 'difficile', difficili, haDifficile, usatiFacili)}
-        </div>
-      </div>`;
-  });
-
-  html += `<button onclick="assegnaRandom()" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer;margin-top:4px">🎲 ASSEGNA RANDOM TUTTE LE SQUADRE</button>`;
-  container.innerHTML = html;
-}
-
-function renderSelectObiettivo(sqId, diff, lista, corrente, usati) {
-  const colori = { facile: 'var(--verde)', normale: 'var(--oro)', difficile: 'var(--rosso)' };
-  const col = colori[diff];
-  const liberi = lista.filter(o => !usati.includes(o.id) || (corrente && o.id === corrente.obiettivo_id));
-  return `
-    <div>
-      <div style="font-size:10px;font-weight:700;color:${col};text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">${diff}</div>
-      <select onchange="assegnaObiettivo('${sqId}','${diff}',this.value)" style="width:100%;background:var(--grigio);border:1px solid ${corrente ? col : 'var(--grigio-chiaro)'};border-radius:8px;padding:8px 10px;color:var(--testo);font-size:12px;outline:none;cursor:pointer">
-        <option value="">— Seleziona —</option>
-        ${liberi.map(o => `<option value="${o.id}" ${corrente && corrente.obiettivo_id === o.id ? 'selected' : ''}>${o.testo.substring(0, 35)}${o.testo.length > 35 ? '...' : ''}</option>`).join('')}
-      </select>
-      ${corrente ? `<button onclick="rimuoviAssegnazione('${sqId}','${diff}')" style="width:100%;margin-top:4px;background:rgba(255,68,68,0.1);color:var(--rosso);border:1px solid rgba(255,68,68,0.3);font-size:10px;padding:3px;border-radius:5px;cursor:pointer">🗑️ Rimuovi</button>` : ''}
-    </div>`;
-}
-
-async function assegnaObiettivo(sqId, diff, objId) {
-  if (!objId) return;
-  // Rimuovi eventuale precedente della stessa difficoltà
-  const vecchio = risikoAssegnazioni.find(a => {
-    const o = risikoObiettivi.find(x => x.id === a.obiettivo_id);
-    return a.squadra_id === sqId && o && o.difficolta === diff;
-  });
-  if (vecchio) {
-    await sb.from('risiko_assegnazioni').delete().eq('id', vecchio.id);
-    risikoAssegnazioni = risikoAssegnazioni.filter(a => a.id !== vecchio.id);
-  }
-  try {
-    const { data, error } = await sb.from('risiko_assegnazioni').insert({
-      squadra_id: sqId, obiettivo_id: parseInt(objId), difficolta: diff,
-      completato: false, stagione: STAGIONE_RISIKO
-    }).select().single();
-    if (error) throw error;
-    risikoAssegnazioni.push(data);
-    showToast('✅ Obiettivo assegnato!');
-    renderTabAssegna(document.getElementById('risiko-admin-tab-content'));
-  } catch (e) { showToast('❌ Errore: ' + e.message, 'error'); }
-}
-
-async function rimuoviAssegnazione(sqId, diff) {
-  const assegn = risikoAssegnazioni.find(a => {
-    const o = risikoObiettivi.find(x => x.id === a.obiettivo_id);
-    return a.squadra_id === sqId && o && o.difficolta === diff;
-  });
-  if (!assegn) return;
-  try {
-    const { error } = await sb.from('risiko_assegnazioni').delete().eq('id', assegn.id);
-    if (error) throw error;
-    risikoAssegnazioni = risikoAssegnazioni.filter(a => a.id !== assegn.id);
-    showToast('🗑️ Assegnazione rimossa');
-    renderTabAssegna(document.getElementById('risiko-admin-tab-content'));
-  } catch (e) { showToast('❌ Errore: ' + e.message, 'error'); }
-}
-
-// Assegna random a tutte le squadre che non hanno ancora obiettivi
-async function assegnaRandom() {
-  if (!confirm('Assegnare obiettivi RANDOM a tutte le squadre senza obiettivi?')) return;
-  const diff = ['facile', 'normale', 'difficile'];
-  let assegnati = 0;
-  for (const d of diff) {
-    const lista = risikoObiettivi.filter(o => o.difficolta === d && o.attivo);
-    const usati = risikoAssegnazioni.filter(a => {
-      const o = risikoObiettivi.find(x => x.id === a.obiettivo_id);
-      return o && o.difficolta === d;
-    }).map(a => a.obiettivo_id);
-    const disponibili = lista.filter(o => !usati.includes(o.id));
-    const shuffled = disponibili.sort(() => Math.random() - 0.5);
-    let idx = 0;
-    for (const sq of squadreDB) {
-      const haGia = risikoAssegnazioni.find(a => {
-        const o = risikoObiettivi.find(x => x.id === a.obiettivo_id);
-        return a.squadra_id === sq.id && o && o.difficolta === d;
-      });
-      if (haGia) continue;
-      if (idx >= shuffled.length) { showToast(`⚠️ Obiettivi ${d} esauriti!`, 'error'); break; }
-      try {
-        const { data, error } = await sb.from('risiko_assegnazioni').insert({
-          squadra_id: sq.id, obiettivo_id: shuffled[idx].id, difficolta: d,
-          completato: false, stagione: STAGIONE_RISIKO
-        }).select().single();
-        if (error) throw error;
-        risikoAssegnazioni.push(data);
-        assegnati++; idx++;
-      } catch (e) { console.error(e); }
-    }
-  }
-  showToast(`✅ ${assegnati} obiettivi assegnati!`);
-  renderTabAssegna(document.getElementById('risiko-admin-tab-content'));
-}
-
-// TAB GESTISCI — marca completati e assegna premi
+// TAB GESTISCI — marca completati
 function renderTabGestisci(container) {
-  const colori = { facile: 'var(--verde)', normale: 'var(--oro)', difficile: 'var(--rosso)' };
-
+  const colori = { facile:'var(--verde)', normale:'var(--oro)', difficile:'var(--rosso)' };
   let html = `<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--testo);letter-spacing:1px;margin-bottom:12px">STATO OBIETTIVI PER SQUADRA</div>`;
-
+  let qualcuno = false;
   squadreDB.forEach(sq => {
-    const assegn = risikoAssegnazioni.filter(a => a.squadra_id === sq.id);
-    if (assegn.length === 0) return;
+    const assegn = risikoAssegnazioni.filter(a => a.squadra_id===sq.id);
+    if (assegn.length===0) return;
+    qualcuno = true;
     html += `
       <div style="background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:12px;padding:16px;margin-bottom:12px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          ${sq.logo_url ? `<img src="${sq.logo_url}" style="width:24px;height:24px;object-fit:contain;border-radius:4px">` : ''}
+          ${sq.logo_url?`<img src="${sq.logo_url}" style="width:24px;height:24px;object-fit:contain;border-radius:4px">`:''}
           <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px">${sq.nome}</div>
         </div>`;
     assegn.forEach(a => {
-      const obj = risikoObiettivi.find(o => o.id === a.obiettivo_id);
+      const obj = risikoObiettivi.find(o => o.id===a.obiettivo_id);
       if (!obj) return;
-      const col = colori[obj.difficolta] || 'var(--testo)';
+      const col = colori[obj.difficolta]||'var(--testo)';
       html += `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--grigio);border-radius:8px;margin-bottom:6px;border-left:2px solid ${a.completato ? 'var(--verde)' : col}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--grigio);border-radius:8px;margin-bottom:6px;border-left:2px solid ${a.completato?'var(--verde)':col}">
           <div style="flex:1">
             <div style="font-size:10px;color:${col};font-weight:700;text-transform:uppercase;margin-bottom:3px">${obj.difficolta} — ${(obj.premio/1000000).toFixed(0)}M FM</div>
             <div style="font-size:12px;color:var(--testo);line-height:1.4">${obj.testo}</div>
           </div>
           <div style="flex-shrink:0">
             ${a.completato
-              ? `<div style="text-align:center"><div style="font-size:11px;color:var(--verde);font-weight:700">✅ COMPLETATO</div><button onclick="annullaCompletamento(${a.id},'${sq.id}')" style="font-size:10px;color:var(--testo-dim);background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:2px">Annulla</button></div>`
+              ? `<div style="text-align:center"><div style="font-size:11px;color:var(--verde);font-weight:700">✅ FATTO</div><button onclick="annullaCompletamento(${a.id},'${sq.id}')" style="font-size:10px;color:var(--testo-dim);background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:2px">Annulla</button></div>`
               : `<button onclick="marcaCompletato(${a.id},'${sq.id}',${obj.premio})" style="background:rgba(0,255,135,0.1);color:var(--verde);border:1px solid rgba(0,255,135,0.3);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:6px 12px;border-radius:8px;cursor:pointer">✅ COMPLETA</button>`}
           </div>
         </div>`;
     });
     html += `</div>`;
   });
-
-  if (html === `<div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--testo);letter-spacing:1px;margin-bottom:12px">STATO OBIETTIVI PER SQUADRA</div>`) {
-    html += `<div style="text-align:center;padding:30px;color:var(--testo-dim)">Nessun obiettivo assegnato ancora. Vai nel tab ASSEGNA.</div>`;
-  }
+  if (!qualcuno) html += `<div style="text-align:center;padding:30px;color:var(--testo-dim)">Nessuna squadra ha ancora pescato gli obiettivi</div>`;
   container.innerHTML = html;
 }
 
 async function marcaCompletato(assegnId, sqId, premio) {
-  if (!confirm(`Marcare come completato e accreditare ${(premio/1000000).toFixed(0)}M FM alla squadra?`)) return;
+  if (!confirm(`Marcare come completato e accreditare ${(premio/1000000).toFixed(0)}M FM?`)) return;
   try {
-    const { error } = await sb.from('risiko_assegnazioni').update({
-      completato: true, data_completamento: new Date().toISOString()
-    }).eq('id', assegnId);
+    const { error } = await sb.from('risiko_assegnazioni').update({ completato:true, data_completamento: new Date().toISOString() }).eq('id', assegnId);
     if (error) throw error;
-
-    // Aggiorna budget squadra
-    const sq = squadreDB.find(s => s.id === sqId);
+    const sq = squadreDB.find(s => s.id===sqId);
     if (sq) {
-      const nuovoBudget = (sq.budget || 0) + premio;
+      const nuovoBudget = (sq.budget||0) + premio;
       await sb.from('squadre').update({ budget: nuovoBudget }).eq('id', sqId);
-      const idx = squadreDB.findIndex(s => s.id === sqId);
-      if (idx >= 0) squadreDB[idx].budget = nuovoBudget;
+      const idx = squadreDB.findIndex(s => s.id===sqId);
+      if (idx>=0) squadreDB[idx].budget = nuovoBudget;
     }
-
-    // Aggiorna in memoria
-    const idx = risikoAssegnazioni.findIndex(a => a.id === assegnId);
-    if (idx >= 0) { risikoAssegnazioni[idx].completato = true; risikoAssegnazioni[idx].data_completamento = new Date().toISOString(); }
-
-    showToast(`✅ Completato! +${(premio/1000000).toFixed(0)}M FM accreditati`);
+    const idx = risikoAssegnazioni.findIndex(a => a.id===assegnId);
+    if (idx>=0) { risikoAssegnazioni[idx].completato=true; risikoAssegnazioni[idx].data_completamento=new Date().toISOString(); }
+    showToast(`✅ +${(premio/1000000).toFixed(0)}M FM accreditati!`);
     renderTabGestisci(document.getElementById('risiko-admin-tab-content'));
-  } catch (e) { showToast('❌ Errore: ' + e.message, 'error'); }
+  } catch(e) { showToast('❌ '+e.message, 'error'); }
 }
 
 async function annullaCompletamento(assegnId, sqId) {
-  const assegn = risikoAssegnazioni.find(a => a.id === assegnId);
-  const obj = assegn ? risikoObiettivi.find(o => o.id === assegn.obiettivo_id) : null;
-  if (!confirm('Annullare il completamento? Il premio verrà sottratto dal budget.')) return;
+  const assegn = risikoAssegnazioni.find(a => a.id===assegnId);
+  const obj = assegn ? risikoObiettivi.find(o => o.id===assegn.obiettivo_id) : null;
+  if (!confirm('Annullare il completamento? Il premio verrà sottratto.')) return;
   try {
-    const { error } = await sb.from('risiko_assegnazioni').update({ completato: false, data_completamento: null }).eq('id', assegnId);
+    const { error } = await sb.from('risiko_assegnazioni').update({ completato:false, data_completamento:null }).eq('id', assegnId);
     if (error) throw error;
-
     if (obj) {
-      const sq = squadreDB.find(s => s.id === sqId);
+      const sq = squadreDB.find(s => s.id===sqId);
       if (sq) {
-        const nuovoBudget = (sq.budget || 0) - obj.premio;
+        const nuovoBudget = (sq.budget||0) - obj.premio;
         await sb.from('squadre').update({ budget: nuovoBudget }).eq('id', sqId);
-        const idx = squadreDB.findIndex(s => s.id === sqId);
-        if (idx >= 0) squadreDB[idx].budget = nuovoBudget;
+        const idx = squadreDB.findIndex(s => s.id===sqId);
+        if (idx>=0) squadreDB[idx].budget = nuovoBudget;
       }
     }
-
-    const idx = risikoAssegnazioni.findIndex(a => a.id === assegnId);
-    if (idx >= 0) { risikoAssegnazioni[idx].completato = false; risikoAssegnazioni[idx].data_completamento = null; }
-
-    showToast('↩️ Completamento annullato');
+    const idx = risikoAssegnazioni.findIndex(a => a.id===assegnId);
+    if (idx>=0) { risikoAssegnazioni[idx].completato=false; risikoAssegnazioni[idx].data_completamento=null; }
+    showToast('↩️ Annullato');
     renderTabGestisci(document.getElementById('risiko-admin-tab-content'));
-  } catch (e) { showToast('❌ Errore: ' + e.message, 'error'); }
+  } catch(e) { showToast('❌ '+e.message, 'error'); }
+}
+
+// TAB RESET — per annullare pesca di una squadra
+function renderTabReset(container) {
+  let html = `
+    <div style="background:rgba(255,68,68,0.06);border:1px solid rgba(255,68,68,0.2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--testo-dim);line-height:1.7">
+      ⚠️ Da qui puoi resettare gli obiettivi pescati da una squadra specifica (es. se ha pescato per errore). Gli obiettivi torneranno disponibili per la pesca.
+    </div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--testo);letter-spacing:1px;margin-bottom:12px">RESET PESCA PER SQUADRA</div>`;
+
+  squadreDB.forEach(sq => {
+    const assegn = risikoAssegnazioni.filter(a => a.squadra_id===sq.id);
+    const haPescato = assegn.length > 0;
+    html += `
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--grigio-scuro);border-radius:10px;margin-bottom:8px">
+        ${sq.logo_url?`<img src="${sq.logo_url}" style="width:24px;height:24px;object-fit:contain;border-radius:4px">`:''}
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${sq.nome}</div>
+          <div style="font-size:11px;color:${haPescato?'var(--verde)':'var(--testo-dim)'}">${haPescato?'🎯 Ha pescato ('+assegn.length+' obiettivi)':'⏳ Non ha ancora pescato'}</div>
+        </div>
+        ${haPescato ? `<button onclick="resetPescaSquadra('${sq.id}','${sq.nome}')" style="background:rgba(255,68,68,0.1);color:var(--rosso);border:1px solid rgba(255,68,68,0.3);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:6px 14px;border-radius:8px;cursor:pointer">🔄 RESET</button>` : ''}
+      </div>`;
+  });
+  container.innerHTML = html;
+}
+
+async function resetPescaSquadra(sqId, nome) {
+  if (!confirm(`Resettare gli obiettivi di ${nome}? La squadra dovrà ripescare.`)) return;
+  try {
+    const { error } = await sb.from('risiko_assegnazioni').delete().eq('squadra_id', sqId).eq('stagione', STAGIONE_RISIKO);
+    if (error) throw error;
+    risikoAssegnazioni = risikoAssegnazioni.filter(a => !(a.squadra_id===sqId && a.stagione===STAGIONE_RISIKO));
+    showToast(`🔄 Reset completato per ${nome}`);
+    renderTabReset(document.getElementById('risiko-admin-tab-content'));
+  } catch(e) { showToast('❌ '+e.message, 'error'); }
 }
