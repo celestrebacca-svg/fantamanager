@@ -80,6 +80,7 @@ function showSection(nome,btn){
   else if(nome==='museo') renderMuseo();
   else if(nome==='mercato') renderTrattative();
   else if(nome==='classifica') renderClassifica();
+  else if(nome==='stadio') renderStadio();
   else if(nome==='social') renderSocial();
   else if(nome==='risiko') renderRisiko();
   else if(nome==='rose'){

@@ -371,6 +371,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <div class="home-cards">
       <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
       <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
+      <div class="home-card" onclick="entraApp('stadio')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Stadio</div><div class="home-card-sub">Biglietteria e ampliamenti</div></div>
       <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
       <div class="home-card" onclick="entraApp('museo')"><div class="home-card-icon">🏛️</div><div class="home-card-title">Museo</div><div class="home-card-sub">Bacheca trofei</div></div>
       <div class="home-card" onclick="entraApp('mercato')"><div class="home-card-icon">🔄</div><div class="home-card-title">Mercato</div><div class="home-card-sub">Trattative</div></div>
@@ -409,6 +410,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
   <div id="quick-menu" style="display:none;position:fixed;bottom:70px;left:16px;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:8px;z-index:201;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
     <button onclick="chiudiMenuRapido();showSection('rose',document.querySelector('.nav-btn[onclick*=\'rose\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏟️ Rose</button>
     <button onclick="chiudiMenuRapido();showSection('tifosi',document.querySelector('.nav-btn[onclick*=\'tifosi\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">👥 Tifosi</button>
+    <button onclick="chiudiMenuRapido();showSection('stadio',document.querySelector('.nav-btn[onclick*=\'stadio\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏟️ Stadio</button>
     <button onclick="chiudiMenuRapido();showSection('competizioni',document.querySelector('.nav-btn[onclick*=\'competizioni\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏆 Coppe</button>
     <button onclick="chiudiMenuRapido();showSection('museo',document.querySelector('.nav-btn[onclick*=\'museo\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏛️ Museo</button>
     <button onclick="chiudiMenuRapido();showSection('mercato',document.querySelector('.nav-btn[onclick*=\'mercato\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🔄 Mercato</button>
@@ -508,6 +510,12 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     </div>
 
     <!-- MUSEO -->
+    <div class="section" id="section-stadio">
+      <div class="stadio-wrap" id="stadio-content">
+        <div style="text-align:center;padding:40px;color:var(--testo-dim)">Caricamento stadio...</div>
+      </div>
+    </div>
+
     <div class="section" id="section-museo">
       <div class="page-title">MUSEO & BACHECA</div>
       <div class="page-sub">Trofei vinti e rendite annue per ogni squadra</div>
@@ -1218,7 +1226,8 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/scheda-giocatore.js"></script>
 <script src="js/tifosi.js"></script>
 <script src="js/competizioni.js"></script>
-<script src="js/museo.js"></script>
+<script src="js/stadio.js"></script>
+  <script src="js/museo.js"></script>
 <script src="js/mercato.js"></script>
 <script src="js/bonus.js"></script>
 <script src="js/transfermarkt.js"></script>
