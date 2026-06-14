@@ -208,8 +208,12 @@ async function renderStadio(){
         <span style="color:var(--verde)">+${fmtM((renditaMuseoConBonus-renditaMuseoBase)*1000000)}</span>
       </div>`:''}
       <div class="stadio-entrate-row">
+        <span>🛍️ Store (${getStoreLevel(capienza).nome})</span>
+        <span style="color:var(--verde)">${fmtM(getStoreLevel(capienza).guadagno)}</span>
+      </div>
+      <div class="stadio-entrate-row">
         <span>🏟️ TOTALE ANNUO STIMATO</span>
-        <span>${fmtM(entrateBiglietteria+renditaMuseoConBonus*1000000)}</span>
+        <span>${fmtM(entrateBiglietteria+renditaMuseoConBonus*1000000+getStoreLevel(capienza).guadagno)}</span>
       </div>
     </div>
 
@@ -251,11 +255,8 @@ async function renderStadio(){
       }).join('')}
     </div>`:''}
 
-    <!-- PLACEHOLDER MERCHANDISING -->
-    <div style="background:var(--grigio);border:1px solid rgba(255,215,0,0.15);border-radius:12px;padding:16px;text-align:center;opacity:0.6">
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro);letter-spacing:1px">👕 MERCHANDISING</div>
-      <div style="font-size:12px;color:var(--testo-dim);margin-top:4px">Magliette e ricavi — Coming soon</div>
-    </div>
+    <!-- MAGLIETTE E STORE -->
+    <div id="sezione-magliette">${renderMagliette('${sq.id}')}</div>
   `;
 }
 
