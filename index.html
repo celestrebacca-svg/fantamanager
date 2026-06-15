@@ -369,7 +369,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <div class="home-title"><div class="fanta">FANTA</div><div class="manager">MANAGER</div></div>
     <div class="home-sub">La tua lega. Il tuo impero.</div>
     <div class="home-cards">
-      <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
+      <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon">📋</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
       <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
       <div class="home-card" onclick="entraApp('stadio')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Stadio</div><div class="home-card-sub">Biglietteria e ampliamenti</div></div>
       <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
@@ -392,7 +392,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
   <div class="header">
     <div class="logo" onclick="tornaHome()">Fanta<span>Manager</span></div>
     <nav class="nav">
-      <button class="nav-btn active" onclick="showSection('rose',this)">🏟️ Rose</button>
+      <button class="nav-btn active" onclick="showSection('rose',this)">📋 Rose</button>
       <button class="nav-btn" onclick="showSection('tifosi',this)">👥 Tifosi</button>
       <button class="nav-btn" onclick="showSection('competizioni',this)">🏆 Coppe</button>
       <button class="nav-btn" onclick="showSection('museo',this)">🏛️ Museo</button>
@@ -408,7 +408,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
   <!-- MENU RAPIDO FISSO -->
   <div id="quick-menu-overlay" onclick="chiudiMenuRapido()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200"></div>
   <div id="quick-menu" style="display:none;position:fixed;bottom:70px;left:16px;background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:8px;z-index:201;min-width:180px;box-shadow:0 8px 32px rgba(0,0,0,0.5)">
-    <button onclick="chiudiMenuRapido();showSection('rose',document.querySelector('.nav-btn[onclick*=\'rose\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏟️ Rose</button>
+    <button onclick="chiudiMenuRapido();showSection('rose',document.querySelector('.nav-btn[onclick*=\'rose\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px"📋 Rose</button>
     <button onclick="chiudiMenuRapido();showSection('tifosi',document.querySelector('.nav-btn[onclick*=\'tifosi\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">👥 Tifosi</button>
     <button onclick="chiudiMenuRapido();showSection('stadio',document.querySelector('.nav-btn[onclick*=\'stadio\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏟️ Stadio</button>
     <button onclick="chiudiMenuRapido();showSection('competizioni',document.querySelector('.nav-btn[onclick*=\'competizioni\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🏆 Coppe</button>
@@ -428,7 +428,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
         <div class="page-sub">Stagione 2025/26 — Clicca una squadra avversaria per proporre una trattativa</div>
         <div id="mia-squadra-banner-wrap"></div>
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-          <button id="tab-rose-squadre" onclick="switchTabRose('squadre')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer">🏟️ SQUADRE</button>
+          <button id="tab-rose-squadre" onclick="switchTabRose('squadre')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer"📋 SQUADRE</button>
           <button id="tab-rose-svincolati" onclick="switchTabRose('svincolati')" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">🔓 SVINCOLATI SERIE A</button>
         </div>
         <div id="rose-tab-squadre">
