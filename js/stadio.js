@@ -208,12 +208,16 @@ async function renderStadio(){
         <span style="color:var(--verde)">+${fmtM((renditaMuseoConBonus-renditaMuseoBase)*1000000)}</span>
       </div>`:''}
       <div class="stadio-entrate-row">
-        <span>🛍️ Store (${getStoreLevel(capienza).nome})</span>
+        <span>🛍️ Store</span>
         <span style="color:var(--verde)">${fmtM(getStoreLevel(capienza).guadagno)}</span>
       </div>
       <div class="stadio-entrate-row">
+        <span>🍔 Fast Food</span>
+        <span style="color:var(--verde)">${fmtM(calcGuadagnoFF(sq.fastfood_livello||0,paganti))}</span>
+      </div>
+      <div class="stadio-entrate-row">
         <span>🏟️ TOTALE ANNUO STIMATO</span>
-        <span>${fmtM(entrateBiglietteria+renditaMuseoConBonus*1000000+getStoreLevel(capienza).guadagno)}</span>
+        <span>${fmtM(entrateBiglietteria+renditaMuseoConBonus*1000000+getStoreLevel(capienza).guadagno+calcGuadagnoFF(sq.fastfood_livello||0,paganti))}</span>
       </div>
     </div>
 
@@ -255,9 +259,48 @@ async function renderStadio(){
       }).join('')}
     </div>`:''}
 
-    <!-- MAGLIETTE E STORE -->
-    <div id="sezione-magliette">${renderMagliette('${sq.id}')}</div>
+    <!-- ACCORDION MAGLIETTE -->
+    <div style="border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;margin-bottom:12px">
+      <div onclick="toggleAccordion('acc-magliette')" style="background:var(--grigio-scuro);padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro);letter-spacing:1px">👕 MAGLIETTE & STORE</div>
+        <span id="acc-magliette-arrow" style="color:var(--oro);font-size:18px">▼</span>
+      </div>
+      <div id="acc-magliette" style="display:block">
+        ${renderMagliette(sq.id)}
+      </div>
+    </div>
+
+    <!-- ACCORDION MUSEO -->
+    <div style="border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;margin-bottom:12px">
+      <div onclick="toggleAccordion('acc-museo')" style="background:var(--grigio-scuro);padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro);letter-spacing:1px">🏛️ MUSEO DEI TROFEI</div>
+        <span id="acc-museo-arrow" style="color:var(--oro);font-size:18px">▼</span>
+      </div>
+      <div id="acc-museo" style="display:block;padding:12px">
+        ${renderMuseoStadio(sq)}
+      </div>
+    </div>
+
+    <!-- ACCORDION FAST FOOD -->
+    <div style="border:1px solid var(--grigio-chiaro);border-radius:12px;overflow:hidden;margin-bottom:12px">
+      <div onclick="toggleAccordion('acc-fastfood')" style="background:var(--grigio-scuro);padding:14px 16px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro);letter-spacing:1px">🍔 FAST FOOD</div>
+        <span id="acc-fastfood-arrow" style="color:var(--oro);font-size:18px">▼</span>
+      </div>
+      <div id="acc-fastfood" style="display:block;padding:12px">
+        ${renderFastFood(sq)}
+      </div>
+    </div>
   `;
+}
+
+function toggleAccordion(id){
+  const el=document.getElementById(id);
+  const arrow=document.getElementById(id+'-arrow');
+  if(!el) return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  if(arrow) arrow.textContent=isOpen?'▶':'▼';
 }
 
 async function ampliaStadio(sqId){
