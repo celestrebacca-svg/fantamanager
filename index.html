@@ -373,11 +373,10 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
       <div class="home-card" onclick="entraApp('stadio')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Stadio</div><div class="home-card-sub">Biglietteria e ampliamenti</div></div>
       <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
-
+      <div class="home-card" onclick="entraApp('museo')"><div class="home-card-icon">🏛️</div><div class="home-card-title">Museo</div><div class="home-card-sub">Bacheca trofei</div></div>
       <div class="home-card" onclick="entraApp('mercato')"><div class="home-card-icon">🔄</div><div class="home-card-title">Mercato</div><div class="home-card-sub">Trattative</div></div>
       <div class="home-card" onclick="entraApp('classifica')"><div class="home-card-icon">📊</div><div class="home-card-title">Classifica</div><div class="home-card-sub">Punti e budget</div></div>
       <div class="home-card" onclick="entraApp('social')" style="border-color:rgba(68,136,255,0.4)"><div class="home-card-icon">📱</div><div class="home-card-title">Social</div><div class="home-card-sub">Social Manager</div></div>
-      <div class="home-card" onclick="entraApp('risiko')" style="border-color:rgba(255,215,0,0.4)"><div class="home-card-icon">🎯</div><div class="home-card-title">Risiko</div><div class="home-card-sub">Obiettivi segreti</div></div>
     </div>
     <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
     <div class="home-stats">
@@ -1203,6 +1202,17 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 </div>
 
 <!-- MODAL ADMIN RISIKO -->
+<!-- MODAL ADMIN COMPETIZIONI -->
+<div class="modal-overlay" id="modal-comp-admin" onclick="closeModal('modal-comp-admin',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:720px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">⚙️ ADMIN — COMPETIZIONI</div>
+      <button class="modal-close" onclick="document.getElementById('modal-comp-admin').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="comp-admin-body"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-risiko-admin" onclick="closeModal('modal-risiko-admin',event)">
   <div class="modal" style="border-color:var(--oro);max-width:680px">
     <div class="modal-header">
@@ -1227,9 +1237,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/scheda-giocatore.js"></script>
 <script src="js/tifosi.js"></script>
 <script src="js/competizioni.js"></script>
-<script src="js/museo_coppe.js"></script>
-  <script src="js/fastfood.js"></script>
-  <script src="js/stadio.js"></script>
+<script src="js/stadio.js"></script>
   <script src="js/magliette.js"></script>
   <script src="js/museo.js"></script>
 <script src="js/mercato.js"></script>
