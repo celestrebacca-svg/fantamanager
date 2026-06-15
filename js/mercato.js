@@ -30,10 +30,13 @@ function renderTrattative(){
       <div class="trattativa-body">
         ${g?`<div class="trattativa-row"><span class="label">Giocatore</span><span style="font-weight:600">${g.nome} (${g.ruolo})</span></div>`:''}
         ${gc?`<div class="trattativa-row"><span class="label">In cambio</span><span style="font-weight:600">${gc.nome} (${gc.ruolo})</span></div>`:''}
-        ${t.importo?`<div class="trattativa-row"><span class="label">Importo</span><span style="color:var(--verde);font-family:'Space Mono',monospace">${fmtNum(t.importo)} FM</span></div>`:''}
-        ${t.importo_riscatto?`<div class="trattativa-row"><span class="label">Riscatto</span><span style="color:var(--oro);font-family:'Space Mono',monospace">${fmtNum(t.importo_riscatto)} FM</span></div>`:''}
+        ${t.importo&&!t.tipo?.includes('Prestito')?`<div class="trattativa-row"><span class="label">Importo</span><span style="color:var(--verde);font-family:'Space Mono',monospace">${fmtNum(t.importo)} FM</span></div>`:''}
+        ${t.tipo?.includes('Prestito')&&t.importo?`<div class="trattativa-row"><span class="label">💰 Cifra Prestito</span><span style="color:var(--blu);font-family:'Space Mono',monospace">${fmtNum(t.importo)} FM</span></div>`:''}
+        ${t.importo_riscatto?`<div class="trattativa-row"><span class="label">🔑 Riscatto Finale</span><span style="color:var(--oro);font-family:'Space Mono',monospace">${fmtNum(t.importo_riscatto)} FM</span></div>`:''}
+        ${t.importo_riscatto&&t.importo?`<div class="trattativa-row"><span class="label">💎 Totale</span><span style="color:var(--verde);font-family:'Space Mono',monospace">${fmtNum(t.importo+t.importo_riscatto)} FM</span></div>`:''}
         ${t.importo_recompra?`<div class="trattativa-row"><span class="label">Recompra entro</span><span style="color:var(--argento)">${t.scadenza_recompra||'—'}</span></div>`:''}
-        ${t.scadenza_prestito?`<div class="trattativa-row"><span class="label">Scadenza prestito</span><span>${t.scadenza_prestito}</span></div>`:''}
+        ${t.scadenza_prestito?`<div class="trattativa-row"><span class="label">📅 Scadenza prestito</span><span>${t.scadenza_prestito}</span></div>`:''}
+        ${t.scadenza_riscatto?`<div class="trattativa-row"><span class="label">⏰ Scadenza riscatto</span><span>${t.scadenza_riscatto}</span></div>`:''}
         ${t.percentuale_rivendita?`<div class="trattativa-row"><span class="label">% Rivendita</span><span style="color:var(--verde)">${t.percentuale_rivendita}%</span></div>`:''}
         ${t.rate&&t.rate.length?`<div class="trattativa-row"><span class="label">Rate</span><span>${t.rate.length} rate programmate</span></div>`:''}
         ${t.note?`<div class="trattativa-row"><span class="label">Note</span><span style="color:var(--testo-dim)">${t.note}</span></div>`:''}
