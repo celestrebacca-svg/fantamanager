@@ -110,9 +110,10 @@ async function renderStadio(){
   const container=document.getElementById('stadio-content');
   if(!container) return;
 
-  // Prendo la mia squadra (o prima disponibile se admin)
-  const sq=utenteLoggato;
-  if(!sq){container.innerHTML='<div class="empty">Accedi per vedere il tuo stadio</div>';return;}
+  // Prendo la mia squadra SEMPRE da squadreDB per avere i dati aggiornati
+  const sqBase=utenteLoggato;
+  if(!sqBase){container.innerHTML='<div class="empty">Accedi per vedere il tuo stadio</div>';return;}
+  const sq=squadreDB.find(s=>s.id===sqBase.id)||sqBase;
 
   // Dati stadio
   const capienza=sq.capienza_stadio||10000;
