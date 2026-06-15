@@ -50,12 +50,13 @@ async function renderCompetizioni() {
 function renderCompLayout() {
   const container = document.getElementById('comp-grid');
 
-  // Bottoni selezione competizione
-  const bttns = Object.entries(COMP_CONFIG).map(([key, c]) => `
-    <button onclick="selezionaComp('${key}')" id="btn-comp-${key}"
-      style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:20px;border:1px solid var(--grigio-chiaro);background:${compAttiva===key?'var(--oro)':'var(--grigio-scuro)'};color:${compAttiva===key?'var(--nero)':'var(--testo)'};font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;white-space:nowrap;flex-shrink:0">
-      ${c.icon} ${c.nome}
-    </button>`).join('');
+  const keys = Object.keys(COMP_CONFIG);
+  const idxAttivo = keys.indexOf(compAttiva);
+  const cfg = COMP_CONFIG[compAttiva];
+  const prevKey = idxAttivo > 0 ? keys[idxAttivo-1] : keys[keys.length-1];
+  const nextKey = idxAttivo < keys.length-1 ? keys[idxAttivo+1] : keys[0];
+  const prevCfg = COMP_CONFIG[prevKey];
+  const nextCfg = COMP_CONFIG[nextKey];
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
@@ -66,9 +67,14 @@ function renderCompLayout() {
       ${adminLoggato ? `<button onclick="apriAdminComp()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer">⚙️ ADMIN</button>` : ''}
     </div>
 
-    <!-- Scroll orizzontale bottoni -->
-    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:20px;scrollbar-width:none" id="comp-tabs">
-      ${bttns}
+    <!-- Navigazione con frecce -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+      <button onclick="selezionaComp('${prevKey}')" style="background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:10px;padding:10px 14px;color:var(--testo);cursor:pointer;font-size:18px;flex-shrink:0">‹</button>
+      <div style="flex:1;background:var(--grigio-scuro);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:12px 16px;text-align:center">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:var(--oro);letter-spacing:2px">${cfg.icon} ${cfg.nome}</div>
+        <div style="font-size:11px;color:var(--testo-dim);margin-top:2px">${idxAttivo+1} / ${keys.length}</div>
+      </div>
+      <button onclick="selezionaComp('${nextKey}')" style="background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:10px;padding:10px 14px;color:var(--testo);cursor:pointer;font-size:18px;flex-shrink:0">›</button>
     </div>
 
     <!-- Contenuto competizione selezionata -->
@@ -80,14 +86,7 @@ function renderCompLayout() {
 
 function selezionaComp(key) {
   compAttiva = key;
-  // Aggiorna stile bottoni
-  Object.keys(COMP_CONFIG).forEach(k => {
-    const btn = document.getElementById('btn-comp-' + k);
-    if (!btn) return;
-    btn.style.background = k === key ? 'var(--oro)' : 'var(--grigio-scuro)';
-    btn.style.color = k === key ? 'var(--nero)' : 'var(--testo)';
-  });
-  renderDettaglioComp(key);
+  renderCompLayout();
 }
 
 // ===== RENDER DETTAGLIO =====
@@ -370,19 +369,23 @@ function getDescrizioneComp(key) {
 
 function getPremi(key) {
   const map = {
-    campionato: { 1:'900€', 2:'600€', 3:'320€', 4:'150€' },
-    champions:  { 1:'15M FM + 40€', 2:'8M FM' },
-    europa:     { 1:'9M FM + 25€', 2:'4.5M FM' },
-    coppa_italia: { 1:'3M FM + 20€', 2:'1M FM' },
-    formula1:   { 1:'13M FM + 45€', 2:'11M FM', 3:'10M FM' },
-    coopmeiners:{ 1:'13M FM + 30€' },
-    eroi:       { 1:'20M FM', 2:'13M FM', 3:'10M FM' },
-    coppa_tua:  { 1:'8.5M FM', 2:'2M FM' },
-    konami:     { 1:'30M FM', 2:'10M FM' },
-    pedretti:   { 1:'20M FM', 2:'5M FM' },
-    crediti:    { 1:'15M FM', 4:'10M FM', 7:'5M FM' },
-    talent:     { 1:'8M FM', 2:'4M FM', 3:'3M FM' },
-    coglioni:   { 1:'3M FM', 2:'1.5M FM' }
+    campionato: {
+      1:"900u20ac + 30M FM", 2:"600u20ac + 27M FM", 3:"320u20ac + 24M FM", 4:"150u20ac + 20M FM",
+      5:"18M FM", 6:"16M FM", 7:"13M FM", 8:"12M FM",
+      9:"11M FM", 10:"10M FM", 11:"9M FM", 12:"8M FM"
+    },
+    champions:  { 1:"15M FM + 40u20ac", 2:"8M FM", "Semifinale":"8M FM", "Gironi":"5M FM", "Qualif.":"5M FM" },
+    europa:     { 1:"9M FM + 25u20ac", 2:"4.5M FM", "Semifinale":"6M FM", "Gironi":"4M FM" },
+    coppa_italia: { 1:"3M FM + 20u20ac", 2:"1M FM", "Semifinale":"2M FM", "Quarti":"1.5M FM", "Gironi":"0.5M FM" },
+    formula1:   { 1:"13M FM + 45u20ac", 2:"11M FM", 3:"10M FM", 4:"9M FM", 5:"8M FM", 6:"7M FM", 7:"6M FM", 8:"5M FM", 9:"4M FM", 10:"3M FM", 11:"2M FM", 12:"1M FM" },
+    coopmeiners:{ 1:"13M FM + 30u20ac", 2:"11M FM", 3:"10M FM", 4:"9M FM", 5:"8M FM", 6:"7M FM", 7:"6M FM", 8:"5M FM", 9:"4M FM", 10:"3M FM", 11:"2M FM", 12:"1M FM" },
+    eroi:       { 1:"20M FM", 2:"13M FM", 3:"10M FM", 4:"8M FM", 5:"7M FM", 6:"6M FM", 7:"5M FM", 8:"4M FM", 9:"3M FM", 10:"2M FM", 11:"1M FM", 12:"0M FM" },
+    coppa_tua:  { 1:"8.5M FM", 2:"2M FM", "Semifinale":"4.5M FM", "Gironi":"3.5M FM" },
+    konami:     { 1:"30M FM", 2:"10M FM" },
+    pedretti:   { 1:"20M FM", 2:"5M FM" },
+    crediti:    { "1u00b0-2u00b0-3u00b0":"15M FM", "4u00b0-5u00b0-6u00b0":"10M FM", "7u00b0-8u00b0-9u00b0":"5M FM" },
+    talent:     { 1:"8M FM", 2:"4M FM", 3:"3M FM" },
+    coglioni:   { 1:"3M FM (punteggio piu00f9 basso)", 2:"1.5M FM" }
   };
   return map[key] || {};
 }
@@ -396,7 +399,7 @@ function renderPremiBox(key) {
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${Object.entries(premi).map(([pos, val]) => `
           <div style="background:var(--grigio-scuro);border-radius:8px;padding:8px 12px;font-size:12px">
-            <span style="color:var(--testo-dim)">${pos}°</span>
+            <span style="color:var(--testo-dim)">${isNaN(pos)?pos:pos+"°"}</span>
             <span style="color:var(--oro);font-weight:700;margin-left:6px">${val}</span>
           </div>`).join('')}
       </div>
