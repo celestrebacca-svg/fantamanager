@@ -1,3 +1,13 @@
+
+// Converte input M in valore numerico: "5" → 5000000, "5.5" → 5500000, "5000000" → 5000000
+function parseM(val) {
+  if (!val && val !== 0) return 0;
+  const str = String(val).trim().replace(',', '.').replace(/[mM]\s*$/, '').trim();
+  const num = parseFloat(str);
+  if (isNaN(num)) return 0;
+  if (num >= 1000) return Math.round(num);
+  return Math.round(num * 1000000);
+}
 const competizioni=[
   {id:'campionato',nome:'CAMPIONATO',icon:'⚽',tipo:'campionato',premi:[{pos:'1° posto',euro:null,fm:'Automatico'}],museo:{fm:2.5,label:'2.5M (1°) • 0.8M (2°) • 0.3M (3°)'}},
   {id:'coppa_italia',nome:'COPPA ITALIA',icon:'🇮🇹',tipo:'coppa',premi:[{pos:'Vincitore',euro:'30€',fm:null}],museo:{fm:0.7,label:'0.7M annui'}},
@@ -19,7 +29,7 @@ function fmtBudget(n){return new Intl.NumberFormat('it-IT',{minimumFractionDigit
 function fmtNum(n){return new Intl.NumberFormat('it-IT').format(n||0);}
 function ruoloColor(r){return{P:'ruolo-p',D:'ruolo-d',C:'ruolo-c',A:'ruolo-a'}[r]||'';}
 function ruoloNome(r){return{P:'Portiere',D:'Difensore',C:'Centrocampista',A:'Attaccante'}[r]||r;}
-function getMolt(n){const base=[0,1,2.5,4,5,7];if(n<=0)return 0;if(n<base.length)return base[n];return 7+(n-5);}
+function getMolt(n){return[0,1,2.5,4,5,7][Math.min(n,5)]||0;}
 function iniziali(nome){return(nome||'??').replace(/[^a-zA-Z ]/g,'').split(' ').map(p=>p[0]||'').join('').substring(0,2).toUpperCase()||'??';}
 
 let _toastTimer=null;

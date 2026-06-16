@@ -1,16 +1,3 @@
-// ===== PARSER IMPORTO FM (es. 5M, 1.5M, 500K) =====
-function parseFM(val){
-  if(!val) return 0;
-  const s=String(val).trim().replace(',','.');
-  const m=s.match(/^([0-9.]+)\s*([MKmk]?)$/);
-  if(!m) return parseFloat(s)||0;
-  const n=parseFloat(m[1])||0;
-  const u=m[2].toUpperCase();
-  if(u==='M') return Math.round(n*1000000);
-  if(u==='K') return Math.round(n*1000);
-  return n;
-}
-
 // ===== DIREZIONE IMPORTO =====
 function setDirezioneImporto(dir){
   const el=document.getElementById('trat-direzione-importo');
@@ -81,7 +68,7 @@ function renderBonusLista(){
       </div>
       <div>
         <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">IMPORTO BONUS (FM)</div>
-        <input class="form-input" type="number" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2.5M" style="padding:7px 8px;font-size:13px">
+        <input class="form-input" type="number" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2500000" step="100000" style="padding:7px 8px;font-size:13px">
       </div>
     </div>`).join('');
 }
@@ -215,7 +202,7 @@ function renderRateLista(){
   document.getElementById('rate-lista').innerHTML=rateList.map((r,i)=>`
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
       <span style="font-size:11px;color:var(--testo-dim);width:50px;flex-shrink:0">Rata ${i+1}</span>
-      <input class="form-input" type="number" value="${r.importo}" oninput="rateList[${i}].importo=this.value" placeholder="Es. 1M" style="flex:1;padding:8px;font-size:13px">
+      <input class="form-input" type="number" value="${r.importo}" oninput="rateList[${i}].importo=this.value" placeholder="FM" style="flex:1;padding:8px;font-size:13px" step="100000">
       <input class="form-input" type="date" value="${r.data}" oninput="rateList[${i}].data=this.value" style="flex:1;padding:8px;font-size:13px">
       <button onclick="rateList.splice(${i},1);renderRateLista()" style="background:rgba(255,68,68,0.15);border:none;color:var(--rosso);border-radius:6px;padding:8px 10px;cursor:pointer;flex-shrink:0">✕</button>
     </div>`).join('');
@@ -234,7 +221,7 @@ async function inviaTrattativa(){
   const hasCondizioni=tipo.includes('diventa Obbligo');
 
   // Bonus performance
-  const bonusValidi=usaBonus?bonusList.filter(b=>b.soglia&&b.importo&&parseFloat(b.importo)>0):[];
+  const bonusValidi=usaBonus?bonusList.filter(b=>b.soglia&&b.importo&&parseM(b.importo)>0):[];
   const bonusNote=bonusValidi.map(b=>`${LABEL_BONUS[b.tipo]||b.tipo}≥${b.soglia}→+${new Intl.NumberFormat('it-IT').format(parseFloat(b.importo))}FM`).join(' | ');
 
   // Costruisci condizioni obbligo
@@ -273,7 +260,7 @@ async function inviaTrattativa(){
   };
 
   if(!tipo.includes('Scambio')&&!tipo.includes('Prestito')){
-    dati.importo=parseFM(document.getElementById('trat-importo').value)||0;
+    dati.importo=parseM(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
     // Se ricevo i soldi, inverti la direzione nel DB
@@ -284,11 +271,11 @@ async function inviaTrattativa(){
     }
   }
   if(tipo.includes('Clausola Recompra')){
-    dati.importo_recompra=parseFM(document.getElementById('trat-importo-recompra').value)||null;
+    dati.importo_recompra=parseM(document.getElementById('trat-importo-recompra').value)||null;
     dati.scadenza_recompra=document.getElementById('trat-scadenza-recompra').value||null;
   }
   if(tipo.includes('Scambio')){
-    dati.importo=parseFM(document.getElementById('trat-conguaglio').value)||0;
+    dati.importo=parseM(document.getElementById('trat-conguaglio').value)||0;
     dati.giocatori_cambio_ids=giocatoriMiei; // miei che offro
     dati.giocatori_ids_richiesti=giocatoriSuoi; // suoi che voglio
     if(!giocatoriMiei.length&&!giocatoriSuoi.length){showToast('❌ Seleziona almeno un giocatore per parte','error');return;}
@@ -304,18 +291,18 @@ async function inviaTrattativa(){
     }
   }
   if(usaRate){
-    dati.importo=parseFM(document.getElementById('trat-importo-totale').value)||0;
+    dati.importo=parseM(document.getElementById('trat-importo-totale').value)||0;
   }
   if(tipo.includes('Prestito')){
-    dati.importo=parseFM(document.getElementById('trat-cifra-prestito')?.value)||0;
+    dati.importo=parseM(document.getElementById('trat-cifra-prestito')?.value)||0;
     dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
   if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
-    dati.importo_riscatto=parseFM(document.getElementById('trat-importo-riscatto').value)||null;
+    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
   }
   if(hasCondizioni){
-    dati.importo_riscatto=parseFM(document.getElementById('trat-importo-riscatto-cond').value)||null;
+    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto-cond').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
   }
 
@@ -331,18 +318,6 @@ async function inviaTrattativa(){
   if(nomiScambio.length) dati.note=(dati.note?dati.note+' | ':'')+'🔄 Cambio: '+nomiScambio.join(', ');
   if(bonusNote) dati.note=(dati.note?dati.note+' | ':'')+'🎯 Bonus: '+bonusNote;
 
-  // Contro-riscatto
-  const usaControRiscatto=document.getElementById('trat-usa-contriscatto')?.checked;
-  if(usaControRiscatto){
-    dati.importo_recompra=parseFM(document.getElementById('trat-importo-contriscatto')?.value)||null;
-    dati.scadenza_recompra=document.getElementById('trat-scadenza-contriscatto')?.value||null;
-  }
-
-  // Dettagli giocatori scambio
-  if(tipo.includes('Scambio')){
-    dati.dettagli_giocatori_scambio=getDettagliGiocatoriScambio();
-  }
-
   const btn=document.getElementById('btn-invia-trattativa');
   btn.disabled=true;btn.textContent='Invio...';
   try{
@@ -354,77 +329,6 @@ async function inviaTrattativa(){
     renderTrattative();
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
   finally{btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';}
-}
-
-function toggleControRiscatto(){
-  const checked=document.getElementById('trat-usa-contriscatto').checked;
-  document.getElementById('campo-contriscatto').style.display=checked?'block':'none';
-}
-
-function renderScambioDettagli(){
-  const tutti=[...giocatoriCambioSelezionati,...giocatoriSuoiSelezionati];
-  const container=document.getElementById('scambio-giocatori-form');
-  const wrapper=document.getElementById('scambio-dettagli-giocatori');
-  if(!container||!wrapper) return;
-  if(tutti.length===0){wrapper.style.display='none';return;}
-  wrapper.style.display='block';
-  const tipiOpzioni=`
-    <option value="Titolo Definitivo">🔵 Definitivo</option>
-    <option value="Prestito Secco">⏱️ Prestito Secco</option>
-    <option value="Prestito con Diritto di Riscatto">🔑 Prestito + Diritto</option>
-    <option value="Prestito con Obbligo di Riscatto">⚡ Prestito + Obbligo</option>
-    <option value="Prestito con Diritto che diventa Obbligo">🔄 Diritto→Obbligo</option>`;
-  container.innerHTML=tutti.map(gId=>{
-    const g=giocatoriDB.find(x=>x.id===gId);
-    const isMio=giocatoriCambioSelezionati.includes(gId);
-    return `<div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:8px;padding:10px;margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span style="font-size:10px;padding:2px 6px;border-radius:10px;background:${isMio?'rgba(0,255,135,0.15)':'rgba(68,136,255,0.15)'};color:${isMio?'var(--verde)':'var(--blu)'}">${isMio?'IO OFFRO':'IO RICEVO'}</span>
-        <span style="font-size:13px;font-weight:600">${g?g.nome:'?'} (${g?g.ruolo:'?'})</span>
-      </div>
-      <select id="tipo-g-${gId}" style="width:100%;background:var(--grigio-medio);border:1px solid var(--grigio-chiaro);border-radius:6px;padding:7px 8px;color:var(--testo);font-size:12px;margin-bottom:6px"
-        onchange="aggiornaCampiGiocatore(${gId})">
-        ${tipiOpzioni}
-      </select>
-      <div id="extra-g-${gId}"></div>
-    </div>`;
-  }).join('');
-  tutti.forEach(gId=>aggiornaCampiGiocatore(gId));
-}
-
-function aggiornaCampiGiocatore(gId){
-  const sel=document.getElementById('tipo-g-'+gId);
-  const extra=document.getElementById('extra-g-'+gId);
-  if(!sel||!extra) return;
-  const tipo=sel.value;
-  const hasPrestito=tipo.includes('Prestito');
-  const hasRiscatto=tipo.includes('Diritto')||tipo.includes('Obbligo');
-  extra.innerHTML=`
-    ${hasPrestito?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
-      <input class="form-input" type="text" id="cifra-g-${gId}" placeholder="Cifra prestito (es. 1M)" style="font-size:11px;padding:6px">
-      <input class="form-input" type="date" id="scad-g-${gId}" style="font-size:11px;padding:6px">
-    </div>`:''}
-    ${hasRiscatto?`<input class="form-input" type="text" id="riscatto-g-${gId}" placeholder="Importo riscatto (es. 8M)" style="font-size:11px;padding:6px;width:100%;margin-bottom:4px">`:''}
-  `;
-}
-
-function getDettagliGiocatoriScambio(){
-  const tutti=[...giocatoriCambioSelezionati,...giocatoriSuoiSelezionati];
-  return tutti.map(gId=>{
-    const sel=document.getElementById('tipo-g-'+gId);
-    const tipo=sel?sel.value:'Titolo Definitivo';
-    const cifra=document.getElementById('cifra-g-'+gId);
-    const scad=document.getElementById('scad-g-'+gId);
-    const riscatto=document.getElementById('riscatto-g-'+gId);
-    return {
-      giocatore_id:gId,
-      tipo,
-      cifra_prestito:cifra?parseFM(cifra.value):0,
-      scadenza_prestito:scad?scad.value:null,
-      importo_riscatto:riscatto?parseFM(riscatto.value):0,
-      verso:giocatoriCambioSelezionati.includes(gId)?'mio':'suo'
-    };
-  });
 }
 
 function apriApprovazione(){
