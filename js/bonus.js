@@ -161,6 +161,7 @@ function toggleMio(gId){
   if(idx>=0) giocatoriCambioSelezionati.splice(idx,1);
   else giocatoriCambioSelezionati.push(gId);
   renderGiocatoriCambio();
+  aggiornaDettagliScambio();
 }
 
 function toggleSuo(gId){
@@ -168,6 +169,47 @@ function toggleSuo(gId){
   if(idx>=0) giocatoriSuoiSelezionati.splice(idx,1);
   else giocatoriSuoiSelezionati.push(gId);
   renderGiocatoriCambio();
+  aggiornaDettagliScambio();
+}
+
+function aggiornaDettagliScambio(){
+  const tutti=[...giocatoriCambioSelezionati,...giocatoriSuoiSelezionati];
+  const div=document.getElementById('scambio-dettagli-giocatori');
+  const form=document.getElementById('scambio-giocatori-form');
+  if(!div||!form) return;
+  if(tutti.length===0){div.style.display='none';return;}
+  div.style.display='block';
+  form.innerHTML=tutti.map(gId=>{
+    const g=giocatoriDB.find(x=>x.id===gId);
+    if(!g) return '';
+    const isMio=giocatoriCambioSelezionati.includes(gId);
+    const col=isMio?'var(--verde)':'var(--blu)';
+    const label=isMio?'🟢 Offro':'🔵 Voglio';
+    return `<div style="background:var(--grigio);border:1px solid ${col}33;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        ${g.foto_url?`<img src="${g.foto_url}" style="width:28px;height:28px;border-radius:50%;object-fit:cover">`:''}
+        <div>
+          <div style="font-size:13px;font-weight:700">${g.nome}</div>
+          <div style="font-size:10px;color:${col}">${label} — ${g.ruolo}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-bottom:3px">Tipo</div>
+          <select id="scambio-tipo-${gId}" class="form-select" style="font-size:12px;padding:6px 8px">
+            <option value="definitivo">Definitivo</option>
+            <option value="prestito">Prestito</option>
+            <option value="prestito_riscatto">Prestito + Diritto Riscatto</option>
+            <option value="prestito_obbligo">Prestito + Obbligo Riscatto</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-bottom:3px">Valore (M, opzionale)</div>
+          <input class="form-input" type="text" id="scambio-valore-${gId}" placeholder="Es. 5 oppure 5.5" style="font-size:12px;padding:6px 8px">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function aggiornaCampiTrattativa(){
@@ -191,6 +233,11 @@ function aggiornaCampiTrattativa(){
 function toggleRate(){
   const checked=document.getElementById('trat-usa-rate').checked;
   document.getElementById('campo-rate-inline').style.display=checked?'block':'none';
+}
+
+function toggleControRiscatto(){
+  const checked=document.getElementById('trat-usa-contriscatto').checked;
+  document.getElementById('campo-contriscatto').style.display=checked?'block':'none';
 }
 
 function aggiungiRata(){
@@ -221,7 +268,7 @@ async function inviaTrattativa(){
   const hasCondizioni=tipo.includes('diventa Obbligo');
 
   // Bonus performance
-  const bonusValidi=usaBonus?bonusList.filter(b=>b.soglia&&b.importo&&parseM(b.importo)>0):[];
+  const bonusValidi=usaBonus?bonusList.filter(b=>b.soglia&&b.importo&&parseFloat(b.importo)>0):[];
   const bonusNote=bonusValidi.map(b=>`${LABEL_BONUS[b.tipo]||b.tipo}≥${b.soglia}→+${new Intl.NumberFormat('it-IT').format(parseFloat(b.importo))}FM`).join(' | ');
 
   // Costruisci condizioni obbligo
@@ -260,7 +307,7 @@ async function inviaTrattativa(){
   };
 
   if(!tipo.includes('Scambio')&&!tipo.includes('Prestito')){
-    dati.importo=parseM(document.getElementById('trat-importo').value)||0;
+    dati.importo=parseFloat(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
     // Se ricevo i soldi, inverti la direzione nel DB
@@ -271,7 +318,7 @@ async function inviaTrattativa(){
     }
   }
   if(tipo.includes('Clausola Recompra')){
-    dati.importo_recompra=parseM(document.getElementById('trat-importo-recompra').value)||null;
+    dati.importo_recompra=parseFloat(document.getElementById('trat-importo-recompra').value)||null;
     dati.scadenza_recompra=document.getElementById('trat-scadenza-recompra').value||null;
   }
   if(tipo.includes('Scambio')){
@@ -291,18 +338,18 @@ async function inviaTrattativa(){
     }
   }
   if(usaRate){
-    dati.importo=parseM(document.getElementById('trat-importo-totale').value)||0;
+    dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;
   }
   if(tipo.includes('Prestito')){
-    dati.importo=parseM(document.getElementById('trat-cifra-prestito')?.value)||0;
+    dati.importo=parseFloat(document.getElementById('trat-cifra-prestito')?.value)||0;
     dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
   if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
-    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto').value)||null;
+    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
   }
   if(hasCondizioni){
-    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto-cond').value)||null;
+    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto-cond').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
   }
 
