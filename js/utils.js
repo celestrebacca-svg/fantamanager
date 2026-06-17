@@ -42,3 +42,16 @@ function showToast(msg,tipo){
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(()=>t.classList.remove('show'),2800);
 }
+
+// ===== PARSER IMPORTO FM (es. 5M, 1.5M, 500K) =====
+function parseFM(val){
+  if(!val) return 0;
+  const s=String(val).trim().replace(',','.');
+  const m=s.match(/^([0-9.]+)\s*([MKmk]?)$/);
+  if(!m) return parseFloat(s)||0;
+  const n=parseFloat(m[1])||0;
+  const u=m[2].toUpperCase();
+  if(u==='M') return Math.round(n*1000000);
+  if(u==='K') return Math.round(n*1000);
+  return n;
+}
