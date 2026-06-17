@@ -822,12 +822,16 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
         </div>
         <div id="campo-rate-inline" style="display:none">
           <div class="form-group"><label class="form-label">Importo Totale (FM)</label><input class="form-input" type="text" id="trat-importo-totale" placeholder="Es. 20 oppure 20.5 (M)"></div>
+          <div class="form-group">
+            <label class="form-label">💰 Acconto immediato (pagato subito all'approvazione)</label>
+            <input class="form-input" type="text" id="trat-acconto-immediato" placeholder="Es. 5M — lascia vuoto se nessun acconto">
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <label class="form-label" style="margin:0">Rate di pagamento</label>
+            <label class="form-label" style="margin:0">📅 Rate future</label>
             <button class="btn-secondary" style="font-size:11px;padding:4px 10px" onclick="aggiungiRata()">+ Rata</button>
           </div>
           <div id="rate-lista"></div>
-          <div style="font-size:11px;color:var(--testo-dim);margin-top:6px">💡 Inserisci importo e data per ogni rata. Le date devono essere future.</div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-top:6px">💡 Acconto = pagato subito. Rate = pagate alle date indicate.</div>
         </div>
       </div>
 

@@ -104,42 +104,25 @@ async function cambiaStatoTrattativa(id,stato){
       const sqOffIdx=squadreDB.findIndex(s=>s.id===sqOff);
       const sqRicIdx=squadreDB.findIndex(s=>s.id===sqRic);
 
-      if(t.importo&&t.importo>0){
-        // Aggiorna budget squadre
-        if(sqOffDB) await sb.from('squadre').update({budget:sqOffDB.budget-t.importo}).eq('id',sqOff);
-        if(sqRicDB) await sb.from('squadre').update({budget:sqRicDB.budget+t.importo}).eq('id',sqRic);
-        if(sqOffIdx>=0) squadreDB[sqOffIdx].budget-=t.importo;
-        if(sqRicIdx>=0) squadreDB[sqRicIdx].budget+=t.importo;
-        // Log storico — in try/catch separato per non bloccare il budget
+      // Importo immediato = importo base + acconto
+      const acconto=parseFloat(t.acconto_immediato)||0;
+      const totImmediato=(parseFloat(t.importo)||0)+acconto;
+      if(totImmediato>0){
+        if(sqOffDB) await sb.from('squadre').update({budget:sqOffDB.budget-totImmediato}).eq('id',sqOff);
+        if(sqRicDB) await sb.from('squadre').update({budget:sqRicDB.budget+totImmediato}).eq('id',sqRic);
+        if(sqOffIdx>=0) squadreDB[sqOffIdx].budget-=totImmediato;
+        if(sqRicIdx>=0) squadreDB[sqRicIdx].budget+=totImmediato;
+        // Log
         try{
-          const budgetOffDopo=(sqOffDB?sqOffDB.budget:0)-t.importo;
-          const budgetRicDopo=(sqRicDB?sqRicDB.budget:0)+t.importo;
+          const budgetOffDopo=(sqOffDB?sqOffDB.budget:0)-totImmediato;
+          const budgetRicDopo=(sqRicDB?sqRicDB.budget:0)+totImmediato;
           await sb.from('movimenti_budget').insert([
-            {squadra_id:sqOff,importo:-t.importo,tipo:'uscita',descrizione:`${t.tipo}: ${nomeG}`,saldo_prima:sqOffDB?sqOffDB.budget:null,saldo_dopo:budgetOffDopo},
-            {squadra_id:sqRic,importo:t.importo,tipo:'entrata',descrizione:`${t.tipo}: ${nomeG}`,saldo_prima:sqRicDB?sqRicDB.budget:null,saldo_dopo:budgetRicDopo}
+            {squadra_id:sqOff,importo:-totImmediato,tipo:'uscita',descrizione:`${t.tipo}: ${nomeG}`,saldo_prima:sqOffDB?sqOffDB.budget:null,saldo_dopo:budgetOffDopo},
+            {squadra_id:sqRic,importo:totImmediato,tipo:'entrata',descrizione:`${t.tipo}: ${nomeG}`,saldo_prima:sqRicDB?sqRicDB.budget:null,saldo_dopo:budgetRicDopo}
           ]);
-        }catch(logErr){console.warn('Log movimenti non disponibile:',logErr.message);}
+        }catch(e){console.warn('Log movimenti:',e.message);}
       }
     }
-
-      // ── RATE MERCATO ──
-      if(stato==='approvata' && t.rate && t.rate.length>0){
-        try{
-          const g2=giocatoriDB.find(x=>x.id==t.giocatore_id);
-          const nomeG2=g2?g2.nome:'Giocatore';
-          const rateRows=t.rate.filter(r=>r.importo&&r.data).map(r=>({
-            squadra_debitrice_id: sqOff,
-            squadra_creditrice_id: sqRic,
-            importo: parseM ? parseM(r.importo) : (parseFloat(r.importo)||0),
-            data_scadenza: r.data,
-            descrizione: `Rata — ${t.tipo}: ${nomeG2}`,
-            pagata: false,
-            stagione: '2024/25',
-            trattativa_id: t.id
-          }));
-          if(rateRows.length>0) await sb.from('rate_mercato').insert(rateRows);
-        }catch(rateErr){console.warn('Errore salvataggio rate:',rateErr.message);}
-      }
 
     const idx=trattativeDB.findIndex(x=>x.id===id);
     if(idx>=0) trattativeDB[idx].stato=stato;

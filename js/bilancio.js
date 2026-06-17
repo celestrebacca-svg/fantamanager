@@ -456,8 +456,8 @@ function apriNuovaRata() {
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="form-group">
-        <label class="form-label">Importo (FM)</label>
-        <input id="rata-importo" class="form-input" type="number" placeholder="es. 10000000">
+        <label class="form-label">Importo (FM) es. 5M, 1.5M</label>
+        <input id="rata-importo" class="form-input" type="text" placeholder="Es. 5M o 1.5M">
       </div>
       <div class="form-group">
         <label class="form-label">Data Scadenza</label>
@@ -471,7 +471,7 @@ async function salvaRata() {
   const desc = document.getElementById('rata-desc').value.trim();
   const debId = document.getElementById('rata-deb').value;
   const credId = document.getElementById('rata-cred').value;
-  const importo = parseFloat(document.getElementById('rata-importo').value);
+  const importo = parseFM(document.getElementById('rata-importo').value);
   const scad = document.getElementById('rata-scad').value;
   if (!desc || !debId || !credId || !importo || !scad) { showToast('❌ Compila tutti i campi','error'); return; }
   if (debId === credId) { showToast('❌ Le due squadre devono essere diverse','error'); return; }
@@ -541,8 +541,8 @@ function renderTabManuale(container) {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Importo (FM)</label>
-        <input id="man-importo" class="form-input" type="number" placeholder="es. 5000000">
+        <label class="form-label">Importo (FM) es. 5M, 1.5M</label>
+        <input id="man-importo" class="form-input" type="text" placeholder="Es. 5M o 1.5M">
       </div>
     </div>
     <div class="form-group">
@@ -558,7 +558,7 @@ function renderTabManuale(container) {
 async function salvaMovimentoManuale() {
   const sqId = document.getElementById('man-sq').value;
   const tipo = document.getElementById('man-tipo').value;
-  const importo = parseFloat(document.getElementById('man-importo').value);
+  const importo = parseFM(document.getElementById('man-importo').value);
   const desc = document.getElementById('man-desc').value.trim();
   const immediato = document.getElementById('man-immediato').checked;
   if (!sqId || !importo || !desc) { showToast('❌ Compila tutti i campi','error'); return; }
