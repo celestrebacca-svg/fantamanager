@@ -296,18 +296,17 @@ async function inviaTrattativa(){
     squadra_ricevente_id:sqRicevente.id,
     tipo,
     giocatore_id:trattativaGiocatoreTarget.id,
-    giocatori_ids:[trattativaGiocatoreTarget.id],
     stato:'in_attesa',
     note:document.getElementById('trat-note').value||null,
     percentuale_rivendita:parseFloat(document.getElementById('trat-rivendita').value)||null,
     giocatori_cambio_ids:giocatoriScambio,
     condizioni_obbligo:condizioniObbligo,
-    rate:usaRate?rateList.filter(r=>r.importo&&r.data):[],
+    rate:usaRate?rateList.filter(r=>r.importo&&r.data).map(r=>({importo:parseFM(r.importo),data:r.data,pagata:false})):[],
     bonus_performance:bonusValidi.length>0?bonusValidi:null,
   };
 
   if(!tipo.includes('Scambio')&&!tipo.includes('Prestito')){
-    dati.importo=parseM(document.getElementById('trat-importo').value)||0;
+    dati.importo=parseFM(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
     // Se ricevo i soldi, inverti la direzione nel DB
@@ -322,7 +321,7 @@ async function inviaTrattativa(){
     dati.scadenza_recompra=document.getElementById('trat-scadenza-recompra').value||null;
   }
   if(tipo.includes('Scambio')){
-    dati.importo=parseM(document.getElementById('trat-conguaglio').value)||0;
+    dati.importo=parseFM(document.getElementById('trat-conguaglio').value)||0;
     dati.giocatori_cambio_ids=giocatoriMiei; // miei che offro
     dati.giocatori_ids_richiesti=giocatoriSuoi; // suoi che voglio
     if(!giocatoriMiei.length&&!giocatoriSuoi.length){showToast('❌ Seleziona almeno un giocatore per parte','error');return;}
@@ -338,18 +337,18 @@ async function inviaTrattativa(){
     }
   }
   if(usaRate){
-    dati.importo=parseM(document.getElementById('trat-importo-totale').value)||0;
+    dati.importo=parseFM(document.getElementById('trat-importo-totale').value)||0;
   }
   if(tipo.includes('Prestito')){
-    dati.importo=parseM(document.getElementById('trat-cifra-prestito')?.value)||0;
+    dati.importo=parseFM(document.getElementById('trat-cifra-prestito')?.value)||0;
     dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
   if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
-    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto').value)||null;
+    dati.importo_riscatto=parseFM(document.getElementById('trat-importo-riscatto').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
   }
   if(hasCondizioni){
-    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto-cond').value)||null;
+    dati.importo_riscatto=parseFM(document.getElementById('trat-importo-riscatto-cond').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
   }
 
