@@ -246,6 +246,10 @@ function aggiungiRata(){
 }
 
 function renderRateLista(){
+  renderRateLista();
+}
+
+function renderRateLista(){
   document.getElementById('rate-lista').innerHTML=rateList.map((r,i)=>`
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
       <span style="font-size:11px;color:var(--testo-dim);width:50px;flex-shrink:0">Rata ${i+1}</span>
@@ -302,7 +306,7 @@ async function inviaTrattativa(){
     percentuale_rivendita:parseFloat(document.getElementById('trat-rivendita').value)||null,
     giocatori_cambio_ids:giocatoriScambio,
     condizioni_obbligo:condizioniObbligo,
-    rate:usaRate?rateList.filter(r=>r.importo&&r.data):[],
+    rate:usaRate?rateList.filter(r=>r.importo&&r.data).map(r=>({importo:parseFM(r.importo),data:r.data,pagata:false})):[],
     bonus_performance:bonusValidi.length>0?bonusValidi:null,
   };
 

@@ -65,16 +65,23 @@ async function cambiaStatoTrattativa(id,stato){
       const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
       const tipo=t.tipo||'';
       const isScambio=tipo.includes('Scambio');
-      const isPrestito=tipo.includes('Prestito');
+      const isPrestito=tipo.includes('Prestito'); // cattura tutti: secco, diritto, obbligo, diritto->obbligo
 
       // ── TRASFERIMENTO GIOCATORE PRINCIPALE ──
       // Prestito: il giocatore va a sqRic (in prestito all'altra squadra)
       // Tutti gli altri: il giocatore comprato va all'offerente (sqOff)
       if(t.giocatore_id){
+        // Prestito: va a sqRic temporaneamente; Definitivo: va a sqOff (chi ha offerto)
         const destId=isPrestito?sqRic:sqOff;
-        await sb.from('giocatori').update({squadra_id:destId}).eq('id',t.giocatore_id);
+        const updateData={squadra_id:destId};
+        // Per prestito salviamo la squadra originale per il rientro automatico
+        if(isPrestito) updateData.squadra_originale_id=sqOff;
+        await sb.from('giocatori').update(updateData).eq('id',t.giocatore_id);
         const gIdx=giocatoriDB.findIndex(g=>g.id==t.giocatore_id);
-        if(gIdx>=0) giocatoriDB[gIdx].squadra_id=destId;
+        if(gIdx>=0){
+          giocatoriDB[gIdx].squadra_id=destId;
+          if(isPrestito) giocatoriDB[gIdx].squadra_originale_id=sqOff;
+        }
       }
 
       // ── TRASFERIMENTO GIOCATORI SCAMBIO ──
