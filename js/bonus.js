@@ -68,7 +68,7 @@ function renderBonusLista(){
       </div>
       <div>
         <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">IMPORTO BONUS (FM)</div>
-        <input class="form-input" type="number" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2500000" step="100000" style="padding:7px 8px;font-size:13px">
+        <input class="form-input" type="text" value="${b.importo}" oninput="bonusList[${i}].importo=this.value" placeholder="Es. 2.5 o 2500000 (M)" style="padding:7px 8px;font-size:13px">
       </div>
     </div>`).join('');
 }
@@ -83,7 +83,7 @@ document.addEventListener('change',function(e){
 // Mostra direzione conguaglio solo se c'è un importo
 document.addEventListener('input',function(e){
   if(e.target.id==='trat-conguaglio'){
-    const val=parseFloat(e.target.value)||0;
+    const val=parseM(e.target.value)||0;
     const campo=document.getElementById('campo-direzione-conguaglio');
     if(campo) campo.style.display=val>0?'block':'none';
   }
@@ -249,7 +249,7 @@ function renderRateLista(){
   document.getElementById('rate-lista').innerHTML=rateList.map((r,i)=>`
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
       <span style="font-size:11px;color:var(--testo-dim);width:50px;flex-shrink:0">Rata ${i+1}</span>
-      <input class="form-input" type="number" value="${r.importo}" oninput="rateList[${i}].importo=this.value" placeholder="FM" style="flex:1;padding:8px;font-size:13px" step="100000">
+      <input class="form-input" type="text" value="${r.importo}" oninput="rateList[${i}].importo=this.value" placeholder="Es. 5 o 5.5 (M)" style="flex:1;padding:8px;font-size:13px">
       <input class="form-input" type="date" value="${r.data}" oninput="rateList[${i}].data=this.value" style="flex:1;padding:8px;font-size:13px">
       <button onclick="rateList.splice(${i},1);renderRateLista()" style="background:rgba(255,68,68,0.15);border:none;color:var(--rosso);border-radius:6px;padding:8px 10px;cursor:pointer;flex-shrink:0">✕</button>
     </div>`).join('');
@@ -268,8 +268,8 @@ async function inviaTrattativa(){
   const hasCondizioni=tipo.includes('diventa Obbligo');
 
   // Bonus performance
-  const bonusValidi=usaBonus?bonusList.filter(b=>b.soglia&&b.importo&&parseFloat(b.importo)>0):[];
-  const bonusNote=bonusValidi.map(b=>`${LABEL_BONUS[b.tipo]||b.tipo}≥${b.soglia}→+${new Intl.NumberFormat('it-IT').format(parseFloat(b.importo))}FM`).join(' | ');
+  const bonusValidi=usaBonus?bonusList.filter(b=>b.soglia&&b.importo&&parseM(b.importo)>0):[];
+  const bonusNote=bonusValidi.map(b=>`${LABEL_BONUS[b.tipo]||b.tipo}≥${b.soglia}→+${new Intl.NumberFormat('it-IT').format(parseM(b.importo))}FM`).join(' | ');
 
   // Costruisci condizioni obbligo
   let condizioniObbligo=null;
@@ -307,7 +307,7 @@ async function inviaTrattativa(){
   };
 
   if(!tipo.includes('Scambio')&&!tipo.includes('Prestito')){
-    dati.importo=parseFloat(document.getElementById('trat-importo').value)||0;
+    dati.importo=parseM(document.getElementById('trat-importo').value)||0;
     const dir=document.getElementById('trat-direzione-importo')?.value||'pago';
     dati.direzione_importo=dir;
     // Se ricevo i soldi, inverti la direzione nel DB
@@ -318,7 +318,7 @@ async function inviaTrattativa(){
     }
   }
   if(tipo.includes('Clausola Recompra')){
-    dati.importo_recompra=parseFloat(document.getElementById('trat-importo-recompra').value)||null;
+    dati.importo_recompra=parseM(document.getElementById('trat-importo-recompra').value)||null;
     dati.scadenza_recompra=document.getElementById('trat-scadenza-recompra').value||null;
   }
   if(tipo.includes('Scambio')){
@@ -338,18 +338,18 @@ async function inviaTrattativa(){
     }
   }
   if(usaRate){
-    dati.importo=parseFloat(document.getElementById('trat-importo-totale').value)||0;
+    dati.importo=parseM(document.getElementById('trat-importo-totale').value)||0;
   }
   if(tipo.includes('Prestito')){
-    dati.importo=parseFloat(document.getElementById('trat-cifra-prestito')?.value)||0;
+    dati.importo=parseM(document.getElementById('trat-cifra-prestito')?.value)||0;
     dati.scadenza_prestito=document.getElementById('trat-scadenza-prestito').value||null;
   }
   if(tipo.includes('Diritto di Riscatto')||tipo.includes('Obbligo di Riscatto')){
-    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto').value)||null;
+    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto').value||null;
   }
   if(hasCondizioni){
-    dati.importo_riscatto=parseFloat(document.getElementById('trat-importo-riscatto-cond').value)||null;
+    dati.importo_riscatto=parseM(document.getElementById('trat-importo-riscatto-cond').value)||null;
     dati.scadenza_riscatto=document.getElementById('trat-scadenza-riscatto-cond').value||null;
   }
 

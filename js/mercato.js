@@ -122,6 +122,25 @@ async function cambiaStatoTrattativa(id,stato){
       }
     }
 
+      // ── RATE MERCATO ──
+      if(stato==='approvata' && t.rate && t.rate.length>0){
+        try{
+          const g2=giocatoriDB.find(x=>x.id==t.giocatore_id);
+          const nomeG2=g2?g2.nome:'Giocatore';
+          const rateRows=t.rate.filter(r=>r.importo&&r.data).map(r=>({
+            squadra_debitrice_id: sqOff,
+            squadra_creditrice_id: sqRic,
+            importo: parseM ? parseM(r.importo) : (parseFloat(r.importo)||0),
+            data_scadenza: r.data,
+            descrizione: `Rata — ${t.tipo}: ${nomeG2}`,
+            pagata: false,
+            stagione: '2024/25',
+            trattativa_id: t.id
+          }));
+          if(rateRows.length>0) await sb.from('rate_mercato').insert(rateRows);
+        }catch(rateErr){console.warn('Errore salvataggio rate:',rateErr.message);}
+      }
+
     const idx=trattativeDB.findIndex(x=>x.id===id);
     if(idx>=0) trattativeDB[idx].stato=stato;
     showToast(stato==='approvata'?'✅ Trattativa approvata! Giocatore trasferito!':'❌ Trattativa rifiutata!');
