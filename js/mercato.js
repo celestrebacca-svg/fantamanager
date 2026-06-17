@@ -47,6 +47,10 @@ function renderTrattative(){
           <button class="btn-rifiuta" onclick="cambiaStatoTrattativa(${t.id},'rifiutata')">❌ Rifiuta</button>
           <button class="btn-approva" onclick="cambiaStatoTrattativa(${t.id},'approvata')">✅ Approva</button>
         </div>`:''}
+      ${isAdmin&&t.stato==='approvata'?`
+        <div class="trattativa-footer">
+          <button class="btn-rifiuta" onclick="annullaTrattativa(${t.id})" style="width:100%;background:rgba(255,150,0,0.15);color:orange;border:1px solid rgba(255,150,0,0.4)">↩️ Annulla e ripristina</button>
+        </div>`:''}
     </div>`;
   }).join('');
 }
@@ -136,5 +140,73 @@ async function cambiaStatoTrattativa(id,stato){
     showToast(stato==='approvata'?'✅ Trattativa approvata! Giocatore trasferito!':'❌ Trattativa rifiutata!');
     renderTrattative();
     if(stato==='approvata') renderOverview();
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+}
+
+async function annullaTrattativa(id){
+  if(!adminLoggato) return;
+  if(!confirm('⚠️ Annullare questa trattativa?\nI giocatori torneranno alle squadre originali e i budget verranno ripristinati.')) return;
+  try{
+    const t=trattativeDB.find(x=>x.id===id);
+    if(!t) throw new Error('Trattativa non trovata');
+
+    const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
+    const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+    const tipo=(t.tipo||'').toLowerCase();
+    const isScambio=tipo.includes('scambio');
+    const isPrestito=tipo.includes('prestito');
+
+    // Ripristino giocatore principale
+    if(t.giocatore_id){
+      const origId=isPrestito?sqOff:sqRic;
+      await sb.from('giocatori').update({squadra_id:origId}).eq('id',t.giocatore_id);
+      const gIdx=giocatoriDB.findIndex(g=>g.id==t.giocatore_id);
+      if(gIdx>=0) giocatoriDB[gIdx].squadra_id=origId;
+    }
+
+    // Ripristino giocatori scambio
+    if(isScambio){
+      const miei=t.giocatori_cambio_ids||[];
+      const suoi=t.giocatori_ids_richiesti||[];
+      for(const gId of miei){
+        await sb.from('giocatori').update({squadra_id:sqOff}).eq('id',gId);
+        const idx=giocatoriDB.findIndex(g=>g.id==gId);
+        if(idx>=0) giocatoriDB[idx].squadra_id=sqOff;
+      }
+      for(const gId of suoi){
+        await sb.from('giocatori').update({squadra_id:sqRic}).eq('id',gId);
+        const idx=giocatoriDB.findIndex(g=>g.id==gId);
+        if(idx>=0) giocatoriDB[idx].squadra_id=sqRic;
+      }
+    }
+
+    // Ripristino budget
+    if(t.importo&&t.importo>0){
+      const sqOffDB=squadreDB.find(s=>s.id===sqOff);
+      const sqRicDB=squadreDB.find(s=>s.id===sqRic);
+      if(sqOffDB){
+        const nb=sqOffDB.budget+t.importo;
+        await sb.from('squadre').update({budget:nb}).eq('id',sqOff);
+        sqOffDB.budget=nb;
+      }
+      if(sqRicDB){
+        const nb=sqRicDB.budget-t.importo;
+        await sb.from('squadre').update({budget:nb}).eq('id',sqRic);
+        sqRicDB.budget=nb;
+      }
+    }
+
+    // Elimina rate collegate
+    try{ await sb.from('rate_mercato').delete().eq('trattativa_id',id); }
+    catch(e){ console.warn('Rate:',e.message); }
+
+    // Rimetti in_attesa
+    await sb.from('trattative').update({stato:'in_attesa'}).eq('id',id);
+    const idx=trattativeDB.findIndex(x=>x.id===id);
+    if(idx>=0) trattativeDB[idx].stato='in_attesa';
+
+    showToast('↩️ Trattativa annullata e ripristinata!');
+    renderTrattative();
+    renderOverview();
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
 }

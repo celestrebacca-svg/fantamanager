@@ -598,6 +598,9 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     </div>
 
     <div class="section" id="section-admin">
+      <div style="padding:16px 16px 0">
+        <button onclick="apriModificaBudget()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;margin-bottom:12px">✏️ MODIFICA BUDGET SQUADRA</button>
+      </div>
       <div id="admin-password-screen" style="display:none">
         <div class="password-screen">
           <div class="password-icon">🔐</div>
@@ -1245,6 +1248,17 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 
 <!-- MODAL ADMIN RISIKO -->
 <!-- MODAL ADMIN COMPETIZIONI -->
+<!-- MODAL MODIFICA BUDGET -->
+<div class="modal-overlay" id="modal-modifica-budget" onclick="closeModal('modal-modifica-budget',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">✏️ MODIFICA BUDGET</div>
+      <button class="modal-close" onclick="document.getElementById('modal-modifica-budget').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="modifica-budget-body"></div>
+  </div>
+</div>
+
 <!-- MODAL ADMIN BILANCIO -->
 <div class="modal-overlay" id="modal-bilancio-admin" onclick="closeModal('modal-bilancio-admin',event)">
   <div class="modal" style="border-color:var(--oro);max-width:720px">
