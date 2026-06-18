@@ -68,8 +68,8 @@ async function cambiaStatoTrattativa(id,stato){
       const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
       const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
       const tipo=t.tipo||'';
-      const isScambio=tipo.includes('Scambio');
-      const isPrestito=tipo.includes('Prestito'); // cattura tutti: secco, diritto, obbligo, diritto->obbligo
+      const isScambio=tipo.toLowerCase().includes('scambio');
+      const isPrestito=tipo.toLowerCase().includes('prestito'); // cattura tutti: secco, diritto, obbligo, diritto->obbligo
 
       // ── TRASFERIMENTO GIOCATORE PRINCIPALE ──
       // Prestito: il giocatore va a sqRic (in prestito all'altra squadra)
@@ -154,7 +154,7 @@ async function annullaTrattativa(id){
     const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
     const tipo=(t.tipo||'').toLowerCase();
     const isScambio=tipo.includes('scambio');
-    const isPrestito=tipo.includes('prestito');
+    const isPrestito=tipo.toLowerCase().includes('prestito');
 
     // Ripristino giocatore principale
     if(t.giocatore_id){

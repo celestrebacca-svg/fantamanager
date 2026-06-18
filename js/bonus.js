@@ -246,10 +246,6 @@ function aggiungiRata(){
 }
 
 function renderRateLista(){
-  renderRateLista();
-}
-
-function renderRateLista(){
   document.getElementById('rate-lista').innerHTML=rateList.map((r,i)=>`
     <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
       <span style="font-size:11px;color:var(--testo-dim);width:50px;flex-shrink:0">Rata ${i+1}</span>
