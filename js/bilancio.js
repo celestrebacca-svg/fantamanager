@@ -150,6 +150,18 @@ function renderClassificaBudget() {
 }
 
 // ===== ADMIN BILANCIO =====
+function apriAdminBilancioRate() {
+  // Apre la modal admin direttamente sul tab RATE
+  apriAdminBilancio();
+  // Aspetta che la modal sia aperta e poi switcha al tab rate
+  setTimeout(() => {
+    const btn = document.getElementById('tab-brate');
+    if (btn) showAdminBilancioTab('rate', btn);
+    // Apre subito il form nuova rata
+    setTimeout(() => apriNuovaRata(), 50);
+  }, 100);
+}
+
 function apriAdminBilancio() {
   if (!adminLoggato) return;
   document.getElementById('modal-bilancio-admin').classList.add('open');
@@ -393,7 +405,7 @@ function renderTabRate(container) {
   container.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--testo-dim);letter-spacing:1px">RATE IN SOSPESO (${nonPagate.length})</div>
-      <button onclick="apriNuovaRata()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:6px 14px;border-radius:8px;border:none;cursor:pointer">+ NUOVA RATA</button>
+      <button onclick="apriAdminBilancioRate()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:6px 14px;border-radius:8px;border:none;cursor:pointer">+ NUOVA RATA</button>
     </div>
     <div id="form-nuova-rata" style="display:none;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:14px"></div>
 
@@ -435,17 +447,7 @@ function renderTabRate(container) {
 }
 
 function apriNuovaRata() {
-  let form = document.getElementById('form-nuova-rata');
-  // Se il div non esiste ancora nel DOM, crealo al volo
-  if (!form) {
-    const container = document.getElementById('bilancio-admin-tab-content');
-    if (!container) return;
-    const wrapper = document.createElement('div');
-    wrapper.id = 'form-nuova-rata';
-    wrapper.style.cssText = 'background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:14px';
-    container.prepend(wrapper);
-    form = wrapper;
-  }
+  const form = document.getElementById('form-nuova-rata');
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
   if (form.style.display === 'none') return;
   form.innerHTML = `
@@ -493,7 +495,7 @@ async function salvaRata() {
     if (error) throw error;
     rateMercato.push(data);
     showToast('✅ Rata salvata!');
-    const f=document.getElementById('form-nuova-rata'); if(f) f.style.display='none';
+    document.getElementById('form-nuova-rata').style.display='none';
     renderTabRate(document.getElementById('bilancio-admin-tab-content'));
   } catch(e) { showToast('❌ '+e.message,'error'); }
 }
