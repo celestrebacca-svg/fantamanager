@@ -435,7 +435,17 @@ function renderTabRate(container) {
 }
 
 function apriNuovaRata() {
-  const form = document.getElementById('form-nuova-rata');
+  let form = document.getElementById('form-nuova-rata');
+  // Se il div non esiste ancora nel DOM, crealo al volo
+  if (!form) {
+    const container = document.getElementById('bilancio-admin-tab-content');
+    if (!container) return;
+    const wrapper = document.createElement('div');
+    wrapper.id = 'form-nuova-rata';
+    wrapper.style.cssText = 'background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:14px';
+    container.prepend(wrapper);
+    form = wrapper;
+  }
   form.style.display = form.style.display === 'none' ? 'block' : 'none';
   if (form.style.display === 'none') return;
   form.innerHTML = `
@@ -483,7 +493,7 @@ async function salvaRata() {
     if (error) throw error;
     rateMercato.push(data);
     showToast('✅ Rata salvata!');
-    document.getElementById('form-nuova-rata').style.display='none';
+    const f=document.getElementById('form-nuova-rata'); if(f) f.style.display='none';
     renderTabRate(document.getElementById('bilancio-admin-tab-content'));
   } catch(e) { showToast('❌ '+e.message,'error'); }
 }
