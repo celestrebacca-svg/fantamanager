@@ -1,7 +1,7 @@
 // ===== SISTEMA BILANCIO =====
 
-let bilancioStagione = '2024/25';
-let bilancioNuovaStagione = '2025/26';
+let bilancioStagione = '2025/26';
+let bilancioNuovaStagione = '2026/27';
 let bilancePending = [];
 let rateMercato = [];
 
@@ -46,7 +46,7 @@ async function renderBilancio() {
       <div style="background:linear-gradient(135deg,rgba(255,215,0,0.08),rgba(0,0,0,0));border:1px solid rgba(255,215,0,0.3);border-radius:14px;padding:20px;margin-bottom:20px">
         <div style="font-size:12px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Budget Attuale</div>
         <div style="font-family:'Space Mono',monospace;font-size:32px;font-weight:700;color:${budgetColor}">${fmtBudget(budget)}</div>
-        <div style="font-size:11px;color:var(--testo-dim);margin-top:4px">Scadenza bilancio: 15 giugno 2025</div>
+        <div style="font-size:11px;color:var(--testo-dim);margin-top:4px">Scadenza bilancio: 15 giugno 2026</div>
       </div>`;
 
     // Rate in scadenza per questa squadra
@@ -81,7 +81,7 @@ async function renderBilancio() {
       html += `
         <div style="background:var(--grigio);border:1px solid rgba(0,255,135,0.2);border-radius:14px;padding:16px;margin-bottom:20px">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--verde);letter-spacing:1px;margin-bottom:4px">📬 FM IN ARRIVO AL NUOVO BILANCIO</div>
-          <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Verranno accreditati il 16 giugno all'apertura del nuovo bilancio</div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Verranno accreditati il 16 giugno 2027 all'apertura del nuovo bilancio</div>
           ${mieiPending.map(p => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--grigio-scuro);border-radius:8px;margin-bottom:6px">
               <div style="font-size:12px;color:var(--testo)">${p.descrizione}</div>
@@ -342,8 +342,13 @@ async function apriNuovoBilancio() {
 
   // Marca tutte le rate come pagate
   try {
-    await sb.from('rate_mercato').update({ pagata: true, data_pagamento: new Date().toISOString() }).eq('pagata', false);
-    rateMercato.forEach(r => { r.pagata = true; r.data_pagamento = new Date().toISOString(); });
+    // Paga solo le rate con scadenza <= 16 giugno 2027
+    const scadenzaBilancio = new Date('2027-06-16');
+    const rateDaPagare = rateMercato.filter(r => !r.pagata && new Date(r.data_scadenza) <= scadenzaBilancio);
+    for (const r of rateDaPagare) {
+      await sb.from('rate_mercato').update({ pagata: true, data_pagamento: new Date().toISOString() }).eq('id', r.id);
+      r.pagata = true; r.data_pagamento = new Date().toISOString();
+    }
   } catch(e) { console.error('Errore mark rate:', e); }
 
   showToast(`✅ Bilancio aperto! ${ok} squadre aggiornate${errori > 0 ? ' ('+errori+' errori)' : ''}`);
@@ -504,7 +509,7 @@ async function salvaRata() {
     if (error) throw error;
     rateMercato.push(data);
     showToast('✅ Rata salvata!');
-    document.getElementById('form-nuova-rata').style.display='none';
+    const fform=document.getElementById('form-nuova-rata'); if(fform) fform.style.display='none';
     renderTabRate(document.getElementById('bilancio-admin-tab-content'));
   } catch(e) { showToast('❌ '+e.message,'error'); }
 }
