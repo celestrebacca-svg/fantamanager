@@ -447,9 +447,17 @@ function renderTabRate(container) {
 }
 
 function apriNuovaRata() {
-  const form = document.getElementById('form-nuova-rata');
-  form.style.display = form.style.display === 'none' ? 'block' : 'none';
-  if (form.style.display === 'none') return;
+  let form = document.getElementById('form-nuova-rata');
+  if (!form) {
+    // Crealo al volo nel tab content
+    const parent = document.getElementById('bilancio-admin-tab-content');
+    if (!parent) return;
+    form = document.createElement('div');
+    form.id = 'form-nuova-rata';
+    form.style.cssText = 'background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:14px;display:none';
+    parent.insertBefore(form, parent.firstChild);
+  }
+  if (form.style.display === 'block') { form.style.display = 'none'; return; }
   form.innerHTML = `
     <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--verde);letter-spacing:1px;margin-bottom:12px">➕ NUOVA RATA</div>
     <div class="form-group">
@@ -477,6 +485,7 @@ function apriNuovaRata() {
       </div>
     </div>
     <button onclick="salvaRata()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;padding:10px;border-radius:8px;border:none;cursor:pointer;width:100%;margin-top:4px">💾 SALVA RATA</button>`;
+  form.style.display = 'block';
 }
 
 async function salvaRata() {
