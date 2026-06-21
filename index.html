@@ -927,6 +927,25 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
         <div class="form-group"><label class="form-label">Quotazione Transfermarkt (M€)</label><input class="form-input" type="number" id="edit-quotazione" step="0.001"></div>
         <div class="form-group"><label class="form-label">Stipendio Netto (M€)</label><input class="form-input" type="number" id="edit-stipendio" step="0.01"></div>
         <button class="btn-primary" id="btn-salva" onclick="salvaModificaGiocatore()">💾 SALVA MODIFICHE</button>
+
+        <!-- SEZIONE ADMIN: RIMOZIONE GIOCATORE -->
+        <div id="admin-azioni-giocatore" style="display:none;margin-top:20px;border-top:2px solid rgba(255,68,68,0.3);padding-top:16px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--rosso);letter-spacing:1px;margin-bottom:4px">⚠️ ZONA ADMIN — RIMOZIONE</div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Inserisci la cifra che la squadra riceverà e scegli l'azione. Il giocatore sparirà immediatamente dalla rosa.</div>
+          <div class="form-group">
+            <label class="form-label" style="color:var(--oro)">💰 Cifra di cessione (FM)</label>
+            <input class="form-input" type="text" id="admin-cifra-rimozione" placeholder="Es. 5M, 12.5M, 0" style="border-color:rgba(255,215,0,0.4)">
+            <div style="font-size:10px;color:var(--testo-dim);margin-top:4px">Accreditata subito nel budget della squadra. Lascia vuoto o 0 per nessun pagamento.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
+            <button id="btn-svincola" onclick="adminSvincolaGiocatore()" style="background:rgba(68,136,255,0.12);color:var(--blu);border:1px solid rgba(68,136,255,0.4);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:11px;border-radius:8px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(68,136,255,0.22)'" onmouseout="this.style.background='rgba(68,136,255,0.12)'">🔓 SVINCOLA</button>
+            <button id="btn-elimina-giocatore" onclick="adminEliminaGiocatore()" style="background:rgba(255,68,68,0.12);color:var(--rosso);border:1px solid rgba(255,68,68,0.4);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:11px;border-radius:8px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.22)'" onmouseout="this.style.background='rgba(255,68,68,0.12)'">🗑️ ELIMINA</button>
+          </div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-top:8px;text-align:center">
+            🔓 <strong style="color:var(--blu)">Svincola</strong>: va negli svincolati &nbsp;|&nbsp; 🗑️ <strong style="color:var(--rosso)">Elimina</strong>: rimosso dal DB
+          </div>
+        </div>
+
       </div>
     </div>
   </div>

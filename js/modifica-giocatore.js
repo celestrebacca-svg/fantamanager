@@ -27,12 +27,10 @@ function selezionaGiocatoreAdmin(gId){
   document.getElementById('modifica-step1').style.display='none';
   document.getElementById('modifica-step2').style.display='block';
   document.getElementById('edit-foto-inline').style.display='none';
-  // Avatar con foto attuale
   const av=document.getElementById('edit-avatar');
   av.innerHTML=g.foto_url?`<img src="${g.foto_url}" style="width:52px;height:52px;object-fit:cover;border-radius:50%">`:iniziali(g.nome);
   document.getElementById('edit-nome-display').textContent=g.nome;
   document.getElementById('edit-squadra-display').textContent=sq?sq.nome:'—';
-  // Popola campi
   document.getElementById('edit-nome').value=g.nome||'';
   document.getElementById('edit-foto-url').value=g.foto_url||'';
   document.getElementById('edit-ruolo').value=g.ruolo||'A';
@@ -50,8 +48,12 @@ function selezionaGiocatoreAdmin(gId){
   document.getElementById('edit-quotazione').value=g.quotazione||'';
   document.getElementById('edit-stipendio').value=g.stipendio||'';
   aggiornaFormContratto();
-  // Preview foto
   aggiornaPreviewFotoModifica(g.foto_url||'');
+  // Mostra sezione admin solo se admin e giocatore ha una squadra
+  const adminAzioni=document.getElementById('admin-azioni-giocatore');
+  if(adminAzioni) adminAzioni.style.display=adminLoggato&&g.squadra_id?'block':'none';
+  const cifraInput=document.getElementById('admin-cifra-rimozione');
+  if(cifraInput) cifraInput.value='';
 }
 
 function cambiaFotoInModifica(){
@@ -73,7 +75,6 @@ function caricaFileInModifica(input){
   reader.onload=e=>{
     document.getElementById('edit-foto-url').value=e.target.result;
     aggiornaPreviewFotoModifica(e.target.result);
-    // Aggiorna anche avatar nell'header
     document.getElementById('edit-avatar').innerHTML=`<img src="${e.target.result}" style="width:52px;height:52px;object-fit:cover;border-radius:50%">`;
   };
   reader.readAsDataURL(file);
@@ -131,4 +132,125 @@ async function salvaModificaGiocatore(){
     if(squadraAttiva) renderRosa(tabAttivoSq);
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
   finally{btn.disabled=false;btn.textContent='💾 SALVA MODIFICHE';}
+}
+
+// ===== ADMIN: SVINCOLA / ELIMINA GIOCATORE =====
+
+function getCifraRimozione(){
+  const raw=document.getElementById('admin-cifra-rimozione').value.trim();
+  if(!raw) return null;
+  const str=raw.toUpperCase().replace('M','');
+  const num=parseFloat(str);
+  if(isNaN(num)||num<=0) return null;
+  return num<=1000 ? num*1000000 : num;
+}
+
+async function adminSvincolaGiocatore(){
+  if(!adminLoggato||!giocatoreInModifica) return;
+  const g=giocatoreInModifica;
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  if(!sq){showToast('❌ Giocatore senza squadra','error');return;}
+
+  const cifra=getCifraRimozione();
+  const cifraStr=cifra?fmtBudget(cifra):'0 FM';
+
+  if(!confirm(`⚠️ SVINCOLA ${g.nome.toUpperCase()}\n\nLa squadra "${sq.nome}" riceverà ${cifraStr}.\nIl giocatore sarà spostato negli svincolati.\n\nConfermi?`)) return;
+
+  const btn=document.getElementById('btn-svincola');
+  btn.disabled=true; btn.textContent='Svincolo...';
+
+  try{
+    // 1. Aggiorna giocatore
+    const{error:e1}=await sb.from('giocatori').update({
+      squadra_id:null, lista:'svincolato', contratto:'Svincolato',
+      badge:null, squadra_propr:null, scadenza:null,
+      riscatto:null, scadenza_riscatto:null, clausola:null,
+    }).eq('id',g.id);
+    if(e1) throw e1;
+
+    // 2. Accredita budget + log storico movimenti
+    if(cifra && cifra>0){
+      const saldoPrima=sq.budget||0;
+      const nuovoBudget=saldoPrima+cifra;
+      const{error:e2}=await sb.from('squadre').update({budget:nuovoBudget}).eq('id',sq.id);
+      if(e2) throw e2;
+      sq.budget=nuovoBudget;
+      try{
+        await sb.from('movimenti_budget').insert([{
+          squadra_id:sq.id,
+          importo:cifra,
+          tipo:'entrata',
+          descrizione:`Svincolo: ${g.nome}`,
+          saldo_prima:saldoPrima,
+          saldo_dopo:nuovoBudget
+        }]);
+      }catch(e){console.warn('Log movimenti svincolo:',e.message);}
+    }
+
+    // 3. Aggiorna DB locale
+    const idx=giocatoriDB.findIndex(x=>x.id===g.id);
+    if(idx>=0){
+      giocatoriDB[idx].squadra_id=null;
+      giocatoriDB[idx].lista='svincolato';
+      giocatoriDB[idx].contratto='Svincolato';
+      giocatoriDB[idx].badge=null;
+    }
+
+    showToast(`🔓 ${g.nome} svincolato${cifra?` • +${cifraStr} a ${sq.nome}`:''}!`);
+    document.getElementById('modal-modifica').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+    if(typeof svincolatiCaricati!=='undefined'&&svincolatiCaricati) caricaSvincolati();
+
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  finally{btn.disabled=false; btn.textContent='🔓 SVINCOLA';}
+}
+
+async function adminEliminaGiocatore(){
+  if(!adminLoggato||!giocatoreInModifica) return;
+  const g=giocatoreInModifica;
+  const sq=squadreDB.find(s=>s.id===g.squadra_id);
+  if(!sq){showToast('❌ Giocatore senza squadra','error');return;}
+
+  const cifra=getCifraRimozione();
+  const cifraStr=cifra?fmtBudget(cifra):'0 FM';
+
+  if(!confirm(`🗑️ ELIMINA ${g.nome.toUpperCase()}\n\nATTENZIONE: eliminazione definitiva dal database!\nLa squadra "${sq.nome}" riceverà ${cifraStr}.\n\nQuesta azione è IRREVERSIBILE. Confermi?`)) return;
+
+  const btn=document.getElementById('btn-elimina-giocatore');
+  btn.disabled=true; btn.textContent='Eliminazione...';
+
+  try{
+    // 1. Elimina dal DB
+    const{error:e1}=await sb.from('giocatori').delete().eq('id',g.id);
+    if(e1) throw e1;
+
+    // 2. Accredita budget + log storico movimenti
+    if(cifra && cifra>0){
+      const saldoPrima=sq.budget||0;
+      const nuovoBudget=saldoPrima+cifra;
+      const{error:e2}=await sb.from('squadre').update({budget:nuovoBudget}).eq('id',sq.id);
+      if(e2) throw e2;
+      sq.budget=nuovoBudget;
+      try{
+        await sb.from('movimenti_budget').insert([{
+          squadra_id:sq.id,
+          importo:cifra,
+          tipo:'entrata',
+          descrizione:`Eliminazione: ${g.nome}`,
+          saldo_prima:saldoPrima,
+          saldo_dopo:nuovoBudget
+        }]);
+      }catch(e){console.warn('Log movimenti eliminazione:',e.message);}
+    }
+
+    // 3. Rimuovi da DB locale
+    const idx=giocatoriDB.findIndex(x=>x.id===g.id);
+    if(idx>=0) giocatoriDB.splice(idx,1);
+
+    showToast(`🗑️ ${g.nome} eliminato${cifra?` • +${cifraStr} a ${sq.nome}`:''}!`);
+    document.getElementById('modal-modifica').classList.remove('open');
+    if(squadraAttiva) renderRosa(tabAttivoSq);
+
+  }catch(e){showToast('❌ Errore: '+e.message,'error');}
+  finally{btn.disabled=false; btn.textContent='🗑️ ELIMINA';}
 }
