@@ -624,7 +624,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div class="admin-card" onclick="apriImportCSV()" style="border-color:rgba(0,255,135,0.4);background:rgba(0,255,135,0.05)"><div class="admin-card-icon">📊</div><div class="admin-card-title">Import CSV</div><div class="admin-card-sub">Aggiorna valori da Transfermarkt</div></div>
             <div class="admin-card" onclick="aggiornaFotoTutti()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Foto Auto</div><div class="admin-card-sub">Foto da TheSportsDB</div></div>
             <div class="admin-card" onclick="apriNuovoGiocatore()" style="border-color:rgba(0,255,135,0.4);background:rgba(0,255,135,0.05)"><div class="admin-card-icon">➕</div><div class="admin-card-title">Nuovo Giocatore</div><div class="admin-card-sub">Aggiungi a qualsiasi rosa</div></div>
-            <div class="admin-card" onclick="showToast('🔓 In costruzione')"><div class="admin-card-icon">🔓</div><div class="admin-card-title">Svincola</div><div class="admin-card-sub">Con calcolo automatico</div></div>
+            <div class="admin-card" onclick="apriModificaGiocatore()" style="border-color:rgba(68,136,255,0.4);background:rgba(68,136,255,0.05)"><div class="admin-card-icon">🔓</div><div class="admin-card-title">Svincola / Elimina</div><div class="admin-card-sub">Rimuovi con cifra cessione</div></div>
             <div class="admin-card" onclick="apriSpostaGiocatore()"><div class="admin-card-icon">🔄</div><div class="admin-card-title">Sposta Giocatore</div><div class="admin-card-sub">Principale↔Marginale↔Primavera</div></div>
             <div class="admin-card" onclick="showToast('⬆️ In costruzione')"><div class="admin-card-icon">⬆️</div><div class="admin-card-title">Promuovi Primavera</div><div class="admin-card-sub">Con controllo età</div></div>
           </div>
@@ -641,6 +641,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div class="admin-card" onclick="showToast('👥 In costruzione')"><div class="admin-card-icon">👥</div><div class="admin-card-title">Modifica Tifosi</div><div class="admin-card-sub">Aggiorna con motivazione</div></div>
             <div class="admin-card" onclick="showToast('🏆 In costruzione')"><div class="admin-card-icon">🏆</div><div class="admin-card-title">Assegna Trofeo</div><div class="admin-card-sub">Aggiorna museo</div></div>
             <div class="admin-card" onclick="apriApprovazione()"><div class="admin-card-icon">🤝</div><div class="admin-card-title">Approva Trattative</div><div class="admin-card-sub">Certifica scambi</div></div>
+            <div class="admin-card" onclick="apriAdminTrattativa()" style="border-color:rgba(255,215,0,0.5);background:rgba(255,215,0,0.06)"><div class="admin-card-icon">⚡</div><div class="admin-card-title">Trattativa Admin</div><div class="admin-card-sub">Crea e conferma subito</div></div>
           </div>
           <div style="margin-top:24px;text-align:center"><button class="btn-danger" onclick="esciAdmin()">🚪 Esci dall'Admin</button></div>
         </div>
@@ -938,8 +939,8 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div style="font-size:10px;color:var(--testo-dim);margin-top:4px">Accreditata subito nel budget della squadra. Lascia vuoto o 0 per nessun pagamento.</div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">
-            <button id="btn-svincola" onclick="adminSvincolaGiocatore()" style="background:rgba(68,136,255,0.12);color:var(--blu);border:1px solid rgba(68,136,255,0.4);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:11px;border-radius:8px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(68,136,255,0.22)'" onmouseout="this.style.background='rgba(68,136,255,0.12)'">🔓 SVINCOLA</button>
-            <button id="btn-elimina-giocatore" onclick="adminEliminaGiocatore()" style="background:rgba(255,68,68,0.12);color:var(--rosso);border:1px solid rgba(255,68,68,0.4);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:11px;border-radius:8px;cursor:pointer;transition:all 0.2s" onmouseover="this.style.background='rgba(255,68,68,0.22)'" onmouseout="this.style.background='rgba(255,68,68,0.12)'">🗑️ ELIMINA</button>
+            <button id="btn-svincola" onclick="adminSvincolaGiocatore()" style="background:rgba(68,136,255,0.12);color:var(--blu);border:1px solid rgba(68,136,255,0.4);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:11px;border-radius:8px;cursor:pointer">🔓 SVINCOLA</button>
+            <button id="btn-elimina-giocatore" onclick="adminEliminaGiocatore()" style="background:rgba(255,68,68,0.12);color:var(--rosso);border:1px solid rgba(255,68,68,0.4);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:11px;border-radius:8px;cursor:pointer">🗑️ ELIMINA</button>
           </div>
           <div style="font-size:10px;color:var(--testo-dim);margin-top:8px;text-align:center">
             🔓 <strong style="color:var(--blu)">Svincola</strong>: va negli svincolati &nbsp;|&nbsp; 🗑️ <strong style="color:var(--rosso)">Elimina</strong>: rimosso dal DB
@@ -948,6 +949,17 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 
       </div>
     </div>
+  </div>
+</div>
+
+<!-- MODAL ADMIN TRATTATIVA DIRETTA -->
+<div class="modal-overlay" id="modal-admin-trattativa" onclick="closeModal('modal-admin-trattativa',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">⚡ ADMIN — TRATTATIVA DIRETTA</div>
+      <button class="modal-close" onclick="document.getElementById('modal-admin-trattativa').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px;max-height:80vh;overflow-y:auto" id="admin-trat-body"></div>
   </div>
 </div>
 
@@ -1346,5 +1358,6 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/nuovo-post.js"></script>
 <script src="js/risiko.js"></script>
 <script src="js/bilancio.js"></script>
+<script src="js/admin-trattativa.js"></script>
 </body>
 </html>
