@@ -58,7 +58,7 @@ async function controllaPrestatiScaduti(){
 
     for(const t of prestatiScaduti){
       // La squadra originale è sqRic (chi ha ceduto = ricevente della proposta)
-      const sqOriginale=t.squadra_ricevente_id||t.squadra_acquirente_id;
+      const sqOriginale=t.squadra_cedente_id||t.squadra_offerente_id; // chi ha ceduto = proprietario originale
       if(!sqOriginale||!t.giocatore_id) continue;
 
       // Riporta giocatore alla squadra originale e resetta contratto
