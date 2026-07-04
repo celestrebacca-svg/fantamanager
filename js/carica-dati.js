@@ -48,8 +48,10 @@ async function controllaPrestatiScaduti(){
       const tipo=t.tipo||'';
       if(!tipo.includes('Prestito')) return false;
       if(t.prestito_rientrato) return false;
-      if(!t.scadenza_prestito) return false;
-      const scadenza=new Date(t.scadenza_prestito);
+      // Supporta sia scadenza_prestito che data_fine
+      const dataScadenza=t.scadenza_prestito||t.data_fine||null;
+      if(!dataScadenza) return false;
+      const scadenza=new Date(dataScadenza);
       scadenza.setHours(0,0,0,0);
       return scadenza<=oggi;
     });
