@@ -386,27 +386,32 @@ async function aggiornaContrattoDopoApprovazione(trattativaId){
   const isPrestito=tipo.toLowerCase().includes('prestito');
   const hasDiritto=tipo.includes('Diritto');
   const hasObbligo=tipo.includes('Obbligo');
-  const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
-  const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+  // sqOff = acquirente (chi ha fatto l'offerta)
+  // sqRic = cedente (chi possiede il giocatore)
+  // Per i prestiti: sqCedente è sempre squadra_cedente_id o squadra_ricevente_id
+  const sqCedente=t.squadra_cedente_id||t.squadra_ricevente_id;
+  const sqAcquirente=t.squadra_acquirente_id||t.squadra_offerente_id;
+  // Destinazione: acquirente per prestito e definitivo
+  const sqDest=sqAcquirente||t.squadra_offerente_id;
 
-  let updateData={squadra_id:sqOff};
+  let updateData={squadra_id:sqDest};
   if(isPrestito){
     let tipoContratto='Prestito Secco';
     if(hasDiritto) tipoContratto='Prestito con Diritto di Riscatto';
     if(hasObbligo) tipoContratto='Prestito con Obbligo di Riscatto';
     updateData={
-      squadra_id:sqOff,
-      squadra_originale_id:sqRic,
+      squadra_id:sqDest,
+      squadra_originale_id:sqCedente,
       contratto:tipoContratto,
       badge:'P',
-      squadra_propr:sqRic,
+      squadra_propr:sqCedente,
       scadenza:t.scadenza_prestito||null,
       riscatto:t.importo_riscatto||null,
       scadenza_riscatto:t.scadenza_riscatto||null,
     };
   } else {
     updateData={
-      squadra_id:sqOff,
+      squadra_id:sqDest,
       squadra_originale_id:null,
       contratto:'Titolo Definitivo',
       badge:null,
