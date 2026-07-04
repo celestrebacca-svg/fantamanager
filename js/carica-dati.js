@@ -38,32 +38,28 @@ async function caricaGiocatoriBackground(){
 }
 
 // ===== CONTROLLO SCADENZA PRESTITI =====
+// Controlla direttamente sui giocatori (badge=P, scadenza popolata)
 async function controllaPrestatiScaduti(){
   try{
     const oggi=new Date();
     oggi.setHours(0,0,0,0);
 
-    const prestatiScaduti=trattativeDB.filter(t=>{
-      if(t.stato!=='approvata') return false;
-      const tipo=t.tipo||'';
-      if(!tipo.includes('Prestito')) return false;
-      if(t.prestito_rientrato) return false;
-      // Supporta sia scadenza_prestito che data_fine
-      const dataScadenza=t.scadenza_prestito||t.data_fine||null;
-      if(!dataScadenza) return false;
-      const scadenza=new Date(dataScadenza);
-      scadenza.setHours(0,0,0,0);
-      return scadenza<=oggi;
+    // Cerca giocatori in prestito con scadenza passata
+    const inPrestito=giocatoriDB.filter(g=>{
+      if(g.badge!=='P') return false;
+      if(!g.scadenza) return false;
+      const scad=new Date(g.scadenza);
+      scad.setHours(0,0,0,0);
+      return scad<=oggi;
     });
 
-    if(!prestatiScaduti.length) return;
+    if(!inPrestito.length) return;
 
-    for(const t of prestatiScaduti){
-      // La squadra originale è sqRic (chi ha ceduto = ricevente della proposta)
-      const sqOriginale=t.squadra_cedente_id||t.squadra_offerente_id; // chi ha ceduto = proprietario originale
-      if(!sqOriginale||!t.giocatore_id) continue;
+    for(const g of inPrestito){
+      // squadra_propr = chi possiede il cartellino (torna lì)
+      const sqOriginale=g.squadra_propr||g.squadra_originale_id;
+      if(!sqOriginale){console.warn('Nessuna squadra originale per',g.nome);continue;}
 
-      // Riporta giocatore alla squadra originale e resetta contratto
       const resetData={
         squadra_id: sqOriginale,
         squadra_originale_id: null,
@@ -74,21 +70,23 @@ async function controllaPrestatiScaduti(){
         riscatto: null,
         scadenza_riscatto: null,
       };
-      const{error}=await sb.from('giocatori').update(resetData).eq('id',t.giocatore_id);
+      const{error}=await sb.from('giocatori').update(resetData).eq('id',g.id);
       if(error){console.warn('Errore rientro prestito:',error);continue;}
 
-      // Marca la trattativa come completata
-      await sb.from('trattative').update({prestito_rientrato:true,stato:'completata'}).eq('id',t.id);
+      // Marca trattativa come completata
+      const trat=trattativeDB.find(t=>String(t.giocatore_id)===String(g.id)&&t.stato==='approvata');
+      if(trat){
+        await sb.from('trattative').update({prestito_rientrato:true,stato:'completata'}).eq('id',trat.id);
+        const tIdx=trattativeDB.findIndex(x=>x.id===trat.id);
+        if(tIdx>=0){trattativeDB[tIdx].prestito_rientrato=true;trattativeDB[tIdx].stato='completata';}
+      }
 
       // Aggiorna DB locale
-      const gIdx=giocatoriDB.findIndex(g=>g.id===t.giocatore_id);
+      const gIdx=giocatoriDB.findIndex(x=>String(x.id)===String(g.id));
       if(gIdx>=0) giocatoriDB[gIdx]={...giocatoriDB[gIdx],...resetData};
-      const tIdx=trattativeDB.findIndex(x=>x.id===t.id);
-      if(tIdx>=0){trattativeDB[tIdx].prestito_rientrato=true;trattativeDB[tIdx].stato='completata';}
 
-      const g=giocatoriDB.find(x=>x.id===t.giocatore_id);
-      const sqNome=squadreDB.find(s=>s.id===sqOriginale)?.nome||sqOriginale;
-      showToast(`🔄 Prestito scaduto: ${g?g.nome:'Giocatore'} rientrato a ${sqNome}`);
+      const sqNome=squadreDB.find(s=>String(s.id)===String(sqOriginale))?.nome||sqOriginale;
+      showToast(`🔄 Prestito scaduto: ${g.nome} rientrato a ${sqNome}`);
     }
   }catch(e){console.warn('Errore controllo prestiti scaduti:',e);}
 }
