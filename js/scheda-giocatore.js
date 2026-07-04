@@ -22,20 +22,20 @@ function apriGiocatoreConTrattativa(gId){
   },50);
 }
 
-function apriGiocatore(gId){
-  // Ricarica sempre dal DB per avere contratto aggiornato
+function apriGiocatore(gId, freschi=false){
   const g=giocatoriDB.find(x=>String(x.id)===String(gId));
   if(!g) return;
-  // Forza ricarica dati freschi dal DB in background
-  sb.from('giocatori').select('*').eq('id',g.id).single().then(r=>{
-    if(!r.error&&r.data){
-      const idx=giocatoriDB.findIndex(x=>String(x.id)===String(g.id));
-      if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...r.data};
-      // Ridisegna la scheda con dati freschi
-      apriGiocatore(g.id);
-    }
-  });
   giocatoreSchedaAttiva=g;
+  // Ricarica dati freschi dal DB una sola volta
+  if(!freschi){
+    sb.from('giocatori').select('*').eq('id',g.id).single().then(r=>{
+      if(!r.error&&r.data){
+        const idx=giocatoriDB.findIndex(x=>String(x.id)===String(g.id));
+        if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...r.data};
+        apriGiocatore(g.id, true); // secondo giro con dati freschi, non ricarica più
+      }
+    });
+  }
   const sq=squadreDB.find(s=>s.id===g.squadra_id);
   document.getElementById('mg-title').textContent=g.nome.toUpperCase();
   // Bottone modifica: visibile SOLO se admin
