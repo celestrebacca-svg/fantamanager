@@ -57,7 +57,8 @@ async function controllaPrestatiScaduti(){
 
     for(const g of inPrestito){
       // squadra_propr = chi possiede il cartellino (torna lì)
-      const sqOriginale=g.squadra_propr||g.squadra_originale_id;
+      // squadra_propr contiene l'id stringa della squadra (es. "damiano")
+      const sqOriginale=g.squadra_propr||g.squadra_originale_id||null;
       if(!sqOriginale){console.warn('Nessuna squadra originale per',g.nome);continue;}
 
       const resetData={

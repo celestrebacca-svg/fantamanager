@@ -87,10 +87,10 @@ function buildContrattoUpdate(tipo, trattativa, sqProprietariaId){
 
 async function cambiaStatoTrattativa(id,stato){
   try{
-    const t=trattativeDB.find(x=>x.id===id);
+    const t=trattativeDB.find(x=>String(x.id)===String(id));
     if(!t) throw new Error('Trattativa non trovata');
 
-    const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
+    const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id).select();
     if(error) throw error;
 
     if(stato==='approvata'){
@@ -112,7 +112,9 @@ async function cambiaStatoTrattativa(id,stato){
           squadra_originale_id: isPrestito?sqRic:null,
           ...buildContrattoUpdate(tipo, t, sqProprietaria)
         };
-        await sb.from('giocatori').update(updateData).eq('id',t.giocatore_id);
+        const{error:gErr,data:gData}=await sb.from('giocatori').update(updateData).eq('id',t.giocatore_id).select().single();
+        if(gErr) console.warn('Errore update giocatore:',gErr);
+        else console.log('Giocatore aggiornato:',gData?.contratto,gData?.badge);
         const gIdx=giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
         if(gIdx>=0) giocatoriDB[gIdx]={...giocatoriDB[gIdx],...updateData};
       }
@@ -173,7 +175,7 @@ async function annullaTrattativa(id){
   if(!adminLoggato) return;
   if(!confirm('⚠️ Annullare questa trattativa?\nI giocatori torneranno alle squadre originali e i budget verranno ripristinati.')) return;
   try{
-    const t=trattativeDB.find(x=>x.id===id);
+    const t=trattativeDB.find(x=>String(x.id)===String(id));
     if(!t) throw new Error('Trattativa non trovata');
 
     const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
