@@ -112,9 +112,9 @@ async function cambiaStatoTrattativa(id,stato){
           squadra_originale_id: isPrestito?sqRic:null,
           ...buildContrattoUpdate(tipo, t, sqProprietaria)
         };
-        const{error:gErr,data:gData}=await sb.from('giocatori').update(updateData).eq('id',t.giocatore_id).select().single();
+        const{error:gErr}=await sb.from('giocatori').update(updateData).eq('id',t.giocatore_id);
         if(gErr) console.warn('Errore update giocatore:',gErr);
-        else console.log('Giocatore aggiornato:',gData?.contratto,gData?.badge);
+        else console.log('Giocatore aggiornato OK:', updateData.contratto, updateData.badge);
         const gIdx=giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
         if(gIdx>=0) giocatoriDB[gIdx]={...giocatoriDB[gIdx],...updateData};
       }
