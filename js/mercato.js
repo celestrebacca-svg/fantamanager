@@ -102,17 +102,18 @@ async function cambiaStatoTrattativa(id,stato){
 
       // ── TRASFERIMENTO GIOCATORE PRINCIPALE ──
       if(t.giocatore_id){
-        // Prestito: va a sqRic (acquirente); Definitivo: va a sqOff (cedente)
-        const destId=isPrestito?sqRic:sqOff;
-        // Per il prestito il proprietario rimane sqOff (chi cede)
-        const sqProprietaria=isPrestito?sqOff:null;
+        // sqOff=acquirente, sqRic=cedente (convenzione DB)
+        // Prestito: giocatore va a sqOff (acquirente), proprietario resta sqRic (cedente)
+        // Definitivo: giocatore va a sqOff (acquirente)
+        const destId=sqOff;
+        const sqProprietaria=isPrestito?sqRic:null;
         const updateData={
           squadra_id: destId,
-          squadra_originale_id: isPrestito?sqOff:null,
+          squadra_originale_id: isPrestito?sqRic:null,
           ...buildContrattoUpdate(tipo, t, sqProprietaria)
         };
         await sb.from('giocatori').update(updateData).eq('id',t.giocatore_id);
-        const gIdx=giocatoriDB.findIndex(g=>g.id==t.giocatore_id);
+        const gIdx=giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
         if(gIdx>=0) giocatoriDB[gIdx]={...giocatoriDB[gIdx],...updateData};
       }
 
