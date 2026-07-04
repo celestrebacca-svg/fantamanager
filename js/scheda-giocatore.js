@@ -14,37 +14,28 @@ function apriTrattativaDaScheda(){
 }
 
 function apriGiocatoreConTrattativa(gId){
-  apriGiocatore(gId);
-  // mostra bottone trattativa dopo che il modal è aperto
-  setTimeout(()=>{
+  apriGiocatore(gId).then(()=>{
     const btn=document.getElementById('mg-trattativa-btn');
     if(btn) btn.style.display='block';
-  },50);
+  });
 }
 
-function apriGiocatore(gId, datiG=null){
-  // Se passati dati freschi li uso direttamente, altrimenti prendo dalla cache
-  const g=datiG||giocatoriDB.find(x=>String(x.id)===String(gId));
+async function apriGiocatore(gId){
+  // Carica SEMPRE i dati freschi dal DB
+  const{data:gFresh,error}=await sb.from('giocatori').select('*').eq('id',gId).single();
+  const g=gFresh||(giocatoriDB.find(x=>String(x.id)===String(gId)));
   if(!g) return;
-  giocatoreSchedaAttiva=g;
-  // Prima apertura: ricarica dati freschi dal DB poi ridisegna
-  if(!datiG){
-    sb.from('giocatori').select('*').eq('id',g.id).single().then(r=>{
-      if(!r.error&&r.data){
-        const idx=giocatoriDB.findIndex(x=>String(x.id)===String(g.id));
-        if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...r.data};
-        apriGiocatore(g.id, r.data); // secondo giro con dati FRESCHI dal DB
-      }
-    });
+  // Aggiorna cache locale
+  if(gFresh){
+    const idx=giocatoriDB.findIndex(x=>String(x.id)===String(gId));
+    if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...gFresh};
   }
+  giocatoreSchedaAttiva=g;
   const sq=squadreDB.find(s=>s.id===g.squadra_id);
   document.getElementById('mg-title').textContent=g.nome.toUpperCase();
   // Bottone modifica: visibile SOLO se admin
   const editBtn=document.getElementById('mg-edit-btn');
   if(editBtn) editBtn.style.display=adminLoggato?'block':'none';
-  // Bottone trattativa: nascosto di default, apriGiocatoreConTrattativa lo mostra
-  const tratBtn=document.getElementById('mg-trattativa-btn');
-  if(tratBtn) tratBtn.style.display='none';
   const coloreC={'Titolo Definitivo':'var(--verde)','Titolo Definitivo con Clausola Recompra':'var(--argento)','Prestito Secco':'var(--blu)','Prestito con Diritto di Riscatto':'var(--oro)','Prestito con Obbligo di Riscatto':'var(--rosso)'}[g.contratto]||'var(--verde)';
   document.getElementById('mg-body').innerHTML=`
     <div class="player-hero">
