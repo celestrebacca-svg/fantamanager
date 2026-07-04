@@ -90,8 +90,8 @@ async function cambiaStatoTrattativa(id,stato){
     const t=trattativeDB.find(x=>String(x.id)===String(id));
     if(!t) throw new Error('Trattativa non trovata');
 
-    const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id).select();
-    if(error) throw error;
+    const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
+    if(error) console.warn('Warn trattativa update:',error); // non bloccare
 
     if(stato==='approvata'){
       const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
