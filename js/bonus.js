@@ -378,6 +378,54 @@ async function inviaTrattativa(){
   finally{btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';}
 }
 
+// ── Aggiorna contratto giocatore quando admin approva ──
+async function aggiornaContrattoDopoApprovazione(trattativaId){
+  const t=trattativeDB.find(x=>String(x.id)===String(trattativaId));
+  if(!t||!t.giocatore_id) return;
+  const tipo=t.tipo||'';
+  const isPrestito=tipo.toLowerCase().includes('prestito');
+  const hasDiritto=tipo.includes('Diritto');
+  const hasObbligo=tipo.includes('Obbligo');
+  const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
+  const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
+
+  let updateData={squadra_id:sqOff};
+  if(isPrestito){
+    let tipoContratto='Prestito Secco';
+    if(hasDiritto) tipoContratto='Prestito con Diritto di Riscatto';
+    if(hasObbligo) tipoContratto='Prestito con Obbligo di Riscatto';
+    updateData={
+      squadra_id:sqOff,
+      squadra_originale_id:sqRic,
+      contratto:tipoContratto,
+      badge:'P',
+      squadra_propr:sqRic,
+      scadenza:t.scadenza_prestito||null,
+      riscatto:t.importo_riscatto||null,
+      scadenza_riscatto:t.scadenza_riscatto||null,
+    };
+  } else {
+    updateData={
+      squadra_id:sqOff,
+      squadra_originale_id:null,
+      contratto:'Titolo Definitivo',
+      badge:null,
+      squadra_propr:null,
+      scadenza:null,
+      riscatto:null,
+      scadenza_riscatto:null,
+    };
+  }
+  const gId=parseInt(t.giocatore_id)||t.giocatore_id;
+  const{error}=await sb.from('giocatori').update(updateData).eq('id',gId);
+  if(error) console.warn('aggiornaContratto error:',error);
+  else{
+    const idx=giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
+    if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updateData};
+    console.log('Contratto aggiornato:',updateData.contratto);
+  }
+}
+
 function apriApprovazione(){
   showSection('mercato',null);
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));

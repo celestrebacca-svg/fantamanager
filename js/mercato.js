@@ -87,13 +87,17 @@ function buildContrattoUpdate(tipo, trattativa, sqProprietariaId){
 
 async function cambiaStatoTrattativa(id,stato){
   try{
+    console.log('STEP1 id=',id,'stato=',stato);
     const t=trattativeDB.find(x=>String(x.id)===String(id));
     if(!t) throw new Error('Trattativa non trovata');
+    console.log('STEP2 tipo=',t.tipo,'gId=',t.giocatore_id);
 
-    const{error}=await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
-    if(error) console.warn('Warn trattativa update:',error); // non bloccare
+    await sb.from('trattative').update({stato,approvata_da:'admin',approvata_at:new Date().toISOString()}).eq('id',id);
+    console.log('STEP3 trattativa aggiornata');
 
     if(stato==='approvata'){
+      // Aggiorna contratto giocatore
+      await aggiornaContrattoDopoApprovazione(id);
       const sqOff=t.squadra_offerente_id||t.squadra_cedente_id;
       const sqRic=t.squadra_ricevente_id||t.squadra_acquirente_id;
       const tipo=t.tipo||'';
@@ -112,9 +116,10 @@ async function cambiaStatoTrattativa(id,stato){
           squadra_originale_id: isPrestito?sqRic:null,
           ...buildContrattoUpdate(tipo, t, sqProprietaria)
         };
+        console.log('STEP5 updateData=',JSON.stringify(updateData));
         const{error:gErr}=await sb.from('giocatori').update(updateData).eq('id',parseInt(t.giocatore_id));
-        if(gErr) console.warn('Errore update giocatore:',gErr);
-        else console.log('Giocatore aggiornato OK:', updateData.contratto, updateData.badge);
+        if(gErr) console.error('STEP5 FAIL:',JSON.stringify(gErr));
+        else console.log('STEP5 OK contratto=',updateData.contratto);
         const gIdx=giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
         if(gIdx>=0) giocatoriDB[gIdx]={...giocatoriDB[gIdx],...updateData};
       }
