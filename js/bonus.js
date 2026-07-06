@@ -378,58 +378,6 @@ async function inviaTrattativa(){
   finally{btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';}
 }
 
-// ── Aggiorna contratto giocatore quando admin approva ──
-async function aggiornaContrattoDopoApprovazione(trattativaId){
-  const t=trattativeDB.find(x=>String(x.id)===String(trattativaId));
-  if(!t||!t.giocatore_id) return;
-  const tipo=t.tipo||'';
-  const isPrestito=tipo.toLowerCase().includes('prestito');
-  const hasDiritto=tipo.includes('Diritto');
-  const hasObbligo=tipo.includes('Obbligo');
-  // sqOff = acquirente (chi ha fatto l'offerta)
-  // sqRic = cedente (chi possiede il giocatore)
-  // Per i prestiti: sqCedente è sempre squadra_cedente_id o squadra_ricevente_id
-  const sqCedente=t.squadra_cedente_id||t.squadra_ricevente_id;
-  const sqAcquirente=t.squadra_acquirente_id||t.squadra_offerente_id;
-  // Destinazione: acquirente per prestito e definitivo
-  const sqDest=sqAcquirente||t.squadra_offerente_id;
-
-  let updateData={squadra_id:sqDest};
-  if(isPrestito){
-    let tipoContratto='Prestito Secco';
-    if(hasDiritto) tipoContratto='Prestito con Diritto di Riscatto';
-    if(hasObbligo) tipoContratto='Prestito con Obbligo di Riscatto';
-    updateData={
-      squadra_id:sqDest,
-      squadra_originale_id:sqCedente,
-      contratto:tipoContratto,
-      badge:'P',
-      squadra_propr:sqCedente,
-      scadenza:t.scadenza_prestito||null,
-      riscatto:t.importo_riscatto||null,
-      scadenza_riscatto:t.scadenza_riscatto||null,
-    };
-  } else {
-    updateData={
-      squadra_id:sqDest,
-      squadra_originale_id:null,
-      contratto:'Titolo Definitivo',
-      badge:null,
-      squadra_propr:null,
-      scadenza:null,
-      riscatto:null,
-      scadenza_riscatto:null,
-    };
-  }
-  const gId=parseInt(t.giocatore_id)||t.giocatore_id;
-  const{error}=await sb.from('giocatori').update(updateData).eq('id',gId);
-  if(error) console.warn('aggiornaContratto error:',error);
-  else{
-    const idx=giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
-    if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updateData};
-    console.log('Contratto aggiornato:',updateData.contratto);
-  }
-}
 
 function apriApprovazione(){
   showSection('mercato',null);
