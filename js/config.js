@@ -7,6 +7,10 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let adminLoggato = false;
 let utenteLoggato = null; // squadra dell'utente loggato
+// Stagione corrente unificata: usata da bilancio, competizioni, risiko e storico giocatori.
+// Il valore reale viene caricato dal DB (tabella impostazioni) in carica-dati.js;
+// questo è solo il fallback iniziale prima che il caricamento finisca.
+let STAGIONE_CORRENTE = '2025/26';
 let squadreDB = [], giocatoriDB = [], tifosi_logDB = [], trattativeDB = [];
 let squadraAttiva = null, tabAttivoSq = 'principale', ricercaSq = '';
 let giocatoreInModifica = null, giocatoreInFoto = null, squadraInLogo = null, squadraInPres = null, squadraInEmail = null;

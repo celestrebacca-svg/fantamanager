@@ -4,7 +4,8 @@ let compClassifiche = [];
 let compGironi = [];
 let compPartite = [];
 let compAttiva = 'campionato';
-const STAGIONE_COMP = '2024/25';
+// Usa la variabile globale STAGIONE_CORRENTE (definita in config.js, caricata da DB)
+// invece di una costante fissa, così si allinea automaticamente a bilancio/risiko/storico.
 
 const COMP_CONFIG = {
   campionato:    { nome: 'Campionato',      icon: '🏆', tipo: 'campionato', haClassifica: true,  haGironi: false, haTabellone: false },
@@ -26,9 +27,9 @@ const COMP_CONFIG = {
 async function caricaCompetizioni() {
   try {
     const [{ data: cl }, { data: gi }, { data: pa }] = await Promise.all([
-      sb.from('comp_classifiche').select('*').eq('stagione', STAGIONE_COMP),
-      sb.from('comp_gironi').select('*').eq('stagione', STAGIONE_COMP),
-      sb.from('comp_partite').select('*').eq('stagione', STAGIONE_COMP)
+      sb.from('comp_classifiche').select('*').eq('stagione', STAGIONE_CORRENTE),
+      sb.from('comp_gironi').select('*').eq('stagione', STAGIONE_CORRENTE),
+      sb.from('comp_partite').select('*').eq('stagione', STAGIONE_CORRENTE)
     ]);
     compClassifiche = cl || [];
     compGironi = gi || [];
@@ -62,7 +63,7 @@ function renderCompLayout() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
       <div>
         <div class="page-title">🏆 COMPETIZIONI</div>
-        <div class="page-sub">Stagione ${STAGIONE_COMP}</div>
+        <div class="page-sub">Stagione ${STAGIONE_CORRENTE}</div>
       </div>
       ${adminLoggato ? `<button onclick="apriAdminComp()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer">⚙️ ADMIN</button>` : ''}
     </div>
@@ -524,7 +525,7 @@ async function aggiungiSqClassifica(key) {
   const posMax = compClassifiche.filter(c=>c.competizione===key).length + 1;
   try {
     const { data, error } = await sb.from('comp_classifiche').insert({
-      competizione: key, stagione: STAGIONE_COMP, squadra_id: sqId,
+      competizione: key, stagione: STAGIONE_CORRENTE, squadra_id: sqId,
       punti:0, vittorie:0, pareggi:0, sconfitte:0, giocate:0, posizione: posMax
     }).select().single();
     if (error) throw error;
@@ -603,7 +604,7 @@ async function creaGirone(key) {
   const nome = document.getElementById('nome-nuovo-girone').value.trim().toUpperCase();
   if (!nome) { showToast('❌ Inserisci un nome per il girone','error'); return; }
   try {
-    const { data, error } = await sb.from('comp_gironi').insert({ competizione:key, stagione:STAGIONE_COMP, nome_girone:nome, squadre_ids:[] }).select().single();
+    const { data, error } = await sb.from('comp_gironi').insert({ competizione:key, stagione:STAGIONE_CORRENTE, nome_girone:nome, squadre_ids:[] }).select().single();
     if (error) throw error;
     compGironi.push(data);
     showToast('✅ Girone creato!');
@@ -756,7 +757,7 @@ async function salvaPartita() {
   if (casaId===ospId) { showToast('❌ Le due squadre devono essere diverse','error'); return; }
   try {
     const { data, error } = await sb.from('comp_partite').insert({
-      competizione:key, stagione:STAGIONE_COMP, fase, girone,
+      competizione:key, stagione:STAGIONE_CORRENTE, fase, girone,
       squadra_casa_id:casaId, squadra_ospite_id:ospId,
       punti_casa:ptCasa, punti_ospite:ptOsp, giornata, giocata
     }).select().single();
@@ -936,7 +937,7 @@ async function importaRisultati(risultati, compKey, fase) {
     if (!r.trovaCasa || !r.trovaOsp) { saltati++; continue; }
     try {
       const { data, error } = await sb.from('comp_partite').insert({
-        competizione:compKey, stagione:STAGIONE_COMP, fase,
+        competizione:compKey, stagione:STAGIONE_CORRENTE, fase,
         squadra_casa_id:r.trovaCasa.id, squadra_ospite_id:r.trovaOsp.id,
         punti_casa:r.ptCasa, punti_ospite:r.ptOsp, giocata:true
       }).select().single();

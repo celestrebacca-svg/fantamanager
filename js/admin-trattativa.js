@@ -255,12 +255,6 @@ async function adminTratConferma() {
   if (sqCedId === sqAcqId) { showToast('❌ Le squadre devono essere diverse', 'error'); return; }
   if (!adminTratGiocatoreId) { showToast('❌ Seleziona il giocatore ceduto', 'error'); return; }
 
-  const isPrestito = tipo.includes('Prestito');
-  const isScambio = tipo.includes('Scambio');
-  const hasDiritto = tipo.includes('Diritto');
-  const hasObbligo = tipo.includes('Obbligo');
-  const hasConguaglio = tipo.includes('Conguaglio');
-
   const importoEl = document.getElementById('at-importo');
   const importo = importoEl ? adminTratParseFM(importoEl.value) : 0;
   const importoRiscattoEl = document.getElementById('at-importo-riscatto');
@@ -308,51 +302,12 @@ async function adminTratConferma() {
     if (tErr) throw tErr;
     trattativeDB.push(tData);
 
-    // 2. Sposta giocatore principale
-    if (isPrestito) {
-      // Prestito: va all'acquirente (sqAcq), salva proprietaria originale
-      await sb.from('giocatori').update({ squadra_id: sqAcqId, squadra_originale_id: sqCedId }).eq('id', adminTratGiocatoreId);
-      const idx = giocatoriDB.findIndex(g => g.id === adminTratGiocatoreId);
-      if (idx >= 0) { giocatoriDB[idx].squadra_id = sqAcqId; giocatoriDB[idx].squadra_originale_id = sqCedId; }
-    } else if (!isScambio) {
-      // Definitivo: va all'acquirente
-      await sb.from('giocatori').update({ squadra_id: sqAcqId }).eq('id', adminTratGiocatoreId);
-      const idx = giocatoriDB.findIndex(g => g.id === adminTratGiocatoreId);
-      if (idx >= 0) giocatoriDB[idx].squadra_id = sqAcqId;
-    } else {
-      // Scambio: giocatore principale va all'acquirente
-      await sb.from('giocatori').update({ squadra_id: sqAcqId }).eq('id', adminTratGiocatoreId);
-      const idx = giocatoriDB.findIndex(g => g.id === adminTratGiocatoreId);
-      if (idx >= 0) giocatoriDB[idx].squadra_id = sqAcqId;
-    }
-
-    // 3. Giocatori in scambio → vanno alla cedente
-    for (const gId of adminTratGiocatoriScambio) {
-      await sb.from('giocatori').update({ squadra_id: sqCedId }).eq('id', gId);
-      const idx = giocatoriDB.findIndex(x => x.id === gId);
-      if (idx >= 0) giocatoriDB[idx].squadra_id = sqCedId;
-    }
-
-    // 4. Budget: sqAcq paga importo → sqCed incassa
-    if (importo > 0) {
-      const saldoCedPrima = sqCed.budget || 0;
-      const saldoAcqPrima = sqAcq.budget || 0;
-      const nuovoCed = saldoCedPrima + importo;
-      const nuovoAcq = saldoAcqPrima - importo;
-
-      await sb.from('squadre').update({ budget: nuovoCed }).eq('id', sqCedId);
-      await sb.from('squadre').update({ budget: nuovoAcq }).eq('id', sqAcqId);
-      sqCed.budget = nuovoCed;
-      sqAcq.budget = nuovoAcq;
-
-      // Log storico movimenti
-      try {
-        await sb.from('movimenti_budget').insert([
-          { squadra_id: sqCedId, importo: importo, tipo: 'entrata', descrizione: `${tipo}: ${g.nome}`, saldo_prima: saldoCedPrima, saldo_dopo: nuovoCed },
-          { squadra_id: sqAcqId, importo: -importo, tipo: 'uscita', descrizione: `${tipo}: ${g.nome}`, saldo_prima: saldoAcqPrima, saldo_dopo: nuovoAcq }
-        ]);
-      } catch (e) { console.warn('Log movimenti trattativa admin:', e.message); }
-    }
+    // 2-4. Sposta giocatore/i, aggiorna contratto/badge/riscatto e budget:
+    // usa SEMPRE eseguiTrasferimento() di mercato.js, la stessa funzione
+    // usata per le trattative approvate normalmente. Evita di duplicare
+    // la logica qui (era la causa del bug prestiti sulle card giocatore).
+    const ok = await eseguiTrasferimento(tData);
+    if (!ok) throw new Error('Trasferimento fallito');
 
     showToast(`✅ Trattativa confermata! ${g.nome} → ${sqAcq.nome}${importo > 0 ? ' • ' + fmtBudget(importo) : ''}`);
     document.getElementById('modal-admin-trattativa').classList.remove('open');

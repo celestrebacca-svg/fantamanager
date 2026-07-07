@@ -20,6 +20,21 @@ function cercaGiocatoreAdmin(val){
   }).join('');
 }
 
+function popolaSelectSquadraPropr(valoreSalvato){
+  const sel=document.getElementById('edit-squadra-propr');
+  if(!sel) return;
+  const match=squadreDB.find(s=>String(s.id).toLowerCase()===String(valoreSalvato).toLowerCase());
+  let opts='<option value="">— Seleziona —</option>'+squadreDB.map(s=>
+    `<option value="${s.id}">${s.nome}</option>`).join('');
+  // Se il valore salvato non corrisponde a nessuna squadra (dato vecchio/errato),
+  // lo aggiungo come opzione extra per non perderlo silenziosamente.
+  if(valoreSalvato&&!match){
+    opts+=`<option value="${valoreSalvato}">⚠️ ${valoreSalvato} (valore esistente, non riconosciuto)</option>`;
+  }
+  sel.innerHTML=opts;
+  sel.value=match?match.id:(valoreSalvato||'');
+}
+
 function selezionaGiocatoreAdmin(gId){
   const g=giocatoriDB.find(x=>x.id===gId);
   const sq=squadreDB.find(s=>s.id===g.squadra_id);
@@ -39,7 +54,7 @@ function selezionaGiocatoreAdmin(gId){
   document.getElementById('edit-maglia').value=g.maglia||'';
   document.getElementById('edit-club-reale').value=g.club_reale||'';
   document.getElementById('edit-contratto').value=g.contratto||'Titolo Definitivo';
-  document.getElementById('edit-squadra-propr').value=g.squadra_propr||'';
+  popolaSelectSquadraPropr(g.squadra_propr||'');
   document.getElementById('edit-scadenza').value=g.scadenza||'';
   document.getElementById('edit-riscatto').value=g.riscatto||'';
   document.getElementById('edit-scadenza-riscatto').value=g.scadenza_riscatto||'';
@@ -125,11 +140,22 @@ async function salvaModificaGiocatore(){
   try{
     const{error}=await sb.from('giocatori').update(updates).eq('id',giocatoreInModifica.id);
     if(error) throw error;
+    const vecchiaMaglia=giocatoreInModifica.maglia;
+    const vecchioContratto=giocatoreInModifica.contratto;
     const idx=giocatoriDB.findIndex(g=>g.id===giocatoreInModifica.id);
     if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...updates};
     showToast('✅ '+nuovoNome+' aggiornato!');
     document.getElementById('modal-modifica').classList.remove('open');
     if(squadraAttiva) renderRosa(tabAttivoSq);
+
+    // Storico carriera: registra SOLO se maglia o contratto sono cambiati davvero
+    if(updates.maglia!==vecchiaMaglia||updates.contratto!==vecchioContratto){
+      logStoricoGiocatore(giocatoreInModifica.id,'modifica_admin',{
+        numero_maglia: updates.maglia,
+        tipo_contratto: updates.contratto,
+        note: 'Modifica manuale da pannello admin',
+      });
+    }
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
   finally{btn.disabled=false;btn.textContent='💾 SALVA MODIFICHE';}
 }
@@ -200,6 +226,11 @@ async function adminSvincolaGiocatore(){
     document.getElementById('modal-modifica').classList.remove('open');
     if(squadraAttiva) renderRosa(tabAttivoSq);
     if(typeof svincolatiCaricati!=='undefined'&&svincolatiCaricati) caricaSvincolati();
+
+    logStoricoGiocatore(g.id,'svincolo',{
+      squadra_da: sq.id, importo: cifra||null,
+      note: 'Svincolato da admin',
+    });
 
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
   finally{btn.disabled=false; btn.textContent='🔓 SVINCOLA';}

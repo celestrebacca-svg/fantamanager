@@ -91,8 +91,69 @@ async function apriGiocatore(gId){
         <div class="stat-box"><div class="stat-box-val">${g.mv||'—'}</div><div class="stat-box-label">Media V.</div></div>
         <div class="stat-box"><div class="stat-box-val">${g.presenze||0}</div><div class="stat-box-label">Presenze</div></div>
       </div>
+    </div>
+    <div class="player-section" style="border-bottom:none">
+      <div class="player-section-title">📜 Storia Carriera</div>
+      <div id="mg-storico"></div>
     </div>`;
   document.getElementById('modal-giocatore').classList.add('open');
+  renderStoricoGiocatore(g.id);
+}
+
+// ===== STORIA CARRIERA =====
+async function renderStoricoGiocatore(gId){
+  const box=document.getElementById('mg-storico');
+  if(!box) return;
+  box.innerHTML='<div style="padding:10px 0;color:var(--testo-dim);font-size:12px">Caricamento storico...</div>';
+  try{
+    const{data,error}=await sb.from('storico_giocatore').select('*').eq('giocatore_id',gId).order('created_at',{ascending:false});
+    if(error) throw error;
+    if(!data||!data.length){
+      box.innerHTML='<div style="padding:10px 0;color:var(--testo-dim);font-size:12px;font-style:italic">Nessuno storico ancora registrato. Da qui in poi ogni trasferimento, prestito, riscatto o cambio maglia verrà tracciato automaticamente.</div>';
+      return;
+    }
+    const icone={trasferimento:'💼',prestito:'🔄',rientro_prestito:'↩️',riscatto:'🔑',scambio:'🔀',svincolo:'🔓',modifica_admin:'✏️'};
+    const labelEvento={trasferimento:'Trasferimento',prestito:'Prestito',rientro_prestito:'Rientro da prestito',riscatto:'Riscatto esercitato',scambio:'Scambio',svincolo:'Svincolo',modifica_admin:'Aggiornamento dati'};
+    const nomeSq=id=>id?(squadreDB.find(s=>String(s.id)===String(id))?.nome||id):null;
+
+    // Raggruppa per stagione mantenendo l'ordine (più recente prima)
+    const stagioni=[];
+    const perStagione={};
+    for(const r of data){
+      if(!perStagione[r.stagione]){perStagione[r.stagione]=[];stagioni.push(r.stagione);}
+      perStagione[r.stagione].push(r);
+    }
+
+    box.innerHTML=stagioni.map(st=>{
+      const eventi=perStagione[st];
+      const maglieStagione=[...new Set(eventi.filter(e=>e.numero_maglia).map(e=>e.numero_maglia))];
+      return `<div style="margin-bottom:14px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;color:var(--oro);margin-bottom:6px;display:flex;align-items:center;gap:8px">
+          📅 STAGIONE ${st}
+          ${maglieStagione.length?`<span style="font-family:'Space Mono',monospace;font-size:11px;color:var(--testo-dim)">— Maglia ${maglieStagione.map(m=>'#'+m).join(', ')}</span>`:''}
+        </div>
+        ${eventi.map(e=>{
+          const da=nomeSq(e.squadra_da), a=nomeSq(e.squadra_a);
+          let movimento='';
+          if(da&&a) movimento=`${da} → ${a}`;
+          else if(a) movimento=`→ ${a}`;
+          else if(da) movimento=`${da} →`;
+          return `<div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--grigio-chiaro);font-size:12px">
+            <div style="flex-shrink:0">${icone[e.evento]||'•'}</div>
+            <div style="flex:1">
+              <div style="font-weight:600">${labelEvento[e.evento]||e.evento}${movimento?' — '+movimento:''}</div>
+              <div style="color:var(--testo-dim);font-size:11px;margin-top:2px">
+                ${e.tipo_contratto?e.tipo_contratto+' • ':''}${e.importo?fmtNum(e.importo)+' FM • ':''}${new Date(e.created_at).toLocaleDateString('it-IT')}
+              </div>
+              ${e.note?`<div style="color:var(--testo-dim);font-size:11px;font-style:italic;margin-top:2px">${e.note}</div>`:''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML='<div style="padding:10px 0;color:var(--rosso);font-size:12px">Errore caricamento storico: '+e.message+'</div>';
+  }
 }
 
 // ===== ESERCITA RISCATTO =====
@@ -153,6 +214,11 @@ async function esercitaRiscatto(gId){
     showToast(`✅ Riscatto esercitato! ${g.nome} è tuo definitivamente!`);
     document.getElementById('modal-giocatore').classList.remove('open');
     if(squadraAttiva) renderRosa(tabAttivoSq);
+
+    logStoricoGiocatore(g.id,'riscatto',{
+      squadra_da: sqPropr.id, squadra_a: sq.id,
+      tipo_contratto: 'Titolo Definitivo', importo: g.riscatto,
+    });
 
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
 }

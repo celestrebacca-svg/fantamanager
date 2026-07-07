@@ -104,6 +104,13 @@ async function eseguiTrasferimento(t){
     const idx = giocatoriDB.findIndex(g=>String(g.id)===String(t.giocatore_id));
     if(idx>=0) giocatoriDB[idx]={...giocatoriDB[idx],...upd};
     console.log('✅', upd.contratto, sqCedente, '→', sqAcquirente);
+
+    // Storico carriera
+    logStoricoGiocatore(gId, isPrestito?'prestito':'trasferimento', {
+      squadra_da: sqCedente, squadra_a: sqAcquirente,
+      tipo_contratto: upd.contratto,
+      importo: parseFloat(t.importo)||null,
+    });
   }
 
   // ── SCAMBIO ──
@@ -113,12 +120,14 @@ async function eseguiTrasferimento(t){
       await sb.from('giocatori').update(upd).eq('id',gId);
       const i=giocatoriDB.findIndex(g=>g.id==gId);
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
+      logStoricoGiocatore(gId,'scambio',{squadra_da:sqAcquirente,squadra_a:sqCedente,tipo_contratto:'Titolo Definitivo',note:`Scambio: ${t.tipo}`});
     }
     for(const gId of (t.giocatori_ids_richiesti||[])){
       const upd={squadra_id:sqAcquirente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
       await sb.from('giocatori').update(upd).eq('id',gId);
       const i=giocatoriDB.findIndex(g=>g.id==gId);
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
+      logStoricoGiocatore(gId,'scambio',{squadra_da:sqCedente,squadra_a:sqAcquirente,tipo_contratto:'Titolo Definitivo',note:`Scambio: ${t.tipo}`});
     }
   }
 

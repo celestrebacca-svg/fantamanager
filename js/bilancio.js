@@ -1,7 +1,8 @@
 // ===== SISTEMA BILANCIO =====
 
-let bilancioStagione = '2025/26';
-let bilancioNuovaStagione = '2026/27';
+// Stagione: usa la variabile globale STAGIONE_CORRENTE (config.js, caricata da DB).
+// bilancioNuovaStagione non serve più come variabile fissa: si calcola al volo
+// con prossimaStagione(STAGIONE_CORRENTE).
 let bilancePending = [];
 let rateMercato = [];
 
@@ -33,7 +34,7 @@ async function renderBilancio() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
       <div>
         <div class="page-title">💰 BILANCIO</div>
-        <div class="page-sub">Stagione ${bilancioStagione}</div>
+        <div class="page-sub">Stagione ${STAGIONE_CORRENTE}</div>
       </div>
       ${adminLoggato ? `<button onclick="apriAdminBilancio()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer">⚙️ ADMIN BILANCIO</button>` : ''}
     </div>`;
@@ -231,7 +232,13 @@ async function renderTabNuovoBilancio(container) {
   container.innerHTML = `
     <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--testo-dim);line-height:1.7">
       ⚠️ <strong style="color:var(--oro)">Apertura Nuovo Bilancio (16 Giugno)</strong><br>
-      Questa operazione accredita a ogni squadra: <strong style="color:var(--testo)">50M fissi + FM competizioni + rendita museo + rate in entrata</strong> e addebita le rate in uscita. L'operazione è irreversibile.
+      Questa operazione accredita a ogni squadra: <strong style="color:var(--testo)">50M fissi + FM competizioni + rendita museo + rate in entrata</strong> e addebita le rate in uscita. Avanza automaticamente anche la stagione (da ${STAGIONE_CORRENTE} a ${prossimaStagione(STAGIONE_CORRENTE)}), usata ovunque nell'app. L'operazione è irreversibile.
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12px">
+      <span style="color:var(--testo-dim)">Stagione attuale:</span>
+      <input id="corr-stagione" class="form-input" style="width:100px;padding:6px 8px" value="${STAGIONE_CORRENTE}">
+      <button onclick="correggiStagioneManuale()" style="background:var(--grigio-medio);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer">✏️ Correggi</button>
     </div>
 
     <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--testo-dim);letter-spacing:1px;margin-bottom:10px">ANTEPRIMA PER SQUADRA</div>
@@ -256,7 +263,7 @@ async function renderTabNuovoBilancio(container) {
       </div>`).join('')}
 
     <button onclick="apriNuovoBilancio()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;padding:14px;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:8px">
-      🆕 APRI NUOVO BILANCIO — ${bilancioNuovaStagione}
+      🆕 APRI NUOVO BILANCIO — ${prossimaStagione(STAGIONE_CORRENTE)}
     </button>`;
 }
 
@@ -288,9 +295,23 @@ function calcolaRenditaMuseo(trofei) {
   return totale;
 }
 
+// Correzione manuale della stagione (per errori, NON per il normale avanzamento
+// a fine anno — quello è automatico con "Apri Nuovo Bilancio")
+async function correggiStagioneManuale() {
+  const val = document.getElementById('corr-stagione').value.trim();
+  if (!/^\d{4}\/\d{2}$/.test(val)) { showToast('❌ Formato non valido, usa es. 2025/26','error'); return; }
+  if (!confirm(`Correggere manualmente la stagione a ${val}?\nVerrà usata subito ovunque nell'app (bilancio, competizioni, risiko, storia giocatori).`)) return;
+  try {
+    await sb.from('impostazioni').update({ stagione_corrente: val }).eq('id', 1);
+    STAGIONE_CORRENTE = val;
+    showToast(`✅ Stagione corretta a ${val}`);
+    renderAdminBilancio();
+  } catch(e) { showToast('❌ Errore: '+e.message,'error'); }
+}
+
 // Esegui apertura nuovo bilancio
 async function apriNuovoBilancio() {
-  if (!confirm(`⚠️ APERTURA NUOVO BILANCIO ${bilancioNuovaStagione}\n\nQuesta operazione è IRREVERSIBILE.\nConfermi di voler procedere?`)) return;
+  if (!confirm(`⚠️ APERTURA NUOVO BILANCIO ${prossimaStagione(STAGIONE_CORRENTE)}\n\nQuesta operazione è IRREVERSIBILE.\nConfermi di voler procedere?`)) return;
 
   const body = document.getElementById('bilancio-admin-tab-content');
   body.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Apertura bilancio in corso...</div>';
@@ -351,7 +372,14 @@ async function apriNuovoBilancio() {
     }
   } catch(e) { console.error('Errore mark rate:', e); }
 
-  showToast(`✅ Bilancio aperto! ${ok} squadre aggiornate${errori > 0 ? ' ('+errori+' errori)' : ''}`);
+  // Avanza la stagione corrente (unificata per bilancio, competizioni, risiko, storico giocatori)
+  const nuovaStagione = prossimaStagione(STAGIONE_CORRENTE);
+  try {
+    await sb.from('impostazioni').update({ stagione_corrente: nuovaStagione }).eq('id', 1);
+    STAGIONE_CORRENTE = nuovaStagione;
+  } catch(e) { console.error('Errore aggiornamento stagione:', e); }
+
+  showToast(`✅ Bilancio aperto! ${ok} squadre aggiornate${errori > 0 ? ' ('+errori+' errori)' : ''} • Stagione ${STAGIONE_CORRENTE}`);
   await renderAdminBilancio();
 }
 
@@ -504,7 +532,7 @@ async function salvaRata() {
   try {
     const { data, error } = await sb.from('rate_mercato').insert({
       descrizione: desc, squadra_debitrice_id: debId, squadra_creditrice_id: credId,
-      importo, data_scadenza: scad, pagata: false, stagione: bilancioStagione
+      importo, data_scadenza: scad, pagata: false, stagione: STAGIONE_CORRENTE
     }).select().single();
     if (error) throw error;
     rateMercato.push(data);
@@ -601,7 +629,7 @@ async function salvaMovimentoManuale() {
     } else {
       const { data, error } = await sb.from('bilancio_pending').insert({
         squadra_id: sqId, importo: delta, tipo: 'manuale',
-        descrizione: desc, stagione: bilancioStagione, erogato: false
+        descrizione: desc, stagione: STAGIONE_CORRENTE, erogato: false
       }).select().single();
       if (error) throw error;
       bilancePending.push(data);
@@ -616,7 +644,7 @@ async function aggiungiFMCompPending(squadraId, importo, descrizione) {
   try {
     const { data, error } = await sb.from('bilancio_pending').insert({
       squadra_id: squadraId, importo, tipo: 'competizione',
-      descrizione, stagione: bilancioStagione, erogato: false
+      descrizione, stagione: STAGIONE_CORRENTE, erogato: false
     }).select().single();
     if (error) throw error;
     bilancePending.push(data);

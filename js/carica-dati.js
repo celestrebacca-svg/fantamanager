@@ -11,6 +11,9 @@ async function caricaDati(){
     if(sq.error) throw new Error(sq.error.message);
     squadreDB=sq.data||[];
     document.getElementById('home-num-squadre').textContent=squadreDB.length||'—';
+    sb.from('impostazioni').select('*').eq('id',1).single()
+      .then(r=>{if(!r.error&&r.data?.stagione_corrente) STAGIONE_CORRENTE=r.data.stagione_corrente;})
+      .catch(e=>console.warn('Impostazioni non caricate, uso fallback:',e.message));
     sb.from('trattative').select('*').order('created_at',{ascending:false})
       .then(r=>{if(!r.error){trattativeDB=r.data||[];controllaPrestatiScaduti();}});
     caricaGiocatoriBackground();
@@ -89,6 +92,12 @@ async function controllaPrestatiScaduti(){
 
       const sqNome=squadreDB.find(s=>String(s.id)===String(sqOriginale))?.nome||sqOriginale;
       showToast(`🔄 Prestito scaduto: ${g.nome} rientrato a ${sqNome}`);
+
+      logStoricoGiocatore(g.id,'rientro_prestito',{
+        squadra_da: g.squadra_id, squadra_a: sqOriginale,
+        tipo_contratto: 'Titolo Definitivo',
+        note: 'Rientro automatico per scadenza prestito',
+      });
     }
   }catch(e){console.warn('Errore controllo prestiti scaduti:',e);}
 }

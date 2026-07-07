@@ -2,7 +2,8 @@
 
 let risikoObiettivi = [];
 let risikoAssegnazioni = [];
-const STAGIONE_RISIKO = '2024/25';
+// Usa la variabile globale STAGIONE_CORRENTE (definita in config.js, caricata da DB)
+// invece di una costante fissa, così si allinea automaticamente a bilancio/competizioni/storico.
 
 const OBIETTIVI_FACILI = [
   'Usare almeno 20 giocatori diversi durante la stagione',
@@ -77,8 +78,8 @@ const OBIETTIVI_DIFFICILI = [
 async function caricaRisiko() {
   try {
     const [{ data: master }, { data: assegn }] = await Promise.all([
-      sb.from('risiko_obiettivi_master').select('*').eq('stagione', STAGIONE_RISIKO).order('difficolta').order('id'),
-      sb.from('risiko_assegnazioni').select('*').eq('stagione', STAGIONE_RISIKO)
+      sb.from('risiko_obiettivi_master').select('*').eq('stagione', STAGIONE_CORRENTE).order('difficolta').order('id'),
+      sb.from('risiko_assegnazioni').select('*').eq('stagione', STAGIONE_CORRENTE)
     ]);
     risikoObiettivi = master || [];
     risikoAssegnazioni = assegn || [];
@@ -103,7 +104,7 @@ async function renderRisiko() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
       <div>
         <div class="page-title">🎯 MODALITÀ RISIKO</div>
-        <div class="page-sub">3 obiettivi segreti per squadra — Stagione ${STAGIONE_RISIKO}</div>
+        <div class="page-sub">3 obiettivi segreti per squadra — Stagione ${STAGIONE_CORRENTE}</div>
       </div>
       ${adminLoggato ? `<button onclick="apriAdminRisiko()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer">⚙️ ADMIN RISIKO</button>` : ''}
     </div>`;
@@ -204,9 +205,9 @@ async function pescaObiettivi() {
 
   try {
     const rows = [
-      { squadra_id: sqId, obiettivo_id: facile.id, difficolta: 'facile', completato: false, stagione: STAGIONE_RISIKO },
-      { squadra_id: sqId, obiettivo_id: normale.id, difficolta: 'normale', completato: false, stagione: STAGIONE_RISIKO },
-      { squadra_id: sqId, obiettivo_id: difficile.id, difficolta: 'difficile', completato: false, stagione: STAGIONE_RISIKO }
+      { squadra_id: sqId, obiettivo_id: facile.id, difficolta: 'facile', completato: false, stagione: STAGIONE_CORRENTE },
+      { squadra_id: sqId, obiettivo_id: normale.id, difficolta: 'normale', completato: false, stagione: STAGIONE_CORRENTE },
+      { squadra_id: sqId, obiettivo_id: difficile.id, difficolta: 'difficile', completato: false, stagione: STAGIONE_CORRENTE }
     ];
     const { data, error } = await sb.from('risiko_assegnazioni').insert(rows).select();
     if (error) throw error;
@@ -394,7 +395,7 @@ async function salvaObiettivo(id) {
       if (idx>=0) risikoObiettivi[idx] = { ...risikoObiettivi[idx], testo, difficolta, premio: premi[difficolta] };
       showToast('✅ Aggiornato!');
     } else {
-      const { data, error } = await sb.from('risiko_obiettivi_master').insert({ testo, difficolta, premio: premi[difficolta], stagione: STAGIONE_RISIKO, attivo: true }).select().single();
+      const { data, error } = await sb.from('risiko_obiettivi_master').insert({ testo, difficolta, premio: premi[difficolta], stagione: STAGIONE_CORRENTE, attivo: true }).select().single();
       if (error) throw error;
       risikoObiettivi.push(data);
       showToast('✅ Creato!');
@@ -430,7 +431,7 @@ async function caricaTuttiObiettivi() {
   if (!confirm(`Caricare ${daInserire.length} obiettivi nel database?`)) return;
   showToast('⏳ Caricamento...', 'info');
   try {
-    const rows = daInserire.map(o => ({ ...o, stagione: STAGIONE_RISIKO, attivo: true }));
+    const rows = daInserire.map(o => ({ ...o, stagione: STAGIONE_CORRENTE, attivo: true }));
     const { data, error } = await sb.from('risiko_obiettivi_master').insert(rows).select();
     if (error) throw error;
     risikoObiettivi = [...risikoObiettivi, ...data];
@@ -546,9 +547,9 @@ function renderTabReset(container) {
 async function resetPescaSquadra(sqId, nome) {
   if (!confirm(`Resettare gli obiettivi di ${nome}? La squadra dovrà ripescare.`)) return;
   try {
-    const { error } = await sb.from('risiko_assegnazioni').delete().eq('squadra_id', sqId).eq('stagione', STAGIONE_RISIKO);
+    const { error } = await sb.from('risiko_assegnazioni').delete().eq('squadra_id', sqId).eq('stagione', STAGIONE_CORRENTE);
     if (error) throw error;
-    risikoAssegnazioni = risikoAssegnazioni.filter(a => !(a.squadra_id===sqId && a.stagione===STAGIONE_RISIKO));
+    risikoAssegnazioni = risikoAssegnazioni.filter(a => !(a.squadra_id===sqId && a.stagione===STAGIONE_CORRENTE));
     showToast(`🔄 Reset completato per ${nome}`);
     renderTabReset(document.getElementById('risiko-admin-tab-content'));
   } catch(e) { showToast('❌ '+e.message, 'error'); }

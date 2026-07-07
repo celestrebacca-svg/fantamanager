@@ -1,4 +1,34 @@
 
+// ===== STORICO GIOCATORE =====
+// Registra un evento nella carriera di un giocatore (trasferimento, prestito,
+// riscatto, rientro, modifica admin...). Non blocca mai il flusso chiamante:
+// se il log fallisce, viene solo segnalato in console.
+async function logStoricoGiocatore(giocatoreId, evento, dettagli){
+  dettagli=dettagli||{};
+  try{
+    await sb.from('storico_giocatore').insert([{
+      giocatore_id: parseInt(giocatoreId),
+      stagione: STAGIONE_CORRENTE,
+      evento: evento,
+      squadra_da: dettagli.squadra_da||null,
+      squadra_a: dettagli.squadra_a||null,
+      numero_maglia: dettagli.numero_maglia!=null?dettagli.numero_maglia:null,
+      tipo_contratto: dettagli.tipo_contratto||null,
+      importo: dettagli.importo||null,
+      note: dettagli.note||null,
+    }]);
+  }catch(e){ console.warn('Log storico giocatore:', e.message); }
+}
+
+// Calcola la stagione successiva da una stringa "2025/26" → "2026/27"
+function prossimaStagione(s){
+  const m=String(s||'').match(/^(\d{4})\/(\d{2})$/);
+  if(!m) return s;
+  const y1=parseInt(m[1],10)+1;
+  const y2=parseInt(m[2],10)+1;
+  return `${y1}/${String(y2).padStart(2,'0')}`;
+}
+
 // Converte input M in valore numerico: "5" → 5000000, "5.5" → 5500000, "5000000" → 5000000
 function parseM(val) {
   if (!val && val !== 0) return 0;
