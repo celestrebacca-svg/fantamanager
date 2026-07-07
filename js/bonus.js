@@ -294,6 +294,9 @@ async function inviaTrattativa(){
   const dati={
     squadra_offerente_id:utenteLoggato.id,
     squadra_ricevente_id:sqRicevente.id,
+    // Campi fissi che non cambiano mai - usati da mercato.js per il trasferimento
+    squadra_cedente_id:sqRicevente.id,       // chi possiede il giocatore
+    squadra_acquirente_id:utenteLoggato.id,  // chi vuole il giocatore
     tipo,
     giocatore_id:trattativaGiocatoreTarget.id,
     giocatori_ids:[trattativaGiocatoreTarget.id],
