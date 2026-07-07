@@ -60,8 +60,9 @@ async function eseguiTrasferimento(t){
   const hasObbligo = tipo.includes('Obbligo');
 
   // Chi acquista e chi cede
-  const sqAcquirente = t.squadra_offerente_id; // chi ha fatto l'offerta = acquirente
-  const sqCedente = t.squadra_ricevente_id;    // chi riceve la proposta = cedente
+  // Supporta tutti i nomi campo possibili
+  const sqAcquirente = t.squadra_acquirente_id||t.squadra_offerente_id;
+  const sqCedente = t.squadra_cedente_id||t.squadra_ricevente_id;
 
   // ── GIOCATORE PRINCIPALE ──
   if(t.giocatore_id){
