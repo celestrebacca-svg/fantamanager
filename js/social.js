@@ -144,6 +144,11 @@ const DOMANDE_INTERVISTA=[
   ...DOMANDE_INTERVISTA_PRESIDENTE_CLUB
 ];
 
+// Domande totali: predefinite + quelle aggiunte da admin (domandeCustomDB, da config.js)
+function tutteLeDomandeIntervista(){
+  return [...DOMANDE_INTERVISTA, ...domandeCustomDB.map(d=>d.testo)];
+}
+
 async function renderSocial(){
   const btn=document.getElementById('btn-nuovo-post');
   if(btn) btn.style.display=utenteLoggato?'block':'none';

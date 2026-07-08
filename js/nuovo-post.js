@@ -7,7 +7,8 @@ function apriNuovoPost(){
 
 function renderFormNuovoPost(tipo){
   const miei=giocatoriDB.filter(g=>g.squadra_id===utenteLoggato.id&&g.lista==='principale');
-  const acquisti=trattativeDB.filter(t=>t.stato==='completata'&&t.squadra_acquirente_id===utenteLoggato.id);
+  const gia_postati=new Set(socialPostsDB.filter(p=>p.tipo==='acquisto'&&p.squadra_id===utenteLoggato.id).map(p=>p.trattativa_id));
+  const acquisti=trattativeDB.filter(t=>t.stato==='approvata'&&t.squadra_acquirente_id===utenteLoggato.id&&!gia_postati.has(t.id));
   document.getElementById('social-post-body').innerHTML=`
     <!-- TIPO POST -->
     <div style="display:flex;gap:6px;margin-bottom:16px">
@@ -54,11 +55,11 @@ function renderFormNuovoPost(tipo){
       ${acquisti.length===0?'<div class="empty">Nessun acquisto completato da ufficializzare</div>':`
         <div class="form-group">
           <label class="form-label">Seleziona acquisto</label>
-          <select class="form-select" id="post-acquisto-gid" onchange="aggiornaPrevAcquisto(this.value)">
+          <select class="form-select" id="post-acquisto-tid" onchange="aggiornaPrevAcquisto(this.value)">
             <option value="">— Seleziona —</option>
             ${acquisti.map(t=>{
               const g=giocatoriDB.find(x=>x.id===t.giocatore_id);
-              return g?`<option value="${g.id}">${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
+              return g?`<option value="${t.id}">${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
             }).join('')}
           </select>
         </div>
@@ -72,16 +73,19 @@ function renderFormNuovoPost(tipo){
 
 let postFotoUrls=['','',''];
 
-function aggiungiImgPost(idx, input){
+async function aggiungiImgPost(idx, input){
   const file=input.files[0];
   if(!file) return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    postFotoUrls[idx]=e.target.result;
-    document.getElementById(`post-foto-preview-${idx}`).innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover">`;
-    document.getElementById(`post-foto-url-${idx}`).value='';
-  };
-  reader.readAsDataURL(file);
+  const preview=document.getElementById(`post-foto-preview-${idx}`);
+  preview.innerHTML='<div class="loading-spinner" style="width:16px;height:16px"></div>';
+  const url=await uploadToCloudinary(file,'social');
+  if(!url){
+    preview.innerHTML='📷';
+    return;
+  }
+  postFotoUrls[idx]=url;
+  preview.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`;
+  document.getElementById(`post-foto-url-${idx}`).value='';
 }
 
 function aggiornaUrlPost(idx, url){
@@ -92,12 +96,13 @@ function aggiornaUrlPost(idx, url){
 let ndomandeCorrente=3;
 
 function renderDomandaRow(i){
-  const domandeSuggerite=DOMANDE_INTERVISTA[i%DOMANDE_INTERVISTA.length];
+  const tutte=tutteLeDomandeIntervista();
+  const domandeSuggerite=tutte[i%tutte.length];
   return `<div id="domanda-row-${i}" style="background:var(--grigio-scuro);border-radius:8px;padding:10px;margin-bottom:8px">
     <div style="font-size:10px;color:var(--oro);font-weight:700;margin-bottom:6px">DOMANDA ${i+1}</div>
     <select id="domanda-testo-${i}" class="form-select" style="margin-bottom:6px;font-size:11px">
       <option value="">— Scegli domanda —</option>
-      ${DOMANDE_INTERVISTA.map(d=>`<option value="${d}">${d}</option>`).join('')}
+      ${tutte.map(d=>`<option value="${d}">${d}</option>`).join('')}
     </select>
     <textarea id="risposta-${i}" class="form-input" rows="2" placeholder="Risposta del calciatore..." style="font-size:12px;resize:vertical"></textarea>
     ${i>=3?`<button onclick="rimuoviDomanda(${i})" style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);color:var(--rosso);font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer;margin-top:4px">✕ Rimuovi</button>`:''}
@@ -121,9 +126,10 @@ function rimuoviDomanda(i){
   document.getElementById('btn-aggiungi-domanda').style.display='block';
 }
 
-function aggiornaPrevAcquisto(gIdStr){
-  const gId=parseInt(gIdStr)||null;
-  const g=gId?giocatoriDB.find(x=>x.id===gId):null;
+function aggiornaPrevAcquisto(tIdStr){
+  const tId=parseInt(tIdStr)||null;
+  const t=tId?trattativeDB.find(x=>x.id===tId):null;
+  const g=t?giocatoriDB.find(x=>x.id===t.giocatore_id):null;
   const el=document.getElementById('acquisto-preview');
   if(!el) return;
   if(!g){el.innerHTML='';return;}
@@ -168,19 +174,33 @@ async function pubblicaPost(tipo){
     payload={...payload, giocatore_id:gId, titolo:`🎤 INTERVISTA ESCLUSIVA — ${g?.nome||''}`, domande, follower_guadagnati:guadagnati};
 
   } else if(tipo==='acquisto'){
-    const gId=parseInt(document.getElementById('post-acquisto-gid')?.value)||null;
-    if(!gId){showToast('❌ Seleziona un acquisto','error');return;}
-    const g=giocatoriDB.find(x=>x.id===gId);
+    const tId=parseInt(document.getElementById('post-acquisto-tid')?.value)||null;
+    if(!tId){showToast('❌ Seleziona un acquisto','error');return;}
+    const t=trattativeDB.find(x=>x.id===tId);
+    const g=t?giocatoriDB.find(x=>x.id===t.giocatore_id):null;
     const contenuto=document.getElementById('post-contenuto-acq')?.value?.trim()||'';
     const guadagnati=followerAcquisto(g?.quotazione);
-    payload={...payload, giocatore_id:gId, titolo:`🔴 UFFICIALE: ${g?.nome||''} È NOSTRO!`, contenuto, follower_guadagnati:guadagnati};
+    payload={...payload, giocatore_id:g?.id||null, trattativa_id:tId, titolo:`🔴 UFFICIALE: ${g?.nome||''} È NOSTRO!`, contenuto, follower_guadagnati:guadagnati};
   }
 
   try{
     const{data,error}=await sb.from('social_posts').insert(payload).select();
     if(error) throw error;
-    showToast('Post pubblicato!');
+
+    // Accredita i follower guadagnati alla squadra che pubblica
+    if(payload.follower_guadagnati>0){
+      await aggiornaFollower(utenteLoggato.id, payload.follower_guadagnati);
+    }
+
+    showToast(`✅ Post pubblicato! +${fmtNum(payload.follower_guadagnati||0)} follower`);
+
+    // Reset form per il prossimo post
+    postFotoUrls=['','',''];
+    ndomandeCorrente=3;
+
+    document.getElementById('modal-social-post').classList.remove('open');
+    if(typeof renderSocial==='function') renderSocial();
   } catch(e){
-    showToast('Errore: '+e.message,'error');
+    showToast('❌ Errore: '+e.message,'error');
   }
 }

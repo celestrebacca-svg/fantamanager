@@ -4,8 +4,7 @@ let compClassifiche = [];
 let compGironi = [];
 let compPartite = [];
 let compAttiva = 'campionato';
-// Usa la variabile globale STAGIONE_CORRENTE (definita in config.js, caricata da DB)
-// invece di una costante fissa, così si allinea automaticamente a bilancio/risiko/storico.
+const STAGIONE_COMP = '2024/25';
 
 const COMP_CONFIG = {
   campionato:    { nome: 'Campionato',      icon: '🏆', tipo: 'campionato', haClassifica: true,  haGironi: false, haTabellone: false },
@@ -27,9 +26,9 @@ const COMP_CONFIG = {
 async function caricaCompetizioni() {
   try {
     const [{ data: cl }, { data: gi }, { data: pa }] = await Promise.all([
-      sb.from('comp_classifiche').select('*').eq('stagione', STAGIONE_CORRENTE),
-      sb.from('comp_gironi').select('*').eq('stagione', STAGIONE_CORRENTE),
-      sb.from('comp_partite').select('*').eq('stagione', STAGIONE_CORRENTE)
+      sb.from('comp_classifiche').select('*').eq('stagione', STAGIONE_COMP),
+      sb.from('comp_gironi').select('*').eq('stagione', STAGIONE_COMP),
+      sb.from('comp_partite').select('*').eq('stagione', STAGIONE_COMP)
     ]);
     compClassifiche = cl || [];
     compGironi = gi || [];
@@ -63,7 +62,7 @@ function renderCompLayout() {
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
       <div>
         <div class="page-title">🏆 COMPETIZIONI</div>
-        <div class="page-sub">Stagione ${STAGIONE_CORRENTE}</div>
+        <div class="page-sub">Stagione ${STAGIONE_COMP}</div>
       </div>
       ${adminLoggato ? `<button onclick="apriAdminComp()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer">⚙️ ADMIN</button>` : ''}
     </div>
@@ -371,22 +370,22 @@ function getDescrizioneComp(key) {
 function getPremi(key) {
   const map = {
     campionato: {
-      1:"900u20ac + 30M FM", 2:"600u20ac + 27M FM", 3:"320u20ac + 24M FM", 4:"150u20ac + 20M FM",
+      1:"900€ + 30M FM", 2:"600€ + 27M FM", 3:"320€ + 24M FM", 4:"150€ + 20M FM",
       5:"18M FM", 6:"16M FM", 7:"13M FM", 8:"12M FM",
       9:"11M FM", 10:"10M FM", 11:"9M FM", 12:"8M FM"
     },
-    champions:  { 1:"15M FM + 40u20ac", 2:"8M FM", "Semifinale":"8M FM", "Gironi":"5M FM", "Qualif.":"5M FM" },
-    europa:     { 1:"9M FM + 25u20ac", 2:"4.5M FM", "Semifinale":"6M FM", "Gironi":"4M FM" },
-    coppa_italia: { 1:"3M FM + 20u20ac", 2:"1M FM", "Semifinale":"2M FM", "Quarti":"1.5M FM", "Gironi":"0.5M FM" },
-    formula1:   { 1:"13M FM + 45u20ac", 2:"11M FM", 3:"10M FM", 4:"9M FM", 5:"8M FM", 6:"7M FM", 7:"6M FM", 8:"5M FM", 9:"4M FM", 10:"3M FM", 11:"2M FM", 12:"1M FM" },
-    coopmeiners:{ 1:"13M FM + 30u20ac", 2:"11M FM", 3:"10M FM", 4:"9M FM", 5:"8M FM", 6:"7M FM", 7:"6M FM", 8:"5M FM", 9:"4M FM", 10:"3M FM", 11:"2M FM", 12:"1M FM" },
+    champions:  { 1:"15M FM + 40€", 2:"8M FM", "Semifinale":"8M FM", "Gironi":"5M FM", "Qualif.":"5M FM" },
+    europa:     { 1:"9M FM + 25€", 2:"4.5M FM", "Semifinale":"6M FM", "Gironi":"4M FM" },
+    coppa_italia: { 1:"3M FM + 20€", 2:"1M FM", "Semifinale":"2M FM", "Quarti":"1.5M FM", "Gironi":"0.5M FM" },
+    formula1:   { 1:"13M FM + 45€", 2:"11M FM", 3:"10M FM", 4:"9M FM", 5:"8M FM", 6:"7M FM", 7:"6M FM", 8:"5M FM", 9:"4M FM", 10:"3M FM", 11:"2M FM", 12:"1M FM" },
+    coopmeiners:{ 1:"13M FM + 30€", 2:"11M FM", 3:"10M FM", 4:"9M FM", 5:"8M FM", 6:"7M FM", 7:"6M FM", 8:"5M FM", 9:"4M FM", 10:"3M FM", 11:"2M FM", 12:"1M FM" },
     eroi:       { 1:"20M FM", 2:"13M FM", 3:"10M FM", 4:"8M FM", 5:"7M FM", 6:"6M FM", 7:"5M FM", 8:"4M FM", 9:"3M FM", 10:"2M FM", 11:"1M FM", 12:"0M FM" },
     coppa_tua:  { 1:"8.5M FM", 2:"2M FM", "Semifinale":"4.5M FM", "Gironi":"3.5M FM" },
     konami:     { 1:"30M FM", 2:"10M FM" },
     pedretti:   { 1:"20M FM", 2:"5M FM" },
-    crediti:    { "1u00b0-2u00b0-3u00b0":"15M FM", "4u00b0-5u00b0-6u00b0":"10M FM", "7u00b0-8u00b0-9u00b0":"5M FM" },
+    crediti:    { "1°-2°-3°":"15M FM", "4°-5°-6°":"10M FM", "7°-8°-9°":"5M FM" },
     talent:     { 1:"8M FM", 2:"4M FM", 3:"3M FM" },
-    coglioni:   { 1:"3M FM (punteggio piu00f9 basso)", 2:"1.5M FM" }
+    coglioni:   { 1:"3M FM (punteggio più basso)", 2:"1.5M FM" }
   };
   return map[key] || {};
 }
@@ -525,7 +524,7 @@ async function aggiungiSqClassifica(key) {
   const posMax = compClassifiche.filter(c=>c.competizione===key).length + 1;
   try {
     const { data, error } = await sb.from('comp_classifiche').insert({
-      competizione: key, stagione: STAGIONE_CORRENTE, squadra_id: sqId,
+      competizione: key, stagione: STAGIONE_COMP, squadra_id: sqId,
       punti:0, vittorie:0, pareggi:0, sconfitte:0, giocate:0, posizione: posMax
     }).select().single();
     if (error) throw error;
@@ -604,7 +603,7 @@ async function creaGirone(key) {
   const nome = document.getElementById('nome-nuovo-girone').value.trim().toUpperCase();
   if (!nome) { showToast('❌ Inserisci un nome per il girone','error'); return; }
   try {
-    const { data, error } = await sb.from('comp_gironi').insert({ competizione:key, stagione:STAGIONE_CORRENTE, nome_girone:nome, squadre_ids:[] }).select().single();
+    const { data, error } = await sb.from('comp_gironi').insert({ competizione:key, stagione:STAGIONE_COMP, nome_girone:nome, squadre_ids:[] }).select().single();
     if (error) throw error;
     compGironi.push(data);
     showToast('✅ Girone creato!');
@@ -757,7 +756,7 @@ async function salvaPartita() {
   if (casaId===ospId) { showToast('❌ Le due squadre devono essere diverse','error'); return; }
   try {
     const { data, error } = await sb.from('comp_partite').insert({
-      competizione:key, stagione:STAGIONE_CORRENTE, fase, girone,
+      competizione:key, stagione:STAGIONE_COMP, fase, girone,
       squadra_casa_id:casaId, squadra_ospite_id:ospId,
       punti_casa:ptCasa, punti_ospite:ptOsp, giornata, giocata
     }).select().single();
@@ -937,7 +936,7 @@ async function importaRisultati(risultati, compKey, fase) {
     if (!r.trovaCasa || !r.trovaOsp) { saltati++; continue; }
     try {
       const { data, error } = await sb.from('comp_partite').insert({
-        competizione:compKey, stagione:STAGIONE_CORRENTE, fase,
+        competizione:compKey, stagione:STAGIONE_COMP, fase,
         squadra_casa_id:r.trovaCasa.id, squadra_ospite_id:r.trovaOsp.id,
         punti_casa:r.ptCasa, punti_ospite:r.ptOsp, giocata:true
       }).select().single();

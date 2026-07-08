@@ -14,6 +14,9 @@ async function caricaDati(){
     sb.from('impostazioni').select('*').eq('id',1).single()
       .then(r=>{if(!r.error&&r.data?.stagione_corrente) STAGIONE_CORRENTE=r.data.stagione_corrente;})
       .catch(e=>console.warn('Impostazioni non caricate, uso fallback:',e.message));
+    sb.from('domande_custom').select('*').order('created_at')
+      .then(r=>{if(!r.error) domandeCustomDB=r.data||[];})
+      .catch(e=>console.warn('Domande custom non caricate:',e.message));
     sb.from('trattative').select('*').order('created_at',{ascending:false})
       .then(r=>{if(!r.error){trattativeDB=r.data||[];controllaPrestatiScaduti();}});
     caricaGiocatoriBackground();
