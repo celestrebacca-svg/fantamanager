@@ -633,6 +633,9 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div class="admin-card" onclick="apriLogoSquadra()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Logo Squadra</div><div class="admin-card-sub">Carica logo</div></div>
             <div class="admin-card" onclick="apriFotoPresidente()"><div class="admin-card-icon">👑</div><div class="admin-card-title">Foto Presidente</div><div class="admin-card-sub">Foto e nome presidenti</div></div>
             <div class="admin-card" onclick="apriGestioneEmail()"><div class="admin-card-icon">📧</div><div class="admin-card-title">Gestione Email</div><div class="admin-card-sub">Registra accessi presidenti</div></div>
+            <div class="admin-card" onclick="apriModificaNomi()"><div class="admin-card-icon">✏️</div><div class="admin-card-title">Nome Squadra/Partecipante</div><div class="admin-card-sub">Rinomina fantasquadra o proprietario</div></div>
+            <div class="admin-card" onclick="apriGestioneCostruzioni()" style="border-color:rgba(255,68,68,0.4);background:rgba(255,68,68,0.05)"><div class="admin-card-icon">🔨</div><div class="admin-card-title">Annulla Costruzioni</div><div class="admin-card-sub">Stadio, Fast Food, Kit Store</div></div>
+            <div class="admin-card" onclick="apriGestioneDomande()"><div class="admin-card-icon">🎤</div><div class="admin-card-title">Domande Intervista</div><div class="admin-card-sub">Aggiungi domande personalizzate</div></div>
             <div class="admin-card" onclick="showToast('⭐ In costruzione')"><div class="admin-card-icon">⭐</div><div class="admin-card-title">Capitani</div><div class="admin-card-sub">Aggiorna C e V</div></div>
           </div>
           <div class="admin-section-title">💰 GESTIONE ECONOMICA</div>
@@ -1287,6 +1290,39 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <button class="modal-close" onclick="document.getElementById('modal-modifica-budget').classList.remove('open')">×</button>
     </div>
     <div style="padding:20px" id="modifica-budget-body"></div>
+  </div>
+</div>
+
+<!-- MODAL MODIFICA NOMI -->
+<div class="modal-overlay" id="modal-modifica-nomi" onclick="closeModal('modal-modifica-nomi',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">✏️ NOME SQUADRA/PARTECIPANTE</div>
+      <button class="modal-close" onclick="document.getElementById('modal-modifica-nomi').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="modifica-nomi-body"></div>
+  </div>
+</div>
+
+<!-- MODAL GESTIONE COSTRUZIONI -->
+<div class="modal-overlay" id="modal-costruzioni" onclick="closeModal('modal-costruzioni',event)">
+  <div class="modal" style="border-color:var(--rosso);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--rosso)">🔨 ANNULLA COSTRUZIONI</div>
+      <button class="modal-close" onclick="document.getElementById('modal-costruzioni').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="costruzioni-body"></div>
+  </div>
+</div>
+
+<!-- MODAL GESTIONE DOMANDE INTERVISTA -->
+<div class="modal-overlay" id="modal-domande" onclick="closeModal('modal-domande',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">🎤 DOMANDE INTERVISTA</div>
+      <button class="modal-close" onclick="document.getElementById('modal-domande').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px" id="domande-admin-body"></div>
   </div>
 </div>
 
