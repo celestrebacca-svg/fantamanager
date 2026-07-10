@@ -20,6 +20,30 @@ async function caricaBilancioAdmin() {
   }
 }
 
+// Controlla le rate (conguagli scambio, ecc.) con scadenza oggi o passata e le
+// paga automaticamente: budget trasferito da debitrice a creditrice, marcata pagata.
+// Va chiamata ad ogni caricamento dati (carica-dati.js), non solo una volta l'anno.
+async function controllaRateScadute(){
+  if(!rateMercato || !rateMercato.length) return;
+  const oggi=new Date(); oggi.setHours(0,0,0,0);
+  const scadute=rateMercato.filter(r=>!r.pagata && r.data_scadenza && new Date(r.data_scadenza)<=oggi);
+  for(const r of scadute){
+    try{
+      const sqDeb=squadreDB.find(s=>s.id===r.squadra_debitrice_id);
+      const sqCred=squadreDB.find(s=>s.id===r.squadra_creditrice_id);
+      if(!sqDeb||!sqCred) continue;
+      const nuovoDeb=(sqDeb.budget||0)-r.importo;
+      const nuovoCred=(sqCred.budget||0)+r.importo;
+      await sb.from('squadre').update({budget:nuovoDeb}).eq('id',sqDeb.id);
+      await sb.from('squadre').update({budget:nuovoCred}).eq('id',sqCred.id);
+      sqDeb.budget=nuovoDeb; sqCred.budget=nuovoCred;
+      await sb.from('rate_mercato').update({pagata:true,data_pagamento:new Date().toISOString()}).eq('id',r.id);
+      r.pagata=true;
+      showToast(`💳 Rata pagata: ${r.descrizione||'Conguaglio'} — ${fmtBudget(r.importo)} (${sqDeb.nome_squadra||sqDeb.nome} → ${sqCred.nome_squadra||sqCred.nome})`);
+    }catch(e){ console.warn('Errore pagamento rata automatica:', e.message); }
+  }
+}
+
 // ===== RENDER SEZIONE BILANCIO (per utente) =====
 async function renderBilancio() {
   const container = document.getElementById('bilancio-content');

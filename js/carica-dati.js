@@ -17,6 +17,9 @@ async function caricaDati(){
     sb.from('domande_custom').select('*').order('created_at')
       .then(r=>{if(!r.error) domandeCustomDB=r.data||[];})
       .catch(e=>console.warn('Domande custom non caricate:',e.message));
+    sb.from('rate_mercato').select('*').order('data_scadenza')
+      .then(r=>{if(!r.error){rateMercato=r.data||[]; controllaRateScadute();}})
+      .catch(e=>console.warn('Rate mercato non caricate:',e.message));
     sb.from('trattative').select('*').order('created_at',{ascending:false})
       .then(r=>{if(!r.error){trattativeDB=r.data||[];controllaPrestatiScaduti();}});
     caricaGiocatoriBackground();

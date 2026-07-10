@@ -20,7 +20,28 @@ function getPercentualeRiempimento(piazzamento){
   return 75;
 }
 
+// Foto reali (Copilot) per ciascun livello stadio 1-8. Se un livello non è
+// presente qui, si torna automaticamente all'SVG disegnato a mano.
+const IMMAGINI_STADI={
+  1:'img/stadi/stadio_1.jpg',
+  2:'img/stadi/stadio_2.jpg',
+  3:'img/stadi/stadio_3.jpg',
+  4:'img/stadi/stadio_4.jpg',
+  5:'img/stadi/stadio_5.jpg',
+  6:'img/stadi/stadio_6.jpg',
+  7:'img/stadi/stadio_7.jpg',
+  8:'img/stadi/stadio_8.jpg',
+};
+
 function disegnaStadio(capienza){
+  const level=getStadioLevel(capienza);
+  if(IMMAGINI_STADI[level.level]){
+    return `<img src="${IMMAGINI_STADI[level.level]}" style="width:100%;max-width:320px;height:160px;object-fit:cover;border-radius:8px;display:block;margin:0 auto">`;
+  }
+  return disegnaStadioSvg(capienza);
+}
+
+function disegnaStadioSvg(capienza){
   const level=getStadioLevel(capienza);
   const pct=Math.min(capienza/80000,1);
   const colore=level.colore;

@@ -439,7 +439,7 @@ async function apriNuovaRata(sqId){
     m.id='modal-nuova-rata';
     m.className='modal-overlay';
     m.innerHTML=`
-      <div class="modal-content" style="max-width:420px">
+      <div class="modal" style="max-width:420px">
         <div class="modal-header">
           <h2 class="modal-title">💳 NUOVA RATA / BONUS</h2>
           <button class="modal-close" onclick="document.getElementById('modal-nuova-rata').classList.remove('open')">✕</button>

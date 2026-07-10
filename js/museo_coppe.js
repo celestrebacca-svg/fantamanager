@@ -1,6 +1,43 @@
 // ===== COPPE SVG MUSEO =====
 
+// Trofei con foto reale (Copilot): si aggiungono man mano che ne generi altre.
+// Chi non è in questa mappa usa ancora l'SVG disegnato a mano.
+const IMMAGINI_TROFEI={
+  europa_league:  'img/trofei/europa_league.png',
+  coopmeiners:    'img/trofei/coopmeiners.png',
+  champions:      'img/trofei/champions.png',      // aggiornata: versione nuova nera/oro
+  coppa_coglioni: 'img/trofei/coppa_coglioni.png',
+  campionato_1:   'img/trofei/campionato_1.png',    // aggiornata: leone di cristallo
+  campionato_2:   'img/trofei/campionato_2.png',    // medaglia argento "2"
+  campionato_3:   'img/trofei/campionato_3.png',    // medaglia bronzo "3"
+  talent_boy:     'img/trofei/talent_boy.png',
+  coppa_italia:   'img/trofei/coppa_italia.png',
+  konami:         'img/trofei/konami.png',
+  formula_1:      'img/trofei/formula_1.png',
+  pedretti:       'img/trofei/pedretti.png',
+  coppa_eroi:     'img/trofei/coppa_eroi.png',
+  coppa_crediti:  'img/trofei/coppa_crediti.png',
+};
+
+// Renderizza un trofeo-foto piccolo e orizzontale, con effetto "opaco/rovinato"
+// ai livelli bassi del museo che diventa via via più lucido e con glow ai livelli alti.
+function disegnaCoppaImg(url,anno,livelloMuseo){
+  const lux=Math.min(livelloMuseo,7);
+  const grayscale=Math.max(0,45-lux*6.5);   // 45% a livello 0 → 0% a livello 7
+  const sepiaPct=Math.max(0,25-lux*3.5);    // patina che sparisce col livello
+  const bright=(0.72+lux*0.045).toFixed(2); // 0.72 → 1.03
+  const satur=(0.55+lux*0.065).toFixed(2);  // 0.55 → 1.0
+  const glow=lux>=5?'drop-shadow(0 0 6px rgba(255,215,0,0.55))':lux>=3?'drop-shadow(0 0 3px rgba(255,215,0,0.25))':'none';
+  return `<div style="width:56px;height:44px;display:flex;align-items:center;justify-content:center;overflow:hidden">
+    <img src="${url}" loading="lazy" style="max-width:100%;max-height:100%;object-fit:contain;filter:grayscale(${grayscale}%) sepia(${sepiaPct}%) brightness(${bright}) saturate(${satur}) ${glow}">
+  </div>
+  <div style="font-family:'Bebas Neue',sans-serif;font-size:9px;color:${lux>=3?'#DAA520':'#777'};text-align:center;margin-top:1px">${anno}</div>`;
+}
+
 function disegnaCoppa(tipo, anno, livelloMuseo){
+  // Se c'è una foto reale per questo tipo, usa quella
+  if(IMMAGINI_TROFEI[tipo]) return disegnaCoppaImg(IMMAGINI_TROFEI[tipo],anno,livelloMuseo);
+
   // Museo migliora con lo stadio: 0=base, 7=lusso
   const lux=Math.min(livelloMuseo,7);
   const glow=lux>=3;
