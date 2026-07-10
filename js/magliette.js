@@ -63,7 +63,28 @@ function disegnaMaglia(giocatore,numero,upgradeKit,coloreSquadra='#1a237e'){
   }
 }
 
+// Foto reali (Copilot) per ciascun livello store 0-7. Se un livello non è
+// presente qui, si torna automaticamente all'SVG disegnato a mano.
+const IMMAGINI_STORE={
+  0:'img/store/store_0.jpg',
+  1:'img/store/store_1.jpg',
+  2:'img/store/store_2.jpg',
+  3:'img/store/store_3.jpg',
+  4:'img/store/store_4.jpg',
+  5:'img/store/store_5.jpg',
+  6:'img/store/store_6.jpg',
+  7:'img/store/store_7.jpg',
+};
+
 function disegnaStore(capienza){
+  const store=getStoreLevel(capienza);
+  if(IMMAGINI_STORE[store.level]){
+    return `<img src="${IMMAGINI_STORE[store.level]}" style="width:100%;max-width:320px;height:140px;object-fit:cover;border-radius:8px;display:block;margin:0 auto">`;
+  }
+  return disegnaStoreSvg(capienza);
+}
+
+function disegnaStoreSvg(capienza){
   const store=getStoreLevel(capienza);
   const colore=['#9E9E9E','#FFF176','#81C784','#4FC3F7','#00FF87','#C0A000','#E5C100','#FFD700'][store.level];
   const w=320,h=140;
