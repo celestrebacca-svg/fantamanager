@@ -1,24 +1,6 @@
 // ===== COPPE SVG MUSEO =====
 
-// Trofei con foto reale (Copilot): si aggiungono man mano che ne generi altre.
-// Chi non è in questa mappa usa ancora l'SVG disegnato a mano.
-const IMMAGINI_TROFEI={
-  europa_league:  cldUrl('europa_league', 200),
-  coopmeiners:    cldUrl('coopmeiners', 200),
-  champions:      cldUrl('champions', 200),
-  coppa_coglioni: cldUrl('coppa_coglioni', 200),
-  campionato_1:   cldUrl('campionato_1', 200),
-  campionato_2:   cldUrl('campionato_2', 200),
-  campionato_3:   cldUrl('campionato_3', 200),
-  talent_boy:     cldUrl('talent_boy', 200),
-  coppa_italia:   cldUrl('coppa_italia', 200),
-  konami:         cldUrl('konami', 200),
-  formula_1:      cldUrl('formula_1', 200),
-  pedretti:       cldUrl('pedretti', 200),
-  coppa_eroi:     cldUrl('coppa_eroi', 200),
-  coppa_crediti:  cldUrl('coppa_crediti', 200),
-  coppa_tua:      cldUrl('coppa_tua', 200),
-};
+// IMMAGINI_TROFEI e getTipoTrofeo vivono in utils.js (carica sempre per primo).
 
 // Renderizza un trofeo-foto piccolo e orizzontale, con effetto "opaco/rovinato"
 // ai livelli bassi del museo che diventa via via più lucido e con glow ai livelli alti.
@@ -266,24 +248,7 @@ function disegnaGenerico(w,h,anno,tipo,glow,lucente){
 }
 
 // Mappa tipo trofeo -> funzione SVG
-function getTipoTrofeo(compId){
-  const mappa={
-    'campionato':'campionato_1', // gestito con posto
-    'champions':'champions',
-    'europa_league':'europa_league',
-    'formula_1':'formula_1',
-    'coppa_italia':'coppa_italia',
-    'coppa_coglioni':'coppa_coglioni',
-    'coopmeiners':'coopmeiners',
-    'talent_boy':'talent_boy',
-    'coppa_eroi':'coppa_eroi',
-    'coppa_tua':'coppa_tua',
-    'konami':'konami',
-    'coppa_crediti':'coppa_crediti',
-    'pedretti':'pedretti',
-  };
-  return mappa[compId]||'generico';
-}
+// getTipoTrofeo ora vive in utils.js (carica sempre per primo).
 
 function renderMuseoStadio(sq){
   const trofei=sq.trofei||[];

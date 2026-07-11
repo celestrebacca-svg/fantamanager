@@ -29,7 +29,53 @@ function prossimaStagione(s){
   return `${y1}/${String(y2).padStart(2,'0')}`;
 }
 
-// Converte input M in valore numerico: "5" → 5000000, "5.5" → 5500000, "5000000" → 5000000
+// Costruisce un URL Cloudinary con ottimizzazione automatica di formato e qualità
+// (f_auto,q_auto) e larghezza massima specificata. publicId = percorso senza estensione,
+// es. cldUrl('trofei/champions', 200).
+function cldUrl(publicId, width=500){
+  return `https://res.cloudinary.com/dxh7otqux/image/upload/f_auto,q_auto,w_${width}/${publicId}`;
+}
+
+// ===== TROFEI: immagini e mapping competizione→tipo =====
+// Vivono qui (non in museo_coppe.js) perché utils.js carica sempre per
+// primo: elimina qualsiasi dipendenza dall'ordine tra i file.
+const IMMAGINI_TROFEI={
+  europa_league:  cldUrl('europa_league', 200),
+  coopmeiners:    cldUrl('coopmeiners', 200),
+  champions:      cldUrl('champions', 200),
+  coppa_coglioni: cldUrl('coppa_coglioni', 200),
+  campionato_1:   cldUrl('campionato_1', 200),
+  campionato_2:   cldUrl('campionato_2', 200),
+  campionato_3:   cldUrl('campionato_3', 200),
+  talent_boy:     cldUrl('talent_boy', 200),
+  coppa_italia:   cldUrl('coppa_italia', 200),
+  konami:         cldUrl('konami', 200),
+  formula_1:      cldUrl('formula_1', 200),
+  pedretti:       cldUrl('pedretti', 200),
+  coppa_eroi:     cldUrl('coppa_eroi', 200),
+  coppa_crediti:  cldUrl('coppa_crediti', 200),
+  coppa_tua:      cldUrl('coppa_tua', 200),
+};
+
+function getTipoTrofeo(compId){
+  const mappa={
+    'campionato':'campionato_1', // gestito con posto
+    'champions':'champions',
+    'europa_league':'europa_league',
+    'formula_1':'formula_1',
+    'coppa_italia':'coppa_italia',
+    'coppa_coglioni':'coppa_coglioni',
+    'coopmeiners':'coopmeiners',
+    'talent_boy':'talent_boy',
+    'coppa_eroi':'coppa_eroi',
+    'coppa_tua':'coppa_tua',
+    'konami':'konami',
+    'coppa_crediti':'coppa_crediti',
+    'pedretti':'pedretti',
+  };
+  return mappa[compId]||'generico';
+}
+
 function parseM(val) {
   if (!val && val !== 0) return 0;
   const str = String(val).trim().replace(',', '.').replace(/[mM]\s*$/, '').trim();
