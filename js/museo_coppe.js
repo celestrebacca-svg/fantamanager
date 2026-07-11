@@ -3,20 +3,21 @@
 // Trofei con foto reale (Copilot): si aggiungono man mano che ne generi altre.
 // Chi non è in questa mappa usa ancora l'SVG disegnato a mano.
 const IMMAGINI_TROFEI={
-  europa_league:  'img/trofei/europa_league.png',
-  coopmeiners:    'img/trofei/coopmeiners.png',
-  champions:      'img/trofei/champions.png',      // aggiornata: versione nuova nera/oro
-  coppa_coglioni: 'img/trofei/coppa_coglioni.png',
-  campionato_1:   'img/trofei/campionato_1.png',    // aggiornata: leone di cristallo
-  campionato_2:   'img/trofei/campionato_2.png',    // medaglia argento "2"
-  campionato_3:   'img/trofei/campionato_3.png',    // medaglia bronzo "3"
-  talent_boy:     'img/trofei/talent_boy.png',
-  coppa_italia:   'img/trofei/coppa_italia.png',
-  konami:         'img/trofei/konami.png',
-  formula_1:      'img/trofei/formula_1.png',
-  pedretti:       'img/trofei/pedretti.png',
-  coppa_eroi:     'img/trofei/coppa_eroi.png',
-  coppa_crediti:  'img/trofei/coppa_crediti.png',
+  europa_league:  cldUrl('europa_league', 200),
+  coopmeiners:    cldUrl('coopmeiners', 200),
+  champions:      cldUrl('champions', 200),
+  coppa_coglioni: cldUrl('coppa_coglioni', 200),
+  campionato_1:   cldUrl('campionato_1', 200),
+  campionato_2:   cldUrl('campionato_2', 200),
+  campionato_3:   cldUrl('campionato_3', 200),
+  talent_boy:     cldUrl('talent_boy', 200),
+  coppa_italia:   cldUrl('coppa_italia', 200),
+  konami:         cldUrl('konami', 200),
+  formula_1:      cldUrl('formula_1', 200),
+  pedretti:       cldUrl('pedretti', 200),
+  coppa_eroi:     cldUrl('coppa_eroi', 200),
+  coppa_crediti:  cldUrl('coppa_crediti', 200),
+  coppa_tua:      cldUrl('coppa_tua', 200),
 };
 
 // Renderizza un trofeo-foto piccolo e orizzontale, con effetto "opaco/rovinato"
