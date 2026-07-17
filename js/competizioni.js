@@ -78,6 +78,7 @@ function renderCompLayout() {
           <div style="font-size:11px;color:var(--testo-dim);margin-top:2px">${idxAttivo+1} / ${keys.length}</div>
         </div>
       </div>
+      ${adminLoggato?`<button onclick="apriChiudiCompetizione('${compAttiva}')" style="background:${giaChiusaQuestaStagione(compAttiva)?'var(--grigio-medio)':'rgba(255,68,68,0.12)'};color:${giaChiusaQuestaStagione(compAttiva)?'var(--testo-dim)':'var(--rosso)'};border:1px solid ${giaChiusaQuestaStagione(compAttiva)?'var(--grigio-chiaro)':'rgba(255,68,68,0.35)'};font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:1px;padding:8px 14px;border-radius:8px;cursor:pointer;white-space:nowrap">${giaChiusaQuestaStagione(compAttiva)?'✅ CHIUSA':'🏁 CHIUDI'}</button>`:''}
       <button onclick="selezionaComp('${nextKey}')" style="background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:10px;padding:10px 14px;color:var(--testo);cursor:pointer;font-size:18px;flex-shrink:0">›</button>
     </div>
 
@@ -392,6 +393,137 @@ function getPremi(key) {
     coglioni:   { 1:"3M FM (punteggio più basso)", 2:"1.5M FM" }
   };
   return map[key] || {};
+}
+
+// ===== CHIUSURA COMPETIZIONE: assegna trofeo + premio in FM al vincitore =====
+
+// Estrae il valore in FM da una stringa premio tipo "15M FM + 40€" → 15000000.
+// Ignora la parte in € (soldi reali tra amici, non gestita dall'app).
+function estraiFMdaPremio(str){
+  if(!str) return 0;
+  const m=String(str).match(/([\d.,]+)\s*M\s*FM/i);
+  if(!m) return 0;
+  return parseFloat(m[1].replace(',','.'))*1000000;
+}
+
+// Trova il premio per una posizione, gestendo anche chiavi raggruppate
+// tipo "1°-2°-3°" (usata da crediti).
+function premioPerPosizione(key, posizione){
+  const premi=getPremi(key);
+  if(premi[posizione]!==undefined) return premi[posizione];
+  for(const k in premi){
+    if(String(k).split(/[^0-9]+/).filter(Boolean).includes(String(posizione))) return premi[k];
+  }
+  return null;
+}
+
+// Una competizione è considerata già chiusa in questa stagione se esiste
+// già un trofeo di quel tipo con anno = STAGIONE_CORRENTE per qualsiasi squadra.
+function giaChiusaQuestaStagione(key){
+  return squadreDB.some(sq=>(sq.trofei||[]).some(t=>t.compId===key&&t.anno===STAGIONE_CORRENTE));
+}
+
+// Determina il vincitore attuale (classifica o tabellone), senza chiudere nulla.
+// Ritorna {sqId, comeDeterminato} oppure null se non determinabile.
+function rilevaVincitoreComp(key){
+  const cfg=COMP_CONFIG[key];
+  if(!cfg) return null;
+  if(cfg.haClassifica){
+    const cl=compClassifiche.filter(c=>c.competizione===key&&c.stagione===STAGIONE_CORRENTE).sort((a,b)=>a.posizione-b.posizione);
+    if(!cl.length) return null;
+    return {sqId:cl[0].squadra_id, metodo:'classifica'};
+  }
+  // Tabellone: cerca la finale giocata
+  const finali=compPartite.filter(p=>p.competizione===key&&p.stagione===STAGIONE_CORRENTE&&p.fase==='finale'&&p.giocata);
+  if(!finali.length) return null;
+  const f=finali[finali.length-1];
+  if(f.punti_casa===f.punti_ospite) return {sqId:null, metodo:'pareggio'}; // serve scelta manuale
+  const sqId=f.punti_casa>f.punti_ospite?f.squadra_casa_id:f.squadra_ospite_id;
+  return {sqId, metodo:'finale'};
+}
+
+function apriChiudiCompetizione(key){
+  if(!adminLoggato) return;
+  if(giaChiusaQuestaStagione(key)){ showToast('❌ Competizione già chiusa per questa stagione','error'); return; }
+  const cfg=COMP_CONFIG[key];
+  const rilevato=rilevaVincitoreComp(key);
+  const premio1=premioPerPosizione(key,1)||premioPerPosizione(key,'1°-2°-3°');
+  const fmPremio=estraiFMdaPremio(premio1);
+
+  document.getElementById('modal-chiudi-comp')?.remove();
+  const modal=document.createElement('div');
+  modal.className='modal-overlay open';
+  modal.id='modal-chiudi-comp';
+  modal.onclick=(e)=>{if(e.target===modal) modal.remove();};
+  modal.innerHTML=`
+    <div class="modal" style="max-width:420px">
+      <div class="modal-header">
+        <div class="modal-title" style="color:var(--rosso)">🏁 CHIUDI ${cfg.nome.toUpperCase()}</div>
+        <button class="modal-close" onclick="document.getElementById('modal-chiudi-comp').remove()">×</button>
+      </div>
+      <div style="padding:20px">
+        <div style="font-size:12px;color:var(--testo-dim);margin-bottom:12px">
+          ${rilevato&&rilevato.sqId?`Vincitore rilevato automaticamente (${rilevato.metodo==='classifica'?'1° in classifica':'vincitore della finale'}).`:
+            rilevato&&rilevato.metodo==='pareggio'?'⚠️ La finale è in parità: seleziona tu il vincitore.':
+            '⚠️ Non riesco a determinare il vincitore automaticamente (classifica/finale non ancora inserita): seleziona tu.'}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Squadra Vincitrice</label>
+          <select class="form-select" id="chiudi-comp-sq">
+            ${squadreDB.map(s=>`<option value="${s.id}" ${rilevato&&rilevato.sqId===s.id?'selected':''}>${s.nome_squadra||s.nome}</option>`).join('')}
+          </select>
+        </div>
+        <div style="background:var(--grigio-scuro);border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px">
+          <div style="color:var(--testo-dim);margin-bottom:4px">Premio 1° posto:</div>
+          <div style="color:var(--oro);font-family:'Bebas Neue',sans-serif;font-size:16px">${premio1||'Non configurato'}</div>
+          ${fmPremio>0?`<div style="color:var(--testo-dim);margin-top:4px">→ Verranno accreditati ${fmtNum(fmPremio)} FM alla squadra vincitrice.</div>`:''}
+          ${premio1&&premio1.includes('€')?'<div style="color:var(--rosso);margin-top:4px">⚠️ Il premio include soldi reali (€): quelli vanno gestiti tra voi, l\'app accredita solo i FM.</div>':''}
+          ${key==='campionato'?'<div style="color:var(--testo-dim);margin-top:6px">Il 2° e 3° posto in classifica riceveranno automaticamente medaglia + premio corrispondente.</div>':''}
+        </div>
+        <button onclick="confermaChiusuraCompetizione('${key}')" style="width:100%;background:var(--rosso);color:#fff;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;padding:12px;border-radius:8px;border:none;cursor:pointer">⚡ CONFERMA CHIUSURA</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function confermaChiusuraCompetizione(key){
+  if(giaChiusaQuestaStagione(key)){ showToast('❌ Competizione già chiusa','error'); document.getElementById('modal-chiudi-comp')?.remove(); return; }
+  const sqId=document.getElementById('chiudi-comp-sq').value;
+  const sqWin=squadreDB.find(s=>s.id===sqId);
+  if(!sqWin){ showToast('❌ Squadra non valida','error'); return; }
+
+  try{
+    // Vincitore: trofeo + premio
+    const premio1=premioPerPosizione(key,1)||premioPerPosizione(key,'1°-2°-3°');
+    const fmPremio=estraiFMdaPremio(premio1);
+    const nuoviTrofeiWin=[...(sqWin.trofei||[]),{compId:key,anno:STAGIONE_CORRENTE,posto:1}];
+    const nuovoBudgetWin=(sqWin.budget||0)+fmPremio;
+    await sb.from('squadre').update({trofei:nuoviTrofeiWin,budget:nuovoBudgetWin}).eq('id',sqWin.id);
+    sqWin.trofei=nuoviTrofeiWin; sqWin.budget=nuovoBudgetWin;
+
+    // Solo per il Campionato: medaglia + premio automatici anche per 2° e 3°
+    if(key==='campionato'){
+      const cl=compClassifiche.filter(c=>c.competizione===key&&c.stagione===STAGIONE_CORRENTE).sort((a,b)=>a.posizione-b.posizione);
+      for(const posto of [2,3]){
+        const riga=cl.find(c=>c.posizione===posto);
+        if(!riga) continue;
+        const sq=squadreDB.find(s=>s.id===riga.squadra_id);
+        if(!sq) continue;
+        const premio=premioPerPosizione(key,posto);
+        const fm=estraiFMdaPremio(premio);
+        const nuoviTrofei=[...(sq.trofei||[]),{compId:key,anno:STAGIONE_CORRENTE,posto}];
+        const nuovoBudget=(sq.budget||0)+fm;
+        await sb.from('squadre').update({trofei:nuoviTrofei,budget:nuovoBudget}).eq('id',sq.id);
+        sq.trofei=nuoviTrofei; sq.budget=nuovoBudget;
+      }
+    }
+
+    showToast(`✅ ${COMP_CONFIG[key].nome} chiusa! Trofeo assegnato a ${sqWin.nome_squadra||sqWin.nome}${fmPremio>0?' • +'+fmtNum(fmPremio)+' FM':''}`);
+    document.getElementById('modal-chiudi-comp')?.remove();
+    renderCompLayout();
+  }catch(e){
+    showToast('❌ Errore: '+e.message,'error');
+  }
 }
 
 function renderPremiBox(key) {
