@@ -22,16 +22,8 @@ function getPercentualeRiempimento(piazzamento){
 
 // Foto reali (Copilot) per ciascun livello stadio 1-8. Se un livello non è
 // presente qui, si torna automaticamente all'SVG disegnato a mano.
-const IMMAGINI_STADI={
-  1:'img/stadi/stadio_1.jpg',
-  2:'img/stadi/stadio_2.jpg',
-  3:'img/stadi/stadio_3.jpg',
-  4:'img/stadi/stadio_4.jpg',
-  5:'img/stadi/stadio_5.jpg',
-  6:'img/stadi/stadio_6.jpg',
-  7:'img/stadi/stadio_7.jpg',
-  8:'img/stadi/stadio_8.jpg',
-};
+// Popolata da carica-dati.js leggendo immagini_config (caricate da admin).
+let IMMAGINI_STADI={};
 
 function disegnaStadio(capienza){
   const level=getStadioLevel(capienza);

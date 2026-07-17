@@ -304,3 +304,69 @@ async function eliminaDomandaCustom(id){
     renderFormDomande();
   }catch(e){showToast('❌ '+e.message,'error');}
 }
+
+// ===== GESTIONE IMMAGINI (trofei, stadio, store, fastfood) =====
+let uploadingImgKey=null;
+
+function apriGestioneImmagini(){
+  if(!adminLoggato) return;
+  document.getElementById('modal-immagini').classList.add('open');
+  renderGestioneImmagini();
+}
+
+function renderGestioneImmagini(){
+  const body=document.getElementById('immagini-admin-body');
+  if(!body) return;
+  const sezioni=[
+    {titolo:'🏆 Trofei', prefisso:'trofeo_', chiavi:TIPI_TROFEO},
+    {titolo:'🏟️ Stadio (livelli 1-8)', prefisso:'stadio_', chiavi:[1,2,3,4,5,6,7,8]},
+    {titolo:'👕 Store Maglie (livelli 0-7)', prefisso:'store_', chiavi:[0,1,2,3,4,5,6,7]},
+    {titolo:'🍔 Fast Food (livelli 0-8)', prefisso:'fastfood_', chiavi:[0,1,2,3,4,5,6,7,8]},
+  ];
+  body.innerHTML=`
+    <div style="font-size:11px;color:var(--testo-dim);margin-bottom:14px">
+      Tocca un riquadro per caricare/sostituire la foto. Va in automatico su Cloudinary, non serve fare nulla a mano.
+    </div>
+    ${sezioni.map(sez=>`
+      <div style="margin-bottom:20px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--oro);letter-spacing:1px;margin-bottom:8px">${sez.titolo}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px">
+          ${sez.chiavi.map(k=>{
+            const chiave=sez.prefisso+k;
+            const url=immaginiConfigDB[chiave];
+            const labelBreve=String(k).replace(/_/g,' ').slice(0,10);
+            return `<div style="text-align:center">
+              <div onclick="document.getElementById('imgfile-${chiave}').click()" style="width:100%;aspect-ratio:1;background:var(--grigio-scuro);border:2px dashed ${url?'rgba(0,255,135,0.4)':'var(--grigio-chiaro)'};border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;position:relative">
+                ${url?`<img src="${url}" style="width:100%;height:100%;object-fit:cover">`:'<span style="font-size:18px;color:var(--testo-dim)">➕</span>'}
+                ${uploadingImgKey===chiave?'<div style="position:absolute;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center"><div class="loading-spinner" style="width:18px;height:18px"></div></div>':''}
+              </div>
+              <div style="font-size:9px;color:var(--testo-dim);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${labelBreve}</div>
+              <input type="file" id="imgfile-${chiave}" accept="image/*" style="display:none" onchange="caricaImmagineConfig('${chiave}',this.files[0])">
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`).join('')}`;
+}
+
+async function caricaImmagineConfig(chiave, file){
+  if(!file) return;
+  uploadingImgKey=chiave;
+  renderGestioneImmagini();
+  try{
+    const url=await uploadToCloudinary(file,'config');
+    if(!url) throw new Error('Upload su Cloudinary fallito');
+    const{error}=await sb.from('immagini_config').upsert({chiave,url}).select();
+    if(error) throw error;
+    immaginiConfigDB[chiave]=url;
+    if(chiave.startsWith('trofeo_')) IMMAGINI_TROFEI[chiave.replace('trofeo_','')]=url;
+    else if(chiave.startsWith('stadio_')) IMMAGINI_STADI[parseInt(chiave.replace('stadio_',''))]=url;
+    else if(chiave.startsWith('store_')) IMMAGINI_STORE[parseInt(chiave.replace('store_',''))]=url;
+    else if(chiave.startsWith('fastfood_')) IMMAGINI_FASTFOOD[parseInt(chiave.replace('fastfood_',''))]=url;
+    showToast('✅ Immagine caricata!');
+  }catch(e){
+    showToast('❌ '+e.message,'error');
+  }finally{
+    uploadingImgKey=null;
+    renderGestioneImmagini();
+  }
+}

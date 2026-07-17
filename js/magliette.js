@@ -65,16 +65,8 @@ function disegnaMaglia(giocatore,numero,upgradeKit,coloreSquadra='#1a237e'){
 
 // Foto reali (Copilot) per ciascun livello store 0-7. Se un livello non è
 // presente qui, si torna automaticamente all'SVG disegnato a mano.
-const IMMAGINI_STORE={
-  0:'img/store/store_0.jpg',
-  1:'img/store/store_1.jpg',
-  2:'img/store/store_2.jpg',
-  3:'img/store/store_3.jpg',
-  4:'img/store/store_4.jpg',
-  5:'img/store/store_5.jpg',
-  6:'img/store/store_6.jpg',
-  7:'img/store/store_7.jpg',
-};
+// Popolata da carica-dati.js leggendo immagini_config (caricate da admin).
+let IMMAGINI_STORE={};
 
 function disegnaStore(capienza){
   const store=getStoreLevel(capienza);

@@ -636,6 +636,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div class="admin-card" onclick="apriModificaNomi()"><div class="admin-card-icon">✏️</div><div class="admin-card-title">Nome Squadra/Partecipante</div><div class="admin-card-sub">Rinomina fantasquadra o proprietario</div></div>
             <div class="admin-card" onclick="apriGestioneCostruzioni()" style="border-color:rgba(255,68,68,0.4);background:rgba(255,68,68,0.05)"><div class="admin-card-icon">🔨</div><div class="admin-card-title">Annulla Costruzioni</div><div class="admin-card-sub">Stadio, Fast Food, Kit Store</div></div>
             <div class="admin-card" onclick="apriGestioneDomande()"><div class="admin-card-icon">🎤</div><div class="admin-card-title">Domande Intervista</div><div class="admin-card-sub">Aggiungi domande personalizzate</div></div>
+            <div class="admin-card" onclick="apriGestioneImmagini()"><div class="admin-card-icon">🖼️</div><div class="admin-card-title">Gestione Immagini</div><div class="admin-card-sub">Trofei, stadio, store, fast food</div></div>
             <div class="admin-card" onclick="showToast('⭐ In costruzione')"><div class="admin-card-icon">⭐</div><div class="admin-card-title">Capitani</div><div class="admin-card-sub">Aggiorna C e V</div></div>
           </div>
           <div class="admin-section-title">💰 GESTIONE ECONOMICA</div>
@@ -1323,6 +1324,17 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <button class="modal-close" onclick="document.getElementById('modal-domande').classList.remove('open')">×</button>
     </div>
     <div style="padding:20px" id="domande-admin-body"></div>
+  </div>
+</div>
+
+<!-- MODAL GESTIONE IMMAGINI -->
+<div class="modal-overlay" id="modal-immagini" onclick="closeModal('modal-immagini',event)">
+  <div class="modal" style="border-color:var(--oro);max-width:520px">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--oro)">🖼️ GESTIONE IMMAGINI</div>
+      <button class="modal-close" onclick="document.getElementById('modal-immagini').classList.remove('open')">×</button>
+    </div>
+    <div style="padding:20px;max-height:75vh;overflow-y:auto" id="immagini-admin-body"></div>
   </div>
 </div>
 

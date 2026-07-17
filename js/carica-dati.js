@@ -20,6 +20,18 @@ async function caricaDati(){
     sb.from('rate_mercato').select('*').order('data_scadenza')
       .then(r=>{if(!r.error){rateMercato=r.data||[]; controllaRateScadute();}})
       .catch(e=>console.warn('Rate mercato non caricate:',e.message));
+    sb.from('immagini_config').select('*')
+      .then(r=>{
+        if(r.error) return;
+        (r.data||[]).forEach(row=>{
+          immaginiConfigDB[row.chiave]=row.url;
+          if(row.chiave.startsWith('trofeo_')) IMMAGINI_TROFEI[row.chiave.replace('trofeo_','')]=row.url;
+          else if(row.chiave.startsWith('stadio_')) IMMAGINI_STADI[parseInt(row.chiave.replace('stadio_',''))]=row.url;
+          else if(row.chiave.startsWith('store_')) IMMAGINI_STORE[parseInt(row.chiave.replace('store_',''))]=row.url;
+          else if(row.chiave.startsWith('fastfood_')) IMMAGINI_FASTFOOD[parseInt(row.chiave.replace('fastfood_',''))]=row.url;
+        });
+      })
+      .catch(e=>console.warn('Immagini config non caricate:',e.message));
     sb.from('trattative').select('*').order('created_at',{ascending:false})
       .then(r=>{if(!r.error){trattativeDB=r.data||[];controllaPrestatiScaduti();}});
     caricaGiocatoriBackground();

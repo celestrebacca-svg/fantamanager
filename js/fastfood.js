@@ -19,7 +19,19 @@ function calcGuadagnoFF(livello, paganti){
   return clienti*ff.spesa*19; // 19 partite casa
 }
 
+// Foto reali (Copilot) per ciascun livello fast food 0-8 (9 livelli).
+// Se un livello non è presente qui, si torna automaticamente all'SVG disegnato a mano.
+// Popolata da carica-dati.js leggendo immagini_config (caricate da admin).
+let IMMAGINI_FASTFOOD={};
+
 function disegnaFastFood(livello){
+  if(IMMAGINI_FASTFOOD[livello]){
+    return `<img src="${IMMAGINI_FASTFOOD[livello]}" style="width:100%;max-width:320px;height:120px;object-fit:cover;border-radius:8px;display:block;margin:0 auto">`;
+  }
+  return disegnaFastFoodSvg(livello);
+}
+
+function disegnaFastFoodSvg(livello){
   const ff=FF_LIVELLI[livello]||FF_LIVELLI[0];
   const colori=['#555','#8D6E63','#FF8F00','#F57F17','#E53935','#C62828','#880E4F','#4A148C','#1A237E'];
   const colore=colori[livello]||'#555';

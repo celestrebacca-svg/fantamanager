@@ -12,6 +12,7 @@ let utenteLoggato = null; // squadra dell'utente loggato
 // questo è solo il fallback iniziale prima che il caricamento finisca.
 let STAGIONE_CORRENTE = '2025/26';
 let squadreDB = [], giocatoriDB = [], tifosi_logDB = [], trattativeDB = [];
+let immaginiConfigDB = {}; // chiave -> url, caricato da tabella immagini_config
 let domandeCustomDB = []; // domande intervista aggiunte da admin (oltre a quelle predefinite in social.js)
 let squadraAttiva = null, tabAttivoSq = 'principale', ricercaSq = '';
 let giocatoreInModifica = null, giocatoreInFoto = null, squadraInLogo = null, squadraInPres = null, squadraInEmail = null;
