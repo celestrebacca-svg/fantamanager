@@ -250,6 +250,44 @@ function disegnaGenerico(w,h,anno,tipo,glow,lucente){
 // Mappa tipo trofeo -> funzione SVG
 // getTipoTrofeo ora vive in utils.js (carica sempre per primo).
 
+// Mostra il dettaglio di un trofeo: anni vinti, conteggio, foto grande
+function apriDettaglioTrofeo(sqId,compId,posto){
+  const sq=squadreDB.find(s=>String(s.id)===String(sqId));
+  if(!sq) return;
+  const trofei=(sq.trofei||[]).filter(t=>t.compId===compId&&(compId!=='campionato'||(t.posto||1)===posto));
+  if(!trofei.length) return;
+  const comp=competizioni.find(c=>c.id===compId);
+  const anni=trofei.map(t=>t.anno).sort().reverse();
+  let tipoImg=getTipoTrofeo(compId);
+  if(compId==='campionato'){
+    tipoImg=posto===2?'campionato_2':posto===3?'campionato_3':'campionato_1';
+  }
+  const url=(typeof IMMAGINI_TROFEI!=='undefined')?IMMAGINI_TROFEI[tipoImg]:null;
+  const nomePosto=compId==='campionato'?(posto===2?' — 2° posto':posto===3?' — 3° posto':' — 1° posto'):'';
+
+  document.getElementById('modal-dettaglio-trofeo')?.remove();
+  const modal=document.createElement('div');
+  modal.className='modal-overlay open';
+  modal.id='modal-dettaglio-trofeo';
+  modal.onclick=(e)=>{if(e.target===modal) modal.remove();};
+  modal.innerHTML=`
+    <div class="modal" style="max-width:380px;text-align:center">
+      <div class="modal-header">
+        <div class="modal-title" style="color:var(--oro)">${comp?comp.nome:compId}${nomePosto}</div>
+        <button class="modal-close" onclick="document.getElementById('modal-dettaglio-trofeo').remove()">×</button>
+      </div>
+      <div style="padding:24px">
+        ${url?`<img src="${url}" style="max-width:160px;max-height:160px;object-fit:contain;margin:0 auto 16px;display:block;filter:drop-shadow(0 0 10px rgba(255,215,0,0.3))">`:''}
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--oro);letter-spacing:1px">${trofei.length} ${trofei.length===1?'VITTORIA':'VITTORIE'}</div>
+        <div style="font-size:12px;color:var(--testo-dim);margin-top:12px">Vinto in:</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px">
+          ${anni.map(a=>`<span style="background:var(--grigio-scuro);border:1px solid var(--grigio-chiaro);border-radius:6px;padding:4px 10px;font-size:12px;font-family:'Space Mono',monospace">${a}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
 function renderMuseoStadio(sq){
   const trofei=sq.trofei||[];
   const capienza=sq.capienza_stadio||10000;
@@ -294,20 +332,29 @@ function renderMuseoStadio(sq){
       <!-- COPPE PER COMPETIZIONE -->
       ${Object.entries(perComp).map(([compId,arr])=>{
         const comp=competizioni.find(c=>c.id===compId);
+        // Un solo trofeo mostrato, con badge "×N" se vinto più volte.
+        // Se ci sono piazzamenti diversi (es. 1° e 2° posto), li raggruppa separatamente.
+        const perPosto={};
+        arr.forEach(t=>{
+          const chiave=compId==='campionato'?(t.posto||1):1;
+          if(!perPosto[chiave]) perPosto[chiave]=[];
+          perPosto[chiave].push(t);
+        });
         return `<div style="margin-bottom:16px">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:${livelloMuseo>=3?'#DAA520':'#888'};letter-spacing:1px;margin-bottom:8px;border-bottom:1px solid ${livelloMuseo>=5?'rgba(255,215,0,0.3)':'rgba(255,255,255,0.05)'};padding-bottom:4px">
             ${comp?comp.nome:compId} — ${arr.length} vittorie × ${getMolt(arr.length)}
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:8px">
-            ${arr.map(t=>{
+            ${Object.entries(perPosto).map(([posto,vittorie])=>{
               let tipoSvg=getTipoTrofeo(compId);
               if(compId==='campionato'){
-                if(t.posto===2) tipoSvg='campionato_2';
-                else if(t.posto===3) tipoSvg='campionato_3';
-                else tipoSvg='campionato_1';
+                const p=parseInt(posto);
+                tipoSvg=p===2?'campionato_2':p===3?'campionato_3':'campionato_1';
               }
-              return `<div style="text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:6px;${livelloMuseo>=5?'box-shadow:0 0 8px rgba(255,215,0,0.1)':''}">
-                ${disegnaCoppa(tipoSvg,t.anno,livelloMuseo)}
+              const ultimoAnno=vittorie[vittorie.length-1].anno;
+              return `<div onclick="apriDettaglioTrofeo('${sq.id}','${compId}',${posto})" style="cursor:pointer;position:relative;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:6px;${livelloMuseo>=5?'box-shadow:0 0 8px rgba(255,215,0,0.1)':''}">
+                ${disegnaCoppa(tipoSvg,ultimoAnno,livelloMuseo)}
+                ${vittorie.length>1?`<div style="position:absolute;top:2px;right:2px;background:var(--oro);color:#000;font-size:9px;font-weight:700;border-radius:10px;padding:1px 5px">×${vittorie.length}</div>`:''}
               </div>`;
             }).join('')}
           </div>

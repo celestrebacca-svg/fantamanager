@@ -13,6 +13,8 @@ let utenteLoggato = null; // squadra dell'utente loggato
 let STAGIONE_CORRENTE = '2025/26';
 let squadreDB = [], giocatoriDB = [], tifosi_logDB = [], trattativeDB = [];
 let immaginiConfigDB = {}; // chiave -> url, caricato da tabella immagini_config
+let adminModalitaDirettaTrattativa = false; // true mentre admin sta creando una trattativa diretta
+let _utenteLoggatoBackupAdmin = null; // utenteLoggato originale, ripristinato dopo la trattativa diretta
 let domandeCustomDB = []; // domande intervista aggiunte da admin (oltre a quelle predefinite in social.js)
 let squadraAttiva = null, tabAttivoSq = 'principale', ricercaSq = '';
 let giocatoreInModifica = null, giocatoreInFoto = null, squadraInLogo = null, squadraInPres = null, squadraInEmail = null;

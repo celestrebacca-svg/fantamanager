@@ -115,19 +115,33 @@ async function eseguiTrasferimento(t){
 
   // ── SCAMBIO ──
   if(isScambio){
+    const config=t.giocatori_config||[];
+    const getTipoGiocatore=gId=>{
+      const c=config.find(x=>String(x.giocatore_id)===String(gId));
+      const mappa={definitivo:'Titolo Definitivo',prestito:'Prestito Secco',prestito_riscatto:'Prestito con Diritto di Riscatto',prestito_obbligo:'Prestito con Obbligo di Riscatto'};
+      return mappa[c?.tipo]||'Titolo Definitivo';
+    };
     for(const gId of (t.giocatori_cambio_ids||[])){
-      const upd={squadra_id:sqCedente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
+      const tipoG=getTipoGiocatore(gId);
+      const isPrestitoG=tipoG.includes('Prestito');
+      const upd=isPrestitoG
+        ?{squadra_id:sqCedente,contratto:tipoG,badge:'P',squadra_propr:sqAcquirente,squadra_originale_id:sqAcquirente,scadenza:null,riscatto:null}
+        :{squadra_id:sqCedente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
       await sb.from('giocatori').update(upd).eq('id',gId);
       const i=giocatoriDB.findIndex(g=>g.id==gId);
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
-      logStoricoGiocatore(gId,'scambio',{squadra_da:sqAcquirente,squadra_a:sqCedente,tipo_contratto:'Titolo Definitivo',note:`Scambio: ${t.tipo}`});
+      logStoricoGiocatore(gId,'scambio',{squadra_da:sqAcquirente,squadra_a:sqCedente,tipo_contratto:tipoG,note:`Scambio: ${t.tipo}`});
     }
     for(const gId of (t.giocatori_ids_richiesti||[])){
-      const upd={squadra_id:sqAcquirente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
+      const tipoG=getTipoGiocatore(gId);
+      const isPrestitoG=tipoG.includes('Prestito');
+      const upd=isPrestitoG
+        ?{squadra_id:sqAcquirente,contratto:tipoG,badge:'P',squadra_propr:sqCedente,squadra_originale_id:sqCedente,scadenza:null,riscatto:null}
+        :{squadra_id:sqAcquirente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
       await sb.from('giocatori').update(upd).eq('id',gId);
       const i=giocatoriDB.findIndex(g=>g.id==gId);
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
-      logStoricoGiocatore(gId,'scambio',{squadra_da:sqCedente,squadra_a:sqAcquirente,tipo_contratto:'Titolo Definitivo',note:`Scambio: ${t.tipo}`});
+      logStoricoGiocatore(gId,'scambio',{squadra_da:sqCedente,squadra_a:sqAcquirente,tipo_contratto:tipoG,note:`Scambio: ${t.tipo}`});
     }
   }
 

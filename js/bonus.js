@@ -329,6 +329,13 @@ async function inviaTrattativa(){
     dati.giocatori_cambio_ids=giocatoriMiei; // miei che offro
     dati.giocatori_ids_richiesti=giocatoriSuoi; // suoi che voglio
     if(!giocatoriMiei.length&&!giocatoriSuoi.length){showToast('❌ Seleziona almeno un giocatore per parte','error');return;}
+    // Configurazione per-giocatore (tipo contratto): letta dai select mostrati
+    // per ogni giocatore selezionato in aggiornaDettagliScambio()
+    dati.giocatori_config=[...giocatoriMiei,...giocatoriSuoi].map(gId=>({
+      giocatore_id:gId,
+      tipo:document.getElementById(`scambio-tipo-${gId}`)?.value||'definitivo',
+      valore:parseM(document.getElementById(`scambio-valore-${gId}`)?.value)||0,
+    }));
     if(dati.importo>0){
       const dirCong=document.getElementById('trat-direzione-conguaglio')?.value||'pago';
       dati.direzione_importo=dirCong;
@@ -374,9 +381,19 @@ async function inviaTrattativa(){
     const{data,error}=await sb.from('trattative').insert(dati).select();
     if(error) throw error;
     trattativeDB.unshift(data[0]);
-    showToast('📤 Proposta inviata!');
-    document.getElementById('modal-trattativa').classList.remove('open');
-    renderTrattative();
+
+    if(typeof adminModalitaDirettaTrattativa!=='undefined'&&adminModalitaDirettaTrattativa){
+      // Modalità admin diretta: esegue subito invece di lasciare in attesa di approvazione
+      await cambiaStatoTrattativa(data[0].id,'approvata');
+      utenteLoggato=_utenteLoggatoBackupAdmin;
+      adminModalitaDirettaTrattativa=false;
+      document.getElementById('modal-trattativa').classList.remove('open');
+      showToast('✅ Trattativa diretta creata ed eseguita subito!');
+    } else {
+      showToast('📤 Proposta inviata!');
+      document.getElementById('modal-trattativa').classList.remove('open');
+      renderTrattative();
+    }
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
   finally{btn.disabled=false;btn.textContent='📤 INVIA PROPOSTA';}
 }
