@@ -29,6 +29,14 @@ function prossimaStagione(s){
   return `${y1}/${String(y2).padStart(2,'0')}`;
 }
 
+// Normalizza il formato stagione: "2025/2026" (lungo) → "2025/26" (corto,
+// quello usato ovunque nell'app). Se è già nel formato giusto, lo lascia stare.
+function normalizzaStagione(s){
+  const m=String(s||'').match(/^(\d{4})\/(\d{4})$/);
+  if(!m) return s;
+  return `${m[1]}/${m[2].slice(2)}`;
+}
+
 // Costruisce un URL Cloudinary con ottimizzazione automatica di formato e qualità
 // (f_auto,q_auto) e larghezza massima specificata. publicId = percorso senza estensione,
 // es. cldUrl('trofei/champions', 200).

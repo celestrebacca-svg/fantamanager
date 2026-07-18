@@ -11,9 +11,17 @@ async function caricaDati(){
     if(sq.error) throw new Error(sq.error.message);
     squadreDB=sq.data||[];
     document.getElementById('home-num-squadre').textContent=squadreDB.length||'—';
-    sb.from('impostazioni').select('*').eq('id',1).single()
-      .then(r=>{if(!r.error&&r.data?.stagione_corrente) STAGIONE_CORRENTE=r.data.stagione_corrente;})
-      .catch(e=>console.warn('Impostazioni non caricate, uso fallback:',e.message));
+
+    // IMPORTANTE: la stagione va caricata PRIMA di qualsiasi altra cosa (await,
+    // non fire-and-forget) — altrimenti per una frazione di secondo l'app usa
+    // ancora il valore di fallback vecchio, e qualsiasi azione fatta in quella
+    // finestra (es. pescare un obiettivo Risiko) viene salvata con la stagione
+    // sbagliata e sparisce silenziosamente dalla vista.
+    try{
+      const imp=await sb.from('impostazioni').select('*').eq('id',1).single();
+      if(!imp.error&&imp.data?.stagione_corrente) STAGIONE_CORRENTE=normalizzaStagione(imp.data.stagione_corrente);
+    }catch(e){ console.warn('Impostazioni non caricate, uso fallback:',e.message); }
+
     sb.from('domande_custom').select('*').order('created_at')
       .then(r=>{if(!r.error) domandeCustomDB=r.data||[];})
       .catch(e=>console.warn('Domande custom non caricate:',e.message));

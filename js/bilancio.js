@@ -322,7 +322,8 @@ function calcolaRenditaMuseo(trofei) {
 // Correzione manuale della stagione (per errori, NON per il normale avanzamento
 // a fine anno — quello è automatico con "Apri Nuovo Bilancio")
 async function correggiStagioneManuale() {
-  const val = document.getElementById('corr-stagione').value.trim();
+  let val = document.getElementById('corr-stagione').value.trim();
+  if (/^\d{4}\/\d{4}$/.test(val)) val = normalizzaStagione(val); // accetta anche "2025/2026" e lo converte
   if (!/^\d{4}\/\d{2}$/.test(val)) { showToast('❌ Formato non valido, usa es. 2025/26','error'); return; }
   if (!confirm(`Correggere manualmente la stagione a ${val}?\nVerrà usata subito ovunque nell'app (bilancio, competizioni, risiko, storia giocatori).`)) return;
   try {
