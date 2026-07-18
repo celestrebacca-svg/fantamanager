@@ -95,6 +95,7 @@ function apriNuovaTrattativa(giocatore=null){
   rateList=[];
   giocatoriCambioSelezionati=[];
   giocatoriSuoiSelezionati=[];
+  clausoleRecompraTemp={};
   bonusList=[];
 
   // Info giocatore target
@@ -196,7 +197,7 @@ function aggiornaDettagliScambio(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <div>
           <div style="font-size:10px;color:var(--testo-dim);margin-bottom:3px">Tipo</div>
-          <select id="scambio-tipo-${gId}" class="form-select" style="font-size:12px;padding:6px 8px">
+          <select id="scambio-tipo-${gId}" class="form-select" style="font-size:12px;padding:6px 8px" onchange="toggleRecompraGiocatore(${gId})">
             <option value="definitivo">Definitivo</option>
             <option value="prestito">Prestito</option>
             <option value="prestito_riscatto">Prestito + Diritto Riscatto</option>
@@ -208,8 +209,50 @@ function aggiornaDettagliScambio(){
           <input class="form-input" type="text" id="scambio-valore-${gId}" placeholder="Es. 5 oppure 5.5" style="font-size:12px;padding:6px 8px">
         </div>
       </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:10px;cursor:pointer;margin:8px 0 0">
+        <input type="checkbox" id="scambio-recompra-chk-${gId}" onchange="toggleRecompraGiocatore(${gId})"> Contro-riscatto (il cedente può riprenderselo in futuro)
+      </label>
+      <div id="scambio-recompra-box-${gId}" style="display:none;margin-top:6px">
+        <div style="font-size:9px;color:var(--testo-dim);margin-bottom:4px">Puoi mettere più clausole con anni e importi diversi (es. 2027 a 35M, 2028 a 40M...)</div>
+        <div id="scambio-recompra-lista-${gId}"></div>
+        <button type="button" onclick="aggiungiClausolaRecompra(${gId})" style="background:none;border:1px dashed var(--grigio-chiaro);color:var(--testo-dim);font-size:10px;padding:5px 8px;border-radius:6px;cursor:pointer;width:100%;margin-top:4px">➕ Aggiungi clausola</button>
+      </div>
     </div>`;
   }).join('');
+  tutti.forEach(gId=>toggleRecompraGiocatore(gId));
+}
+
+let clausoleRecompraTemp={}; // gId -> [{anno, importo}]
+
+function toggleRecompraGiocatore(gId){
+  const tipo=document.getElementById(`scambio-tipo-${gId}`)?.value;
+  const chk=document.getElementById(`scambio-recompra-chk-${gId}`);
+  const box=document.getElementById(`scambio-recompra-box-${gId}`);
+  const label=chk?.closest('label')||chk?.parentElement;
+  if(!chk||!box) return;
+  // Ha senso su qualunque tipo tranne il prestito secco (che torna già da solo automaticamente)
+  const disponibile=tipo!=='prestito';
+  if(label) label.style.display=disponibile?'flex':'none';
+  if(!disponibile) chk.checked=false;
+  box.style.display=(disponibile&&chk.checked)?'block':'none';
+  if(chk.checked&&!clausoleRecompraTemp[gId]) { clausoleRecompraTemp[gId]=[{anno:'',importo:''}]; renderClausoleRecompra(gId); }
+}
+
+function aggiungiClausolaRecompra(gId){
+  if(!clausoleRecompraTemp[gId]) clausoleRecompraTemp[gId]=[];
+  clausoleRecompraTemp[gId].push({anno:'',importo:''});
+  renderClausoleRecompra(gId);
+}
+
+function renderClausoleRecompra(gId){
+  const box=document.getElementById(`scambio-recompra-lista-${gId}`);
+  if(!box) return;
+  box.innerHTML=(clausoleRecompraTemp[gId]||[]).map((c,i)=>`
+    <div style="display:flex;gap:6px;margin-bottom:5px;align-items:center">
+      <input class="form-input" type="number" placeholder="Anno (es. 2027)" value="${c.anno}" oninput="clausoleRecompraTemp[${gId}][${i}].anno=this.value" style="flex:1;font-size:11px;padding:6px 8px">
+      <input class="form-input" type="text" placeholder="Importo M (es. 35)" value="${c.importo}" oninput="clausoleRecompraTemp[${gId}][${i}].importo=this.value" style="flex:1;font-size:11px;padding:6px 8px">
+      <button type="button" onclick="clausoleRecompraTemp[${gId}].splice(${i},1);renderClausoleRecompra(${gId})" style="background:rgba(255,68,68,0.15);border:none;color:var(--rosso);border-radius:6px;padding:6px 8px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>`).join('');
 }
 
 function aggiornaCampiTrattativa(){
@@ -331,11 +374,21 @@ async function inviaTrattativa(){
     if(!giocatoriMiei.length&&!giocatoriSuoi.length){showToast('❌ Seleziona almeno un giocatore per parte','error');return;}
     // Configurazione per-giocatore (tipo contratto): letta dai select mostrati
     // per ogni giocatore selezionato in aggiornaDettagliScambio()
-    dati.giocatori_config=[...giocatoriMiei,...giocatoriSuoi].map(gId=>({
-      giocatore_id:gId,
-      tipo:document.getElementById(`scambio-tipo-${gId}`)?.value||'definitivo',
-      valore:parseM(document.getElementById(`scambio-valore-${gId}`)?.value)||0,
-    }));
+    dati.giocatori_config=[...giocatoriMiei,...giocatoriSuoi].map(gId=>{
+      const cfg={
+        giocatore_id:gId,
+        tipo:document.getElementById(`scambio-tipo-${gId}`)?.value||'definitivo',
+        valore:parseM(document.getElementById(`scambio-valore-${gId}`)?.value)||0,
+      };
+      if(document.getElementById(`scambio-recompra-chk-${gId}`)?.checked){
+        const clausole=(clausoleRecompraTemp[gId]||[])
+          .filter(c=>c.anno&&c.importo)
+          .map(c=>({anno:parseInt(c.anno),importo:parseM(c.importo)}))
+          .sort((a,b)=>a.anno-b.anno);
+        if(clausole.length) cfg.clausole_recompra=clausole;
+      }
+      return cfg;
+    });
     if(dati.importo>0){
       const dirCong=document.getElementById('trat-direzione-conguaglio')?.value||'pago';
       dati.direzione_importo=dirCong;

@@ -116,32 +116,41 @@ async function eseguiTrasferimento(t){
   // ── SCAMBIO ──
   if(isScambio){
     const config=t.giocatori_config||[];
+    const getConfigGiocatore=gId=>config.find(x=>String(x.giocatore_id)===String(gId));
     const getTipoGiocatore=gId=>{
-      const c=config.find(x=>String(x.giocatore_id)===String(gId));
+      const c=getConfigGiocatore(gId);
       const mappa={definitivo:'Titolo Definitivo',prestito:'Prestito Secco',prestito_riscatto:'Prestito con Diritto di Riscatto',prestito_obbligo:'Prestito con Obbligo di Riscatto'};
       return mappa[c?.tipo]||'Titolo Definitivo';
+    };
+    const campiRecompra=(cfg,squadraCheDetieneIlDiritto)=>{
+      if(!cfg?.clausole_recompra?.length) return {clausole_recompra:null,squadra_recompra_id:null};
+      return {clausole_recompra:cfg.clausole_recompra,squadra_recompra_id:squadraCheDetieneIlDiritto};
     };
     for(const gId of (t.giocatori_cambio_ids||[])){
       const tipoG=getTipoGiocatore(gId);
       const isPrestitoG=tipoG.includes('Prestito');
+      const cfg=getConfigGiocatore(gId);
+      const recompra=campiRecompra(cfg,sqAcquirente); // la cedente originale (che ora diventa "acquirente" nello scambio) detiene il diritto
       const upd=isPrestitoG
-        ?{squadra_id:sqCedente,contratto:tipoG,badge:'P',squadra_propr:sqAcquirente,squadra_originale_id:sqAcquirente,scadenza:null,riscatto:null}
-        :{squadra_id:sqCedente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
+        ?{squadra_id:sqCedente,contratto:tipoG,badge:'P',squadra_propr:sqAcquirente,squadra_originale_id:sqAcquirente,scadenza:null,riscatto:null,...recompra}
+        :{squadra_id:sqCedente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null,...recompra};
       await sb.from('giocatori').update(upd).eq('id',gId);
       const i=giocatoriDB.findIndex(g=>g.id==gId);
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
-      logStoricoGiocatore(gId,'scambio',{squadra_da:sqAcquirente,squadra_a:sqCedente,tipo_contratto:tipoG,note:`Scambio: ${t.tipo}`});
+      logStoricoGiocatore(gId,'scambio',{squadra_da:sqAcquirente,squadra_a:sqCedente,tipo_contratto:tipoG,note:`Scambio: ${t.tipo}`+(recompra.clausole_recompra?` • contro-riscatto: ${recompra.clausole_recompra.map(c=>c.anno+' a '+fmtNum(c.importo)+' FM').join(', ')}`:'')});
     }
     for(const gId of (t.giocatori_ids_richiesti||[])){
       const tipoG=getTipoGiocatore(gId);
       const isPrestitoG=tipoG.includes('Prestito');
+      const cfg=getConfigGiocatore(gId);
+      const recompra=campiRecompra(cfg,sqCedente);
       const upd=isPrestitoG
-        ?{squadra_id:sqAcquirente,contratto:tipoG,badge:'P',squadra_propr:sqCedente,squadra_originale_id:sqCedente,scadenza:null,riscatto:null}
-        :{squadra_id:sqAcquirente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null};
+        ?{squadra_id:sqAcquirente,contratto:tipoG,badge:'P',squadra_propr:sqCedente,squadra_originale_id:sqCedente,scadenza:null,riscatto:null,...recompra}
+        :{squadra_id:sqAcquirente,contratto:'Titolo Definitivo',badge:null,squadra_propr:null,scadenza:null,riscatto:null,squadra_originale_id:null,...recompra};
       await sb.from('giocatori').update(upd).eq('id',gId);
       const i=giocatoriDB.findIndex(g=>g.id==gId);
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
-      logStoricoGiocatore(gId,'scambio',{squadra_da:sqCedente,squadra_a:sqAcquirente,tipo_contratto:tipoG,note:`Scambio: ${t.tipo}`});
+      logStoricoGiocatore(gId,'scambio',{squadra_da:sqCedente,squadra_a:sqAcquirente,tipo_contratto:tipoG,note:`Scambio: ${t.tipo}`+(recompra.clausole_recompra?` • contro-riscatto: ${recompra.clausole_recompra.map(c=>c.anno+' a '+fmtNum(c.importo)+' FM').join(', ')}`:'')});
     }
   }
 

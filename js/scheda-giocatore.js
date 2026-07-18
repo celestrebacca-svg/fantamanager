@@ -75,6 +75,7 @@ async function apriGiocatore(gId){
         ${g.scadenza?`<div class="contratto-row"><span class="label">Scadenza</span><span class="val" style="color:var(--rosso)">${g.scadenza}</span></div>`:''}
         ${g.squadra_propr?`<div class="contratto-row"><span class="label">Proprietario</span><span class="val">${g.squadra_propr}</span></div>`:''}
         ${g.riscatto?`<div class="contratto-row"><span class="label">Riscatto</span><span class="val" style="color:var(--oro)">${fmtNum(g.riscatto)} FM</span></div>`:''}
+        ${g.clausole_recompra?.length?g.clausole_recompra.map(c=>`<div class="contratto-row"><span class="label">🔄 Contro-riscatto ${c.anno}</span><span class="val" style="color:orange">${fmtNum(c.importo)} FM</span></div>`).join(''):''}
         ${g.clausola?`<div class="contratto-row"><span class="label">Clausola recompra</span><span class="val" style="color:var(--argento)">${fmtNum(g.clausola)} FM</span></div>`:''}
         ${g.rivendita?`<div class="contratto-row"><span class="label">% Futura rivendita</span><span class="val" style="color:var(--verde)">${g.rivendita}%</span></div>`:''}
         ${(g.contratto?.includes('Diritto')||g.contratto?.includes('Obbligo'))&&g.riscatto&&utenteLoggato&&utenteLoggato.id===g.squadra_id?`
