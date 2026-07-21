@@ -84,6 +84,7 @@ function showSection(nome,btn){
   else if(nome==='social') renderSocial();
   else if(nome==='risiko') renderRisiko();
   else if(nome==='bilancio') renderBilancio();
+  else if(nome==='talentboy') renderTalentBoy();
   else if(nome==='rose'){
     const lista=document.getElementById('lista-squadre');
     const pagina=document.getElementById('pagina-squadra');

@@ -86,7 +86,139 @@ async function salvaFormazione(sqId){
 }
 
 
-// Formatta importo in milioni FM (es. 5.000.000 → 5,00 M FM)
+// ===== FORMAZIONE UNDER 23 =====
+// Stessa meccanica della formazione principale, ma il pool giocatori include
+// Principale + Marginale + Primavera, filtrato per età massima 23 anni
+// (calcolata al 1° settembre della stagione corrente, vedi eleggibileU23 in utils.js).
+let formazioniU23DB={},formazioneU23SqIdAttiva=null,formazioneU23Slots={},formazioneU23ModuloCorrente='4-3-3',formazioneU23ContainerAttivo='formazione-u23-content',formazioneU23Panchina=[];
+
+async function caricaFormazioneU23(sqId){
+  if(formazioniU23DB[sqId]!==undefined) return formazioniU23DB[sqId];
+  try{const{data}=await sb.from('formazioni_u23').select('*').eq('squadra_id',sqId).single();formazioniU23DB[sqId]=data||null;}catch(e){formazioniU23DB[sqId]=null;}
+  return formazioniU23DB[sqId];
+}
+
+function poolU23(sqId){
+  return giocatoriDB.filter(g=>g.squadra_id===sqId&&['principale','marginale','primavera'].includes(g.lista)&&eleggibileU23(g.data_nascita));
+}
+
+async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u23-content'){
+  formazioneU23SqIdAttiva=sqId;
+  formazioneU23ContainerAttivo=containerId;
+  const c=document.getElementById(containerId);
+  if(!c) return;
+  c.innerHTML='<div class="loading"><div class="loading-spinner"></div></div>';
+  const f=await caricaFormazioneU23(sqId);
+  const giocatori=poolU23(sqId);
+  const modulo=editMode?formazioneU23ModuloCorrente:(f?.modulo||'4-3-3');
+  formazioneU23ModuloCorrente=modulo;
+  const mapT={};
+  (f?.titolari||[]).forEach(t=>mapT[t.slot]=t.gid);
+  if(editMode) Object.entries(formazioneU23Slots).forEach(([s,g])=>mapT[s]=g);
+  const slots=[];
+  ['P','D','C','A'].forEach(r=>(MODULI[modulo][r]||[]).forEach(([x,y],i)=>slots.push({slot:`${r}_${i}`,ruolo:r,x,y})));
+  const btn=document.getElementById('btn-edit-formazione-u23');
+  if(btn){btn.textContent=editMode?'✕ Annulla':'✏️ MODIFICA';btn.onclick=editMode?()=>renderFormazioneU23(sqId,false):()=>attivaEditFormazioneU23();}
+  const rc={'P':'#FFD700','D':'#4d9fff','C':'#00e68a','A':'#ff5c5c'};
+  const rcCss={'P':'var(--oro)','D':'var(--blu)','C':'var(--verde)','A':'var(--rosso)'};
+  c.innerHTML=`
+    <div style="font-size:11px;color:var(--testo-dim);margin-bottom:10px">
+      🌱 Solo giocatori Principale/Marginale/Primavera con massimo 23 anni al 1° settembre ${STAGIONE_CORRENTE?.split('/')[0]||''} (${giocatori.length} eleggibili).
+    </div>
+    ${editMode?`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><span style="font-size:12px;color:var(--testo-dim);align-self:center">Modulo:</span>${Object.keys(MODULI).map(m=>`<button onclick="cambiaModuloFormazioneU23('${m}')" style="font-size:12px;font-family:'Bebas Neue',sans-serif;padding:5px 11px;border-radius:6px;cursor:pointer;border:1px solid ${m===modulo?'var(--verde)':'var(--grigio-chiaro)'};background:${m===modulo?'rgba(0,255,135,0.15)':'var(--grigio)'};color:${m===modulo?'var(--verde)':'var(--testo)'}">${m}</button>`).join('')}</div>`:''}
+    <div style="position:relative;width:100%;max-width:360px;margin:0 auto 14px">
+      <svg viewBox="0 0 100 105" style="width:100%;border-radius:10px;display:block" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100" height="105" fill="#2a5e2a"/>${[0,1,2,3,4].map(i=>`<rect x="0" y="${i*21}" width="100" height="10.5" fill="${i%2?'#2d652d':'#2a5e2a'}"/>`).join('')}
+        <rect x="1" y="1" width="98" height="98" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="0.5"/>
+        <line x1="1" y1="50" x2="99" y2="50" stroke="rgba(255,255,255,0.4)" stroke-width="0.4"/>
+        <circle cx="50" cy="50" r="10" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="0.4"/>
+        <rect x="21" y="1" width="58" height="16" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.4"/>
+        <rect x="21" y="83" width="58" height="16" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="0.4"/>
+      </svg>
+      ${slots.map(s=>{
+        const g=mapT[s.slot]?giocatoriDB.find(x=>x.id===mapT[s.slot]):null;
+        if(editMode){const cand=giocatori.filter(gg=>gg.ruolo===s.ruolo);return `<div style="position:absolute;left:${s.x}%;top:${s.y}%;transform:translate(-50%,-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:1px"><div style="width:26px;height:26px;border-radius:50%;background:${rc[s.ruolo]};border:2px solid white;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000">${g?.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:g?iniziali(g.nome):'?'}</div><select onchange="assegnaSlotU23('${s.slot}',this.value)" style="font-size:6px;background:rgba(0,0,0,0.85);color:white;border:1px solid ${rc[s.ruolo]};border-radius:3px;padding:1px;max-width:44px"><option value="">—</option>${cand.map(gg=>`<option value="${gg.id}" ${mapT[s.slot]===gg.id?'selected':''}>${gg.nome.split(' ').pop()}</option>`).join('')}</select></div>`;}
+        return `<div style="position:absolute;left:${s.x}%;top:${s.y}%;transform:translate(-50%,-50%);z-index:2;text-align:center" ${g?`onclick="apriGiocatore(${g.id})" style="cursor:pointer"`:''}><div style="width:${g?'28':'20'}px;height:${g?'28':'20'}px;border-radius:50%;background:${g?rc[s.ruolo]:'rgba(255,255,255,0.1)'};border:2px solid ${g?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.2)'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000;margin:0 auto">${g?.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:g?iniziali(g.nome):''}</div>${g?`<div style="font-size:6px;color:white;text-shadow:0 1px 3px rgba(0,0,0,1);max-width:36px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${g.nome.split(' ').pop()}</div>`:''}</div>`;
+      }).join('')}
+    </div>
+    <div style="text-align:center;font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--verde);letter-spacing:3px;margin-bottom:12px">${modulo}</div>
+    <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:10px;overflow:hidden;margin-bottom:12px">
+      <div style="background:var(--grigio-scuro);padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;border-bottom:1px solid var(--grigio-chiaro)">📋 11 TITOLARI U23</div>
+      ${slots.map((s,i)=>{const g=mapT[s.slot]?giocatoriDB.find(x=>x.id===mapT[s.slot]):null;return `<div style="display:flex;align-items:center;gap:8px;padding:5px 14px;border-bottom:1px solid var(--grigio-chiaro);font-size:12px"><span style="font-size:9px;color:var(--testo-dim);width:14px">${i+1}</span><span style="font-size:9px;color:${rcCss[s.ruolo]};background:${rcCss[s.ruolo]}22;padding:2px 5px;border-radius:3px;flex-shrink:0;font-weight:700">${s.ruolo}</span>${g?`<div style="width:20px;height:20px;border-radius:50%;overflow:hidden;background:var(--grigio-chiaro);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700">${g.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniziali(g.nome)}</div><span style="font-weight:600;flex:1">${g.nome}</span>${g.eta?`<span style="font-size:10px;color:var(--testo-dim)">${g.eta}a</span>`:''}`:`<span style="color:var(--testo-dim);font-style:italic;font-size:11px">— non assegnato —</span>`}</div>`;}).join('')}
+    </div>
+    ${(()=>{
+      const panch=editMode?formazioneU23Panchina:(f?.panchina||[]);
+      const usatiTitolari=Object.values(mapT).filter(Boolean);
+      const disponibiliPanchina=giocatori.filter(g=>!usatiTitolari.includes(g.id)&&!panch.includes(g.id));
+      return `<div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:10px;overflow:hidden;margin-bottom:12px">
+        <div style="background:var(--grigio-scuro);padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;border-bottom:1px solid var(--grigio-chiaro);display:flex;justify-content:space-between">
+          <span>🪑 PANCHINA (${panch.length}/10)</span>
+        </div>
+        ${panch.map(gid=>{
+          const g=giocatoriDB.find(x=>x.id===gid);
+          if(!g) return '';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 14px;border-bottom:1px solid var(--grigio-chiaro);font-size:12px">
+            <span style="font-size:9px;color:${rcCss[g.ruolo]};background:${rcCss[g.ruolo]}22;padding:2px 5px;border-radius:3px;flex-shrink:0;font-weight:700">${g.ruolo}</span>
+            <div style="width:20px;height:20px;border-radius:50%;overflow:hidden;background:var(--grigio-chiaro);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700">${g.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniziali(g.nome)}</div>
+            <span style="font-weight:600;flex:1">${g.nome}</span>
+            ${editMode?`<button onclick="rimuoviPanchinaU23(${g.id})" style="background:none;border:none;color:var(--rosso);cursor:pointer;font-size:14px">✕</button>`:(g.eta?`<span style="font-size:10px;color:var(--testo-dim)">${g.eta}a</span>`:'')}
+          </div>`;
+        }).join('')}
+        ${editMode&&panch.length<10?`<div style="padding:8px 14px">
+          <select onchange="aggiungiPanchinaU23(this.value);this.value=''" style="width:100%;font-size:12px;padding:6px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);border-radius:6px">
+            <option value="">➕ Aggiungi in panchina...</option>
+            ${disponibiliPanchina.map(g=>`<option value="${g.id}">${g.nome} (${g.ruolo})</option>`).join('')}
+          </select>
+        </div>`:''}
+        ${panch.length===0&&!editMode?'<div style="padding:14px;text-align:center;color:var(--testo-dim);font-size:12px;font-style:italic">Nessuna riserva in panchina</div>':''}
+      </div>`;
+    })()}
+    ${editMode?`<button onclick="salvaFormazioneU23('${sqId}')" style="width:100%;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:18px;padding:12px;border-radius:10px;border:none;cursor:pointer;margin-bottom:8px">💾 SALVA FORMAZIONE U23</button>`:''}
+  `;
+}
+
+function attivaEditFormazioneU23(){
+  const f=formazioniU23DB[formazioneU23SqIdAttiva];
+  formazioneU23ModuloCorrente=f?.modulo||'4-3-3';
+  formazioneU23Slots={};
+  formazioneU23Panchina=[...(f?.panchina||[])];
+  if(f?.titolari) f.titolari.forEach(t=>{formazioneU23Slots[t.slot]=t.gid;});
+  renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo);
+}
+function aggiungiPanchinaU23(gIdStr){
+  const gId=parseInt(gIdStr);
+  if(!gId||formazioneU23Panchina.includes(gId)||formazioneU23Panchina.length>=10) return;
+  formazioneU23Panchina.push(gId);
+  renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo);
+}
+function rimuoviPanchinaU23(gId){
+  formazioneU23Panchina=formazioneU23Panchina.filter(id=>id!==gId);
+  renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo);
+}
+function cambiaModuloFormazioneU23(m){
+  document.querySelectorAll('[onchange^="assegnaSlotU23"]').forEach(sel=>{const match=sel.getAttribute('onchange').match(/'([^']+)'/);if(match)formazioneU23Slots[match[1]]=parseInt(sel.value)||null;});
+  formazioneU23ModuloCorrente=m;renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo);
+}
+function assegnaSlotU23(slot,gIdStr){formazioneU23Slots[slot]=parseInt(gIdStr)||null;}
+
+async function salvaFormazioneU23(sqId){
+  document.querySelectorAll('[onchange^="assegnaSlotU23"]').forEach(sel=>{const match=sel.getAttribute('onchange').match(/'([^']+)'/);if(match)formazioneU23Slots[match[1]]=parseInt(sel.value)||null;});
+  const titolari=Object.entries(formazioneU23Slots).filter(([,g])=>g).map(([slot,gid])=>({slot,gid}));
+  // Verifica che tutti i titolari/panchinari assegnati siano ancora eleggibili (età)
+  const pool=poolU23(sqId).map(g=>g.id);
+  const nonEleggibili=titolari.filter(t=>!pool.includes(t.gid));
+  if(nonEleggibili.length){showToast('❌ Uno o più giocatori schierati non sono più eleggibili U23','error');return;}
+  const panchinaNonEleggibile=formazioneU23Panchina.filter(gid=>!pool.includes(gid));
+  if(panchinaNonEleggibile.length){showToast('❌ Uno o più giocatori in panchina non sono più eleggibili U23','error');return;}
+  const payload={squadra_id:sqId,modulo:formazioneU23ModuloCorrente,titolari,panchina:formazioneU23Panchina};
+  try{
+    const{error}=await sb.from('formazioni_u23').upsert(payload,{onConflict:'squadra_id'});
+    if(error) throw error;
+    formazioniU23DB[sqId]=payload;
+    showToast('✅ Formazione Under 23 salvata!');
+    renderFormazioneU23(sqId,false,formazioneU23ContainerAttivo);
+  }catch(e){showToast('❌ '+e.message,'error');}
+}
 function fmtM(val){
   const n=parseFloat(val)||0;
   if(Math.abs(n)>=1000000) return (n/1000000).toLocaleString('it-IT',{minimumFractionDigits:2,maximumFractionDigits:2})+' M FM';
@@ -352,7 +484,7 @@ function renderBilancioSquadra(sqId, isProprietario=false){
     <div style="background:var(--grigio);border:1px solid rgba(255,215,0,0.2);border-radius:12px;overflow:hidden;margin-bottom:12px">
       <div style="background:var(--grigio-scuro);padding:12px 16px;border-bottom:1px solid var(--grigio-chiaro);display:flex;justify-content:space-between;align-items:center">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--oro);letter-spacing:1px">💳 RATE IN SCADENZA</div>
-        ${isProprietario?`<button onclick="apriNuovaRata('${sqId}')" style="background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--oro);font-size:18px;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>`:''}
+        ${isProprietario?`<button onclick="apriNuovaRataSquadra('${sqId}')" style="background:rgba(255,215,0,0.15);border:1px solid rgba(255,215,0,0.4);color:var(--oro);font-size:18px;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>`:''}
       </div>
       <div style="padding:8px 14px">${calcolaRateBilancio(sqId)}</div>
     </div>
@@ -431,7 +563,7 @@ async function marcaRataBilancio(tid,idx){
 }
 
 
-async function apriNuovaRata(sqId){
+async function apriNuovaRataSquadra(sqId){
   // Crea modal dinamico se non esiste
   let m=document.getElementById('modal-nuova-rata');
   if(!m){

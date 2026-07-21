@@ -378,6 +378,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <div class="home-card" onclick="entraApp('social')" style="border-color:rgba(68,136,255,0.4)"><div class="home-card-icon">📱</div><div class="home-card-title">Social</div><div class="home-card-sub">Social Manager</div></div>
       <div class="home-card" onclick="entraApp('risiko')" style="border-color:rgba(255,68,68,0.4)"><div class="home-card-icon">🎯</div><div class="home-card-title">Risiko</div><div class="home-card-sub">Obiettivi segreti</div></div>
       <div class="home-card" onclick="entraApp('bilancio')" style="border-color:rgba(0,255,135,0.4)"><div class="home-card-icon">💰</div><div class="home-card-title">Bilancio</div><div class="home-card-sub">Budget e rate</div></div>
+      <div class="home-card" onclick="entraApp('talentboy')" style="border-color:rgba(180,100,255,0.4)"><div class="home-card-icon">🌱</div><div class="home-card-title">Talent Boy U23</div><div class="home-card-sub">Torneo Under 23</div></div>
     </div>
     <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
     <div class="home-stats">
@@ -402,6 +403,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <button class="nav-btn" onclick="showSection('social',this)">📱 Social</button>
       <button class="nav-btn" onclick="showSection('risiko',this)">🎯 Risiko</button>
       <button class="nav-btn" onclick="showSection('bilancio',this)">💰 Bilancio</button>
+      <button class="nav-btn" onclick="showSection('talentboy',this)">🌱 Talent Boy U23</button>
     </nav>
     <div class="user-chip" id="user-chip" onclick="doLogout()">👤 <span id="user-nome">—</span> 🚪</div>
     <button class="admin-btn" id="admin-btn-header" style="display:none" onclick="apriAdmin()">⚙️ ADMIN</button>
@@ -420,6 +422,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <button onclick="chiudiMenuRapido();showSection('social',document.querySelector('.nav-btn[onclick*=\'social\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">📱 Social</button>
     <button onclick="chiudiMenuRapido();showSection('risiko',document.querySelector('.nav-btn[onclick*=\'risiko\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🎯 Risiko</button>
     <button onclick="chiudiMenuRapido();showSection('bilancio',document.querySelector('.nav-btn[onclick*=\'bilancio\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">💰 Bilancio</button>
+    <button onclick="chiudiMenuRapido();showSection('talentboy',document.querySelector('.nav-btn[onclick*=\'talentboy\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🌱 Talent Boy U23</button>
   </div>
   <button onclick="toggleMenuRapido()" style="display:none;position:fixed;bottom:16px;left:16px;width:52px;height:52px;border-radius:50%;background:var(--verde);color:var(--nero);font-size:22px;border:none;cursor:pointer;z-index:202;box-shadow:0 4px 16px rgba(0,255,135,0.4)" id="quick-menu-btn">☰</button>
   <div class="main">
@@ -597,6 +600,12 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       </div>
     </div>
 
+    <div class="section" id="section-talentboy">
+      <div id="talentboy-content">
+        <div class="loading"><div class="loading-spinner"></div>Caricamento...</div>
+      </div>
+    </div>
+
     <div class="section" id="section-admin">
       <div style="padding:16px 16px 0">
         <button onclick="apriModificaBudget()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;margin-bottom:12px">✏️ MODIFICA BUDGET SQUADRA</button>
@@ -768,14 +777,9 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
           <label for="trat-usa-contriscatto" style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:orange;letter-spacing:1px;cursor:pointer">🔄 CLAUSOLA CONTRO-RISCATTO</label>
         </div>
         <div id="campo-contriscatto" style="display:none">
-          <div class="form-group">
-            <label class="form-label">Importo Contro-Riscatto (FM)</label>
-            <input class="form-input" type="text" id="trat-importo-contriscatto" placeholder="Es. 15M">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Entro il (data scadenza)</label>
-            <input class="form-input" type="date" id="trat-scadenza-contriscatto">
-          </div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-bottom:6px">Puoi mettere più clausole con anni e importi diversi (es. 2027 a 35M, 2028 a 40M...)</div>
+          <div id="trat-recompra-lista"></div>
+          <button type="button" onclick="aggiungiClausolaRecompraPrincipale()" style="background:none;border:1px dashed var(--grigio-chiaro);color:var(--testo-dim);font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer;width:100%;margin-top:4px">➕ Aggiungi clausola</button>
         </div>
       </div>
 
@@ -1395,6 +1399,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/sposta-giocatore.js"></script>
 <script src="js/svincolati.js"></script>
 <script src="js/formazione.js"></script>
+<script src="js/talentboy.js"></script>
 <script src="js/admin.js"></script>
 <script src="js/modifica-giocatore.js"></script>
 <script src="js/foto.js"></script>
