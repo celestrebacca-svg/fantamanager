@@ -288,81 +288,129 @@ function apriDettaglioTrofeo(sqId,compId,posto){
   document.body.appendChild(modal);
 }
 
+let museoStagioneAttiva={}; // sqId -> stagione selezionata, oppure 'tutte'
+
 function renderMuseoStadio(sq){
-  const trofei=sq.trofei||[];
+  const trofeiTutti=sq.trofei||[];
   const capienza=sq.capienza_stadio||10000;
   const livelloMuseo=Math.floor((capienza-10000)/10000); // 0-7
   const bonusMuseo=getBonusMuseo(capienza);
 
-  // Raggruppa per competizione
-  const perComp={};
-  trofei.forEach(t=>{
-    if(!perComp[t.compId]) perComp[t.compId]=[];
-    perComp[t.compId].push(t);
-  });
+  if(museoStagioneAttiva[sq.id]===undefined) museoStagioneAttiva[sq.id]='tutte';
+  const stagioneSel=museoStagioneAttiva[sq.id];
+  const stagioniDisponibili=[...new Set(trofeiTutti.map(t=>t.anno))].sort((a,b)=>a-b);
+  const trofei=stagioneSel==='tutte'?trofeiTutti:trofeiTutti.filter(t=>String(t.anno)===String(stagioneSel));
 
-  // Sfondo museo che migliora con lo stadio
+  // Raggruppa per competizione (+posto per il campionato, che ha 1°/2°/3°)
+  const gruppi={};
+  trofei.forEach(t=>{
+    const chiave=t.compId+(t.compId==='campionato'?'_'+(t.posto||1):'');
+    if(!gruppi[chiave]) gruppi[chiave]=[];
+    gruppi[chiave].push(t);
+  });
+  const gruppiOrdinati=Object.entries(gruppi).sort((a,b)=>b[1].length-a[1].length);
+
   const museoSfondoColori=[
-    'linear-gradient(135deg,#1a1a1a,#2a2a2a)', // lv0 trasandato
-    'linear-gradient(135deg,#1a1a2a,#2a2a3a)', // lv1
-    'linear-gradient(135deg,#1a2a1a,#2a3a2a)', // lv2
-    'linear-gradient(135deg,#1a1a3a,#2a2a4a)', // lv3
-    'linear-gradient(135deg,#0a1a2a,#1a2a3a)', // lv4
-    'linear-gradient(135deg,#0a0a2a,#1a1a4a)', // lv5 elegante
-    'linear-gradient(135deg,#0a0a1a,#1a1a3a)', // lv6
-    'linear-gradient(135deg,#000010,#0a0a20)', // lv7 lusso
+    'linear-gradient(135deg,#1a1a1a,#2a2a2a)',
+    'linear-gradient(135deg,#1a1a2a,#2a2a3a)',
+    'linear-gradient(135deg,#1a2a1a,#2a3a2a)',
+    'linear-gradient(135deg,#1a1a3a,#2a2a4a)',
+    'linear-gradient(135deg,#0a1a2a,#1a2a3a)',
+    'linear-gradient(135deg,#0a0a2a,#1a1a4a)',
+    'linear-gradient(135deg,#0a0a1a,#1a1a3a)',
+    'linear-gradient(135deg,#000010,#0a0a20)',
   ];
   const museoSfondo=museoSfondoColori[livelloMuseo]||museoSfondoColori[0];
+  const coloreAccento=livelloMuseo>=5?'#FFD700':livelloMuseo>=3?'#DAA520':'#888';
 
   const museoNomi=['Magazzino Polveroso','Sala Trofei','Galleria Trofei','Sala d\'Onore','Hall of Fame','Galleria d\'Elite','Pantheon','Tempio dei Campioni'];
   const museoNome=museoNomi[livelloMuseo]||museoNomi[0];
-  const museoEmoji=['🏚️','🏠','🏡','🏛️','🏛️','🌟','💎','⭐'][livelloMuseo]||'🏚️';
+  const museoEmoji=['🧰','🏠','🏡','🏛️','🏛️','🌟','💎','⭐'][livelloMuseo]||'🧰';
 
   return `
     <div style="background:${museoSfondo};border:1px solid ${livelloMuseo>=5?'rgba(255,215,0,0.5)':livelloMuseo>=3?'rgba(255,215,0,0.2)':'rgba(255,255,255,0.1)'};border-radius:12px;padding:16px;margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:${livelloMuseo>=5?'#FFD700':livelloMuseo>=3?'#DAA520':'#888'};letter-spacing:1px">${museoEmoji} ${museoNome}</div>
-        <div style="font-size:12px;color:${livelloMuseo>=3?'var(--verde)':'var(--testo-dim)'}">Bonus +${bonusMuseo}%</div>
+
+      <!-- INTESTAZIONE -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;color:${coloreAccento};letter-spacing:1px">${museoEmoji} ${museoNome}</div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-top:2px">Livello museo ${livelloMuseo+1} di 8</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:${trofeiTutti.length>0?coloreAccento:'var(--testo-dim)'}">${trofeiTutti.length}</div>
+          <div style="font-size:10px;color:var(--testo-dim)">TROFE${trofeiTutti.length===1?'O':'I'} TOTALI</div>
+        </div>
       </div>
-      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">${trofei.length} trofei totali</div>
-      
-      ${trofei.length===0?`<div style="text-align:center;padding:20px;color:${livelloMuseo>=2?'#555':'#333'}">
-        ${livelloMuseo>=2?'📭 Nessun trofeo ancora':'🕸️ Vuoto...'}
+
+      <!-- BARRA LIVELLO + BONUS -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="flex:1;height:5px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden">
+          <div style="width:${((livelloMuseo+1)/8*100).toFixed(0)}%;height:100%;background:${coloreAccento};border-radius:3px"></div>
+        </div>
+        <div style="font-size:11px;color:${bonusMuseo>0?'var(--verde)':'var(--testo-dim)'};white-space:nowrap;flex-shrink:0">💰 Rendita +${bonusMuseo}%</div>
+      </div>
+
+      <!-- SELETTORE STAGIONE -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px;background:rgba(0,0,0,0.2);border-radius:8px;padding:6px">
+        <button onclick="cambiaStagioneMuseo('${sq.id}',-1)" style="background:none;border:none;color:${coloreAccento};font-size:16px;cursor:pointer;padding:2px 8px">‹</button>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:${coloreAccento};letter-spacing:1px;min-width:130px;text-align:center">
+          ${stagioneSel==='tutte'?'🗓️ TUTTE LE STAGIONI':'📅 STAGIONE '+stagioneSel}
+        </div>
+        <button onclick="cambiaStagioneMuseo('${sq.id}',1)" style="background:none;border:none;color:${coloreAccento};font-size:16px;cursor:pointer;padding:2px 8px">›</button>
+      </div>
+
+      ${trofei.length===0?`
+      <div style="text-align:center;padding:28px 10px;color:${livelloMuseo>=2?'#666':'#444'}">
+        <div style="font-size:32px;margin-bottom:8px">${livelloMuseo>=2?'📭':'🕸️'}</div>
+        <div style="font-size:13px">${stagioneSel==='tutte'?'Nessun trofeo ancora vinto':'Nessun trofeo in questa stagione'}</div>
+        ${stagioneSel==='tutte'?'<div style="font-size:11px;margin-top:4px;color:#555">Vinci una competizione per iniziare la collezione</div>':''}
       </div>`:`
-      <!-- COPPE PER COMPETIZIONE -->
-      ${Object.entries(perComp).map(([compId,arr])=>{
-        const comp=competizioni.find(c=>c.id===compId);
-        // Un solo trofeo mostrato, con badge "×N" se vinto più volte.
-        // Se ci sono piazzamenti diversi (es. 1° e 2° posto), li raggruppa separatamente.
-        const perPosto={};
-        arr.forEach(t=>{
-          const chiave=compId==='campionato'?(t.posto||1):1;
-          if(!perPosto[chiave]) perPosto[chiave]=[];
-          perPosto[chiave].push(t);
-        });
-        return `<div style="margin-bottom:16px">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:${livelloMuseo>=3?'#DAA520':'#888'};letter-spacing:1px;margin-bottom:8px;border-bottom:1px solid ${livelloMuseo>=5?'rgba(255,215,0,0.3)':'rgba(255,255,255,0.05)'};padding-bottom:4px">
-            ${comp?comp.nome:compId} — ${arr.length} vittorie × ${getMolt(arr.length)}
-          </div>
-          <div style="display:flex;flex-wrap:wrap;gap:8px">
-            ${Object.entries(perPosto).map(([posto,vittorie])=>{
-              let tipoSvg=getTipoTrofeo(compId);
-              if(compId==='campionato'){
-                const p=parseInt(posto);
-                tipoSvg=p===2?'campionato_2':p===3?'campionato_3':'campionato_1';
-              }
-              const ultimoAnno=vittorie[vittorie.length-1].anno;
-              return `<div onclick="apriDettaglioTrofeo('${sq.id}','${compId}',${posto})" style="cursor:pointer;position:relative;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:6px;${livelloMuseo>=5?'box-shadow:0 0 8px rgba(255,215,0,0.1)':''}">
-                ${disegnaCoppa(tipoSvg,ultimoAnno,livelloMuseo)}
-                ${vittorie.length>1?`<div style="position:absolute;top:2px;right:2px;background:var(--oro);color:#000;font-size:9px;font-weight:700;border-radius:10px;padding:1px 5px">×${vittorie.length}</div>`:''}
-              </div>`;
-            }).join('')}
-          </div>
-        </div>`;
-      }).join('')}
+      <!-- STRISCIA ORIZZONTALE SCORREVOLE -->
+      <div style="position:relative">
+        <button onclick="scrollMuseo('${sq.id}',-1)" style="position:absolute;left:-2px;top:50%;transform:translateY(-50%);z-index:2;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1">‹</button>
+        <div id="museo-scroll-${sq.id}" style="display:flex;gap:10px;overflow-x:auto;scroll-behavior:smooth;padding:2px 32px;scrollbar-width:none">
+          ${gruppiOrdinati.map(([chiave,arr])=>{
+            const compId=arr[0].compId;
+            const posto=arr[0].posto||1;
+            const comp=competizioni.find(c=>c.id===compId);
+            let tipoSvg=getTipoTrofeo(compId);
+            if(compId==='campionato'){
+              tipoSvg=posto===2?'campionato_2':posto===3?'campionato_3':'campionato_1';
+            }
+            const ultimoAnno=arr[arr.length-1].anno;
+            const postoLabel=compId==='campionato'&&posto!==1?` (${posto}°)`:'';
+            return `<div onclick="apriDettaglioTrofeo('${sq.id}','${compId}',${posto})" style="cursor:pointer;flex-shrink:0;width:86px;text-align:center;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:8px;position:relative;${livelloMuseo>=5?'box-shadow:0 0 8px rgba(255,215,0,0.12)':''}">
+              ${disegnaCoppa(tipoSvg,ultimoAnno,livelloMuseo)}
+              ${arr.length>1?`<div style="position:absolute;top:3px;right:3px;background:var(--oro);color:#000;font-size:9px;font-weight:700;border-radius:10px;padding:1px 5px">×${arr.length}</div>`:''}
+              <div style="font-size:10px;color:var(--testo-dim);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${comp?comp.nome:compId}${postoLabel}</div>
+              <div style="font-size:9px;color:#666">${ultimoAnno}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <button onclick="scrollMuseo('${sq.id}',1)" style="position:absolute;right:-2px;top:50%;transform:translateY(-50%);z-index:2;background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.2);color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:14px;line-height:1">›</button>
+      </div>
       `}
-      
-      ${adminLoggato?`<button onclick="apriModificaTrofei('${sq.id}')" style="width:100%;margin-top:8px;padding:8px;border-radius:8px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.05);color:rgba(255,215,0,0.7);font-family:'Bebas Neue',sans-serif;font-size:13px;cursor:pointer;letter-spacing:1px">✏️ MODIFICA TROFEI</button>`:''}
+
+      ${adminLoggato?`<button onclick="apriModificaTrofei('${sq.id}')" style="width:100%;margin-top:14px;padding:9px;border-radius:8px;border:1px solid rgba(255,215,0,0.3);background:rgba(255,215,0,0.05);color:rgba(255,215,0,0.7);font-family:'Bebas Neue',sans-serif;font-size:13px;cursor:pointer;letter-spacing:1px">✏️ MODIFICA TROFEI</button>`:''}
     </div>
   `;
+}
+
+function cambiaStagioneMuseo(sqId,dir){
+  const sq=squadreDB.find(s=>s.id===sqId);
+  if(!sq) return;
+  const trofeiTutti=sq.trofei||[];
+  const stagioni=[...new Set(trofeiTutti.map(t=>t.anno))].sort((a,b)=>a-b);
+  const opzioni=['tutte',...stagioni];
+  let idx=opzioni.indexOf(museoStagioneAttiva[sqId]!==undefined?museoStagioneAttiva[sqId]:'tutte');
+  if(idx===-1) idx=0;
+  idx=(idx+dir+opzioni.length)%opzioni.length;
+  museoStagioneAttiva[sqId]=opzioni[idx];
+  const acc=document.getElementById('acc-museo');
+  if(acc) acc.innerHTML=renderMuseoStadio(sq);
+}
+
+function scrollMuseo(sqId,dir){
+  const el=document.getElementById(`museo-scroll-${sqId}`);
+  if(el) el.scrollBy({left:dir*200,behavior:'smooth'});
 }
