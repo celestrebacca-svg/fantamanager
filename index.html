@@ -419,6 +419,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       const corta=STAGIONE_CORRENTE.split('/').map((p,i)=>i===0?p:p.slice(-2)).join('/');
       const b=document.getElementById('home-badge-stagione'); if(b) b.textContent=STAGIONE_CORRENTE;
       const s=document.getElementById('home-stat-stagione'); if(s) s.textContent=corta;
+      document.querySelectorAll('.js-stagione').forEach(el=>el.textContent=corta);
     }
     if(tentativi>20) clearInterval(timer); // ~10s, poi si arrende (restano le emoji/valori di default)
   },500);
@@ -467,7 +468,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <div class="section active" id="section-rose">
       <div id="lista-squadre">
         <div class="page-title">LE SQUADRE</div>
-        <div class="page-sub">Stagione 2025/26 — Clicca una squadra avversaria per proporre una trattativa</div>
+        <div class="page-sub">Stagione <span class="js-stagione">2026/27</span> — Clicca una squadra avversaria per proporre una trattativa</div>
         <div id="mia-squadra-banner-wrap"></div>
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
           <button id="tab-rose-squadre" onclick="switchTabRose('squadre')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer">🏟️ SQUADRE</button>
@@ -541,7 +542,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <!-- TIFOSI -->
     <div class="section" id="section-tifosi">
       <div class="page-title">TIFOSI</div>
-      <div class="page-sub">Classifica tifosi — Stagione 2025/26</div>
+      <div class="page-sub">Classifica tifosi — Stagione <span class="js-stagione">2026/27</span></div>
       <div class="tifosi-grid" id="tifosi-grid"></div>
     </div>
 
@@ -579,7 +580,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <!-- MERCATO -->
     <div class="section" id="section-mercato">
       <div class="page-title">MERCATO</div>
-      <div class="page-sub">Trattative — Stagione 2025/26</div>
+      <div class="page-sub">Trattative — Stagione <span class="js-stagione">2026/27</span></div>
       <button class="btn-nuova" onclick="apriNuovaTrattativa()">➕ NUOVA TRATTATIVA</button>
       <div class="mercato-tabs">
         <div class="mercato-tab active" onclick="filtraTrattative('tutte',this)">Tutte</div>
@@ -594,7 +595,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <!-- CLASSIFICA -->
     <div class="section" id="section-classifica">
       <div class="page-title">CLASSIFICA</div>
-      <div class="page-sub">Campionato 2025/26 — Aggiornata dall'admin dopo ogni giornata</div>
+      <div class="page-sub">Campionato <span class="js-stagione">2026/27</span> — Aggiornata dall'admin dopo ogni giornata</div>
       <div id="classifica-container"><div class="loading"><div class="loading-spinner"></div>Caricamento...</div></div>
     </div>
 
