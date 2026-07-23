@@ -21,35 +21,38 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 .login-error{background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--rosso);margin-bottom:14px;display:none;}
 
 /* HOME */
-#home{position:fixed;inset:0;background:var(--nero);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;}
+#home{position:fixed;inset:0;background:radial-gradient(ellipse at top,#161200 0%,var(--nero) 55%);z-index:500;display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:48px 16px 40px;}
 #home.hide{animation:fadeOut 0.3s forwards;pointer-events:none;}
 @keyframes fadeOut{to{opacity:0;pointer-events:none;}}
-.home-bg{position:absolute;inset:0;overflow:hidden;}
-.home-bg-circle{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.15;}
-.home-bg-circle:nth-child(1){width:600px;height:600px;background:var(--verde);top:-200px;left:-200px;animation:float1 8s ease-in-out infinite;}
-.home-bg-circle:nth-child(2){width:400px;height:400px;background:var(--blu);bottom:-100px;right:-100px;animation:float2 10s ease-in-out infinite;}
-.home-bg-circle:nth-child(3){width:300px;height:300px;background:var(--oro);top:50%;left:60%;animation:float3 7s ease-in-out infinite;}
+.home-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+.home-bg-circle{position:absolute;border-radius:50%;filter:blur(90px);opacity:0.12;}
+.home-bg-circle:nth-child(1){width:600px;height:600px;background:var(--oro);top:-220px;left:-200px;animation:float1 9s ease-in-out infinite;}
+.home-bg-circle:nth-child(2){width:420px;height:420px;background:#8a6d00;bottom:-120px;right:-120px;animation:float2 11s ease-in-out infinite;}
+.home-bg-circle:nth-child(3){width:320px;height:320px;background:var(--oro);top:45%;left:60%;animation:float3 7.5s ease-in-out infinite;}
 @keyframes float1{0%,100%{transform:translate(0,0);}50%{transform:translate(30px,20px);}}
 @keyframes float2{0%,100%{transform:translate(0,0);}50%{transform:translate(-20px,-30px);}}
 @keyframes float3{0%,100%{transform:translate(0,0);}50%{transform:translate(20px,-20px);}}
-.home-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(0,255,135,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,135,0.03) 1px,transparent 1px);background-size:40px 40px;}
-.home-content{position:relative;z-index:1;text-align:center;padding:20px;}
-.home-badge{display:inline-block;background:rgba(0,255,135,0.1);border:1px solid rgba(0,255,135,0.3);border-radius:20px;padding:6px 16px;font-size:12px;letter-spacing:2px;color:var(--verde);text-transform:uppercase;margin-bottom:24px;animation:fadeUp 0.8s 0.2s both;}
-.home-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(60px,15vw,120px);letter-spacing:4px;line-height:0.9;margin-bottom:8px;animation:fadeUp 0.8s 0.4s both;}
+.home-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,215,0,0.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,215,0,0.035) 1px,transparent 1px);background-size:42px 42px;pointer-events:none;}
+.home-content{position:relative;z-index:1;text-align:center;padding:20px;width:100%;max-width:760px;margin:0 auto;}
+.home-badge{display:inline-block;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.35);border-radius:20px;padding:6px 18px;font-size:12px;letter-spacing:2px;color:var(--oro);text-transform:uppercase;margin-bottom:26px;animation:fadeUp 0.8s 0.2s both;}
+.home-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(56px,14vw,110px);letter-spacing:5px;line-height:0.9;margin-bottom:10px;animation:fadeUp 0.8s 0.4s both;}
 .home-title .fanta{color:var(--testo);}
-.home-title .manager{color:var(--verde);text-shadow:0 0 40px rgba(0,255,135,0.4);}
-.home-sub{font-size:clamp(14px,2vw,18px);color:var(--testo-dim);margin-bottom:48px;letter-spacing:1px;animation:fadeUp 0.8s 0.6s both;}
-.home-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:700px;margin:0 auto 40px;animation:fadeUp 0.8s 0.8s both;}
+.home-title .manager{background:linear-gradient(135deg,#ffe680,var(--oro) 45%,#a97e00);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 50px rgba(255,215,0,0.35);}
+.home-sub{font-size:clamp(14px,2vw,18px);color:var(--testo-dim);margin-bottom:44px;letter-spacing:1.5px;animation:fadeUp 0.8s 0.6s both;}
+.home-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:700px;margin:0 auto 24px;animation:fadeUp 0.8s 0.8s both;}
 @media(max-width:500px){.home-cards{grid-template-columns:repeat(2,1fr);}}
-.home-card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:20px 14px;cursor:pointer;transition:all 0.3s;text-align:center;}
-.home-card:hover{background:rgba(0,255,135,0.08);border-color:rgba(0,255,135,0.3);transform:translateY(-4px);}
-.home-card-icon{font-size:32px;margin-bottom:10px;}
-.home-card-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--testo);margin-bottom:4px;}
+.home-card{background:linear-gradient(160deg,rgba(255,215,0,0.05),rgba(255,255,255,0.02));border:1px solid rgba(255,215,0,0.15);border-radius:16px;padding:22px 14px;cursor:pointer;transition:all 0.3s;text-align:center;position:relative;overflow:hidden;}
+.home-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--oro),transparent);opacity:0;transition:opacity 0.3s;}
+.home-card:hover{background:linear-gradient(160deg,rgba(255,215,0,0.1),rgba(255,255,255,0.03));border-color:rgba(255,215,0,0.45);transform:translateY(-5px);box-shadow:0 10px 30px rgba(255,215,0,0.08);}
+.home-card:hover::before{opacity:1;}
+.home-card-icon{font-size:32px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;height:44px;}
+.home-card-icon img{width:44px;height:44px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,215,0,0.3);}
+.home-card-title{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1.5px;color:var(--testo);margin-bottom:4px;}
 .home-card-sub{font-size:11px;color:var(--testo-dim);}
-.home-enter{display:inline-flex;align-items:center;gap:10px;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;padding:14px 36px;border-radius:12px;cursor:pointer;border:none;transition:all 0.3s;animation:fadeUp 0.8s 1s both;}
-.home-enter:hover{transform:scale(1.05);box-shadow:0 8px 30px rgba(0,255,135,0.3);}
+.home-enter{display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#ffe680,var(--oro) 60%,#c9a100);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:2px;padding:14px 38px;border-radius:12px;cursor:pointer;border:none;transition:all 0.3s;animation:fadeUp 0.8s 1s both;box-shadow:0 4px 20px rgba(255,215,0,0.15);}
+.home-enter:hover{transform:scale(1.05);box-shadow:0 8px 34px rgba(255,215,0,0.35);}
 .home-stats{display:flex;gap:32px;justify-content:center;margin-top:32px;animation:fadeUp 0.8s 1.2s both;}
-.home-stat-val{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--verde);}
+.home-stat-val{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--oro);}
 .home-stat-label{font-size:11px;color:var(--testo-dim);margin-top:2px;letter-spacing:1px;text-transform:uppercase;}
 @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 
@@ -365,36 +368,65 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
   <div class="home-bg"><div class="home-bg-circle"></div><div class="home-bg-circle"></div><div class="home-bg-circle"></div></div>
   <div class="home-grid"></div>
   <div class="home-content">
-    <div class="home-badge">⚽ Stagione 2025/26</div>
+    <div class="home-badge">👑 Stagione <span id="home-badge-stagione">2025/26</span></div>
     <div class="home-title"><div class="fanta">FANTA</div><div class="manager">MANAGER</div></div>
     <div class="home-sub">La tua lega. Il tuo impero.</div>
     <div class="home-cards">
-      <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon">📋</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
-      <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
-      <div class="home-card" onclick="entraApp('stadio')"><div class="home-card-icon">🏟️</div><div class="home-card-title">Stadio</div><div class="home-card-sub">Biglietteria e ampliamenti</div></div>
-      <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
-      <div class="home-card" onclick="entraApp('mercato')"><div class="home-card-icon">🔄</div><div class="home-card-title">Mercato</div><div class="home-card-sub">Trattative</div></div>
-      <div class="home-card" onclick="entraApp('classifica')"><div class="home-card-icon">📊</div><div class="home-card-title">Classifica</div><div class="home-card-sub">Punti e budget</div></div>
-      <div class="home-card" onclick="entraApp('social')" style="border-color:rgba(68,136,255,0.4)"><div class="home-card-icon">📱</div><div class="home-card-title">Social</div><div class="home-card-sub">Social Manager</div></div>
-      <div class="home-card" onclick="entraApp('risiko')" style="border-color:rgba(255,68,68,0.4)"><div class="home-card-icon">🎯</div><div class="home-card-title">Risiko</div><div class="home-card-sub">Obiettivi segreti</div></div>
-      <div class="home-card" onclick="entraApp('bilancio')" style="border-color:rgba(0,255,135,0.4)"><div class="home-card-icon">💰</div><div class="home-card-title">Bilancio</div><div class="home-card-sub">Budget e rate</div></div>
+      <div class="home-card" onclick="entraApp('rose')"><div class="home-card-icon" id="home-icon-rose">📋</div><div class="home-card-title">Rose</div><div class="home-card-sub">Tutte le squadre</div></div>
+      <div class="home-card" onclick="entraApp('tifosi')"><div class="home-card-icon" id="home-icon-tifosi">👥</div><div class="home-card-title">Tifosi</div><div class="home-card-sub">Classifica e movimenti</div></div>
+      <div class="home-card" onclick="entraApp('stadio')"><div class="home-card-icon" id="home-icon-stadio">🏟️</div><div class="home-card-title">Stadio</div><div class="home-card-sub">Biglietteria e ampliamenti</div></div>
+      <div class="home-card" onclick="entraApp('competizioni')"><div class="home-card-icon" id="home-icon-competizioni">🏆</div><div class="home-card-title">Competizioni</div><div class="home-card-sub">Coppe e premi</div></div>
+      <div class="home-card" onclick="entraApp('mercato')"><div class="home-card-icon" id="home-icon-mercato">🔄</div><div class="home-card-title">Mercato</div><div class="home-card-sub">Trattative</div></div>
+      <div class="home-card" onclick="entraApp('classifica')"><div class="home-card-icon" id="home-icon-classifica">📊</div><div class="home-card-title">Classifica</div><div class="home-card-sub">Punti e budget</div></div>
+      <div class="home-card" onclick="entraApp('social')"><div class="home-card-icon" id="home-icon-social">📱</div><div class="home-card-title">Social</div><div class="home-card-sub">Social Manager</div></div>
+      <div class="home-card" onclick="entraApp('risiko')"><div class="home-card-icon" id="home-icon-risiko">🎯</div><div class="home-card-title">Risiko</div><div class="home-card-sub">Obiettivi segreti</div></div>
+      <div class="home-card" onclick="entraApp('bilancio')"><div class="home-card-icon" id="home-icon-bilancio">💰</div><div class="home-card-title">Bilancio</div><div class="home-card-sub">Budget e rate</div></div>
     </div>
-    <div onclick="entraApp('talentboy')" style="max-width:700px;margin:-24px auto 40px;padding:16px 20px;border-radius:14px;background:linear-gradient(135deg,rgba(180,100,255,0.12),rgba(120,60,200,0.06));border:1px solid rgba(180,100,255,0.4);cursor:pointer;display:flex;align-items:center;gap:16px;transition:all 0.3s" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
-      <div style="font-size:34px;flex-shrink:0">🌱</div>
-      <div style="flex:1">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:#c896ff">TALENT BOY UNDER 23</div>
+    <div onclick="entraApp('talentboy')" style="max-width:700px;margin:0 auto 32px;padding:16px 20px;border-radius:14px;background:linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,215,0,0.03));border:1px solid rgba(255,215,0,0.3);cursor:pointer;display:flex;align-items:center;gap:16px;transition:all 0.3s" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='translateY(0)'">
+      <div style="font-size:34px;flex-shrink:0" id="home-icon-talentboy">🌱</div>
+      <div style="flex:1;text-align:left">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--oro)">TALENT BOY UNDER 23</div>
         <div style="font-size:12px;color:var(--testo-dim)">Il torneo dei giovani talenti — formazione, classifica e calendario</div>
       </div>
-      <div style="font-size:20px;color:#c896ff;flex-shrink:0">›</div>
+      <div style="font-size:20px;color:var(--oro);flex-shrink:0">›</div>
     </div>
     <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
     <div class="home-stats">
       <div class="home-stat"><div class="home-stat-val" id="home-num-squadre">—</div><div class="home-stat-label">Squadre</div></div>
       <div class="home-stat"><div class="home-stat-val">12</div><div class="home-stat-label">Competizioni</div></div>
-      <div class="home-stat"><div class="home-stat-val">25/26</div><div class="home-stat-label">Stagione</div></div>
+      <div class="home-stat"><div class="home-stat-val" id="home-stat-stagione">25/26</div><div class="home-stat-label">Stagione</div></div>
     </div>
   </div>
 </div>
+
+<script>
+// Applica le foto personalizzate (caricate da admin su Cloudinary) al posto
+// delle emoji, se presenti. Riprova per qualche secondo finché immaginiConfigDB
+// non è stato popolato dal caricamento dati (evita di dipendere dall'ordine script).
+(function(){
+  const chiavi=['rose','tifosi','stadio','competizioni','mercato','classifica','social','risiko','bilancio','talentboy'];
+  let tentativi=0;
+  const timer=setInterval(()=>{
+    tentativi++;
+    if(typeof immaginiConfigDB!=='undefined'&&Object.keys(immaginiConfigDB).length){
+      chiavi.forEach(k=>{
+        const url=immaginiConfigDB['home_'+k];
+        const el=document.getElementById('home-icon-'+k);
+        if(url&&el&&!el.querySelector('img')){
+          el.innerHTML=`<img src="${url}" alt="${k}">`;
+        }
+      });
+      clearInterval(timer);
+    }
+    if(typeof STAGIONE_CORRENTE!=='undefined'&&STAGIONE_CORRENTE){
+      const corta=STAGIONE_CORRENTE.split('/').map((p,i)=>i===0?p:p.slice(-2)).join('/');
+      const b=document.getElementById('home-badge-stagione'); if(b) b.textContent=STAGIONE_CORRENTE;
+      const s=document.getElementById('home-stat-stagione'); if(s) s.textContent=corta;
+    }
+    if(tentativi>20) clearInterval(timer); // ~10s, poi si arrende (restano le emoji/valori di default)
+  },500);
+})();
+</script>
 
 <!-- APP -->
 <div id="app">
