@@ -318,6 +318,7 @@ function renderGestioneImmagini(){
   const body=document.getElementById('immagini-admin-body');
   if(!body) return;
   const sezioni=[
+    {titolo:'🏠 Home (schermata iniziale)', prefisso:'home_', chiavi:TIPI_HOME},
     {titolo:'🏆 Trofei', prefisso:'trofeo_', chiavi:TIPI_TROFEO},
     {titolo:'🏟️ Stadio (livelli 1-8)', prefisso:'stadio_', chiavi:[1,2,3,4,5,6,7,8]},
     {titolo:'👕 Store Maglie (livelli 0-7)', prefisso:'store_', chiavi:[0,1,2,3,4,5,6,7]},
@@ -362,6 +363,10 @@ async function caricaImmagineConfig(chiave, file){
     else if(chiave.startsWith('stadio_')) IMMAGINI_STADI[parseInt(chiave.replace('stadio_',''))]=url;
     else if(chiave.startsWith('store_')) IMMAGINI_STORE[parseInt(chiave.replace('store_',''))]=url;
     else if(chiave.startsWith('fastfood_')) IMMAGINI_FASTFOOD[parseInt(chiave.replace('fastfood_',''))]=url;
+    else if(chiave.startsWith('home_')){
+      const el=document.getElementById('home-icon-'+chiave.replace('home_',''));
+      if(el) el.innerHTML=`<img src="${url}" alt="">`;
+    }
     showToast('✅ Immagine caricata!');
   }catch(e){
     showToast('❌ '+e.message,'error');

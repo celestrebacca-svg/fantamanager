@@ -49,6 +49,7 @@ function cldUrl(publicId, width=500){
 // primo: elimina qualsiasi dipendenza dall'ordine tra i file.
 // Elenco di tutti i tipi di trofeo gestiti (per l'admin: sapere cosa manca ancora)
 const TIPI_TROFEO=['europa_league','coopmeiners','champions','coppa_coglioni','campionato_1','campionato_2','campionato_3','talent_boy','coppa_italia','konami','formula_1','pedretti','coppa_eroi','coppa_crediti','coppa_tua'];
+const TIPI_HOME=['rose','tifosi','stadio','competizioni','mercato','classifica','social','risiko','bilancio','talentboy'];
 
 // Popolata da carica-dati.js leggendo la tabella immagini_config (caricate da
 // admin nell'app). Nessun URL scritto a mano: se un tipo non è ancora stato
