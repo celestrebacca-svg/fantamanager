@@ -7,8 +7,16 @@ function apriNuovoPost(){
 
 function renderFormNuovoPost(tipo){
   const miei=giocatoriDB.filter(g=>g.squadra_id===utenteLoggato.id&&g.lista==='principale');
-  const gia_postati=new Set(socialPostsDB.filter(p=>p.tipo==='acquisto'&&p.squadra_id===utenteLoggato.id).map(p=>p.trattativa_id));
-  const acquisti=trattativeDB.filter(t=>t.stato==='approvata'&&t.squadra_acquirente_id===utenteLoggato.id&&!gia_postati.has(t.id));
+  const gia_postati=new Set(socialPostsDB.filter(p=>p.tipo==='acquisto'&&String(p.squadra_id)===String(utenteLoggato.id)).map(p=>p.trattativa_id));
+  const acquisti=trattativeDB.filter(t=>{
+    if(t.stato!=='approvata') return false;
+    // Confronto robusto: String() evita mismatch se un id è number e l'altro string,
+    // e il fallback ai campi legacy copre trattative vecchie create prima della
+    // stabilizzazione dei nomi campo squadra_cedente_id/squadra_acquirente_id.
+    const acquirente=t.squadra_acquirente_id||t.squadra_offerente_id;
+    if(String(acquirente)!==String(utenteLoggato.id)) return false;
+    return !gia_postati.has(t.id);
+  });
   document.getElementById('social-post-body').innerHTML=`
     <!-- TIPO POST -->
     <div style="display:flex;gap:6px;margin-bottom:16px">

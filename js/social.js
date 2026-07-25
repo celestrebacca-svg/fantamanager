@@ -157,6 +157,7 @@ async function renderSocial(){
     const{data}=await sb.from('social_posts').select('*').order('created_at',{ascending:false}).limit(100);
     socialPostsDB=data||[];
   }catch(e){socialPostsDB=[];}
+  pulisciFotoVecchie(); // pulizia in background, non blocca il render del feed
   // Carica likes
   try{
     const{data}=await sb.from('social_likes').select('*');
@@ -422,6 +423,7 @@ function apriProfiloSocial(sqId, container=null){
         <div style="text-align:center;flex-shrink:0">
           <div style="font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:var(--nero)">${fmtNum(sq.social_followers||0)}</div>
           <div style="font-size:11px;color:rgba(0,0,0,0.6)">follower</div>
+          ${adminLoggato?`<button onclick="modificaFollowerManuale('${sq.id}')" style="background:none;border:none;color:rgba(0,0,0,0.5);cursor:pointer;font-size:12px;margin-top:2px">✏️ modifica</button>`:''}
         </div>
       </div>
     </div>
@@ -453,7 +455,50 @@ function renderClassificaFollower(c){
           <div style="font-size:10px;color:var(--testo-dim)">👤 ${sq.owner_name}</div>
         </div>
         <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--verde)">${fmtNum(sq.social_followers||0)}</div>
+        ${adminLoggato?`<button onclick="event.stopPropagation();modificaFollowerManuale('${sq.id}')" style="background:none;border:none;color:var(--testo-dim);cursor:pointer;font-size:13px;padding:2px 4px">✏️</button>`:''}
       </div>`;
     }).join('')}
   </div>`;
+}
+
+// Modifica manuale follower (solo admin) — per correzioni o eventi speciali
+async function modificaFollowerManuale(sqId){
+  if(!adminLoggato) return;
+  const sq=squadreDB.find(s=>s.id===sqId);
+  if(!sq) return;
+  const attuale=sq.social_followers||0;
+  const nuovoStr=prompt(`Follower attuali di ${sq.nome_squadra||sq.nome}: ${attuale}\n\nInserisci il nuovo totale:`,attuale);
+  if(nuovoStr===null) return;
+  const nuovo=parseInt(nuovoStr);
+  if(isNaN(nuovo)||nuovo<0){showToast('❌ Valore non valido','error');return;}
+  try{
+    await sb.from('squadre').update({social_followers:nuovo}).eq('id',sqId);
+    sq.social_followers=nuovo;
+    if(utenteLoggato&&utenteLoggato.id===sqId) utenteLoggato.social_followers=nuovo;
+    showToast(`✅ Follower di ${sq.nome_squadra||sq.nome} impostati a ${fmtNum(nuovo)}`);
+    if(typeof renderSocial==='function') renderSocial();
+  }catch(e){showToast('❌ '+e.message,'error');}
+}
+
+// Cancella dal database i post-foto più vecchi di 7 giorni, per non far
+// affollare il feed e alleggerire la tabella. NOTA: questo rimuove solo il
+// riferimento nel database, non la foto vera su Cloudinary (servirebbe la
+// chiave segreta dell'account, non usabile in sicurezza lato client) — se
+// vuoi liberare anche lo spazio reale, va fatto a mano dalla Media Library
+// di Cloudinary di tanto in tanto.
+let ultimaPuliziaFoto=null;
+async function pulisciFotoVecchie(){
+  // Al massimo una volta per sessione, per non ripetere la query ad ogni apertura del feed
+  if(ultimaPuliziaFoto) return;
+  ultimaPuliziaFoto=Date.now();
+  try{
+    const settimanaFa=new Date(Date.now()-7*24*60*60*1000).toISOString();
+    const{data,error}=await sb.from('social_posts').delete().eq('tipo','foto').lt('created_at',settimanaFa).select();
+    if(error) throw error;
+    if(data&&data.length){
+      const idsRimossi=new Set(data.map(p=>p.id));
+      socialPostsDB=socialPostsDB.filter(p=>!idsRimossi.has(p.id));
+      console.log(`🧹 Puliti ${data.length} post-foto più vecchi di 7 giorni`);
+    }
+  }catch(e){ console.warn('Pulizia foto vecchie non riuscita:',e.message); }
 }
