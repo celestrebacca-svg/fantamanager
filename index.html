@@ -402,26 +402,34 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 // non è stato popolato dal caricamento dati (evita di dipendere dall'ordine script).
 (function(){
   const chiavi=['rose','tifosi','stadio','competizioni','mercato','classifica','social','risiko','bilancio','talentboy'];
-  let tentativi=0;
-  const timer=setInterval(()=>{
-    tentativi++;
+
+  // Immagini: non si arrende mai, perché su rete mobile lenta il caricamento
+  // può richiedere più di qualche secondo — se ci si fermasse prima, le
+  // emoji resterebbero per sempre anche quando le foto sono già pronte.
+  const timerImg=setInterval(()=>{
     if(typeof immaginiConfigDB!=='undefined'&&Object.keys(immaginiConfigDB).length){
+      let tutteFatte=true;
       chiavi.forEach(k=>{
         const url=immaginiConfigDB['home_'+k];
         const el=document.getElementById('home-icon-'+k);
         if(url&&el&&!el.querySelector('img')){
           el.innerHTML=`<img src="${url}" alt="${k}">`;
         }
+        if(!url) tutteFatte=false; // se manca ancora una chiave, ricontrolla al giro dopo
       });
-      clearInterval(timer);
+      if(tutteFatte) clearInterval(timerImg);
     }
+  },500);
+
+  // Stagione: stessa logica, non si arrende mai.
+  const timerStagione=setInterval(()=>{
     if(typeof STAGIONE_CORRENTE!=='undefined'&&STAGIONE_CORRENTE){
       const corta=STAGIONE_CORRENTE.split('/').map((p,i)=>i===0?p:p.slice(-2)).join('/');
       const b=document.getElementById('home-badge-stagione'); if(b) b.textContent=STAGIONE_CORRENTE;
       const s=document.getElementById('home-stat-stagione'); if(s) s.textContent=corta;
       document.querySelectorAll('.js-stagione').forEach(el=>el.textContent=corta);
+      clearInterval(timerStagione);
     }
-    if(tentativi>20) clearInterval(timer); // ~10s, poi si arrende (restano le emoji/valori di default)
   },500);
 })();
 </script>
