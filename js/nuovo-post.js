@@ -69,7 +69,7 @@ function renderFormNuovoPost(tipo){
           <select class="form-select" id="post-acquisto-tid" onchange="aggiornaPrevAcquisto(this.value)">
             <option value="">— Seleziona —</option>
             ${acquisti.map(t=>{
-              const g=giocatoriDB.find(x=>x.id===t.giocatore_id);
+              const g=giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id));
               const giaPostato=socialPostsDB.some(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(t.id));
               return g?`<option value="${t.id}">${giaPostato?'✓ ':''}${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
             }).join('')}
@@ -141,7 +141,7 @@ function rimuoviDomanda(i){
 function aggiornaPrevAcquisto(tIdStr){
   const tId=parseInt(tIdStr)||null;
   const t=tId?trattativeDB.find(x=>x.id===tId):null;
-  const g=t?giocatoriDB.find(x=>x.id===t.giocatore_id):null;
+  const g=t?giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id)):null;
   const el=document.getElementById('acquisto-preview');
   const textarea=document.getElementById('post-contenuto-acq');
   if(textarea) textarea.value='';
@@ -213,7 +213,7 @@ async function pubblicaPost(tipo){
     // Fallback: trattativa vecchia senza post automatico associato (creato prima
     // dell'introduzione della pubblicazione automatica) — crea il post da qui.
     const t=trattativeDB.find(x=>x.id===tId);
-    const g=t?giocatoriDB.find(x=>x.id===t.giocatore_id):null;
+    const g=t?giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id)):null;
     const guadagnati=followerAcquisto(g?.quotazione);
     payload={...payload, giocatore_id:g?.id||null, trattativa_id:tId, titolo:`🔴 UFFICIALE: ${g?.nome||''} È NOSTRO!`, contenuto, follower_guadagnati:guadagnati};
   }
