@@ -306,29 +306,58 @@ function renderPostCard(p){
 
 async function toggleLike(postId){
   if(!utenteLoggato){showToast('❌ Devi essere loggato','error');return;}
-  const likes=socialLikesDB[postId]||[];
-  const iaMiPiace=likes.includes(utenteLoggato.id);
   const post=socialPostsDB.find(p=>p.id===postId);
   if(!post) return;
-  if(iaMiPiace){
+
+  // Non fidarti solo della cache locale (socialLikesDB): se non è aggiornata
+  // (es. dopo un ricaricamento) rischi di far ripartire il conteggio da zero
+  // e permettere di mettere like più volte. Verifichiamo sempre sul database.
+  let giaMiPiace=false;
+  try{
+    const{data,error}=await sb.from('social_likes').select('id').eq('post_id',postId).eq('squadra_id',utenteLoggato.id).limit(1);
+    if(error) throw error;
+    giaMiPiace = !!(data && data.length);
+  }catch(e){
+    showToast('❌ Errore verifica like: '+e.message,'error');
+    return;
+  }
+
+  // Allinea la cache locale a quanto trovato sul DB, prima di decidere l'azione
+  if(!socialLikesDB[postId]) socialLikesDB[postId]=[];
+  const cacheHaLike=socialLikesDB[postId].includes(utenteLoggato.id);
+  if(giaMiPiace && !cacheHaLike) socialLikesDB[postId].push(utenteLoggato.id);
+  if(!giaMiPiace && cacheHaLike) socialLikesDB[postId]=socialLikesDB[postId].filter(s=>s!==utenteLoggato.id);
+
+  if(giaMiPiace){
     // Rimuovi like
     try{
-      await sb.from('social_likes').delete().eq('post_id',postId).eq('squadra_id',utenteLoggato.id);
+      const{error}=await sb.from('social_likes').delete().eq('post_id',postId).eq('squadra_id',utenteLoggato.id);
+      if(error) throw error;
       socialLikesDB[postId]=(socialLikesDB[postId]||[]).filter(s=>s!==utenteLoggato.id);
-      // Togli follower
       await aggiornaFollower(utenteLoggato.id,-FOLLOWER_LIKE_DATO);
       await aggiornaFollower(post.squadra_id,-FOLLOWER_LIKE_RICEVUTO);
-    }catch(e){}
+    }catch(e){ showToast('❌ Errore rimozione like: '+e.message,'error'); return; }
   } else {
-    // Aggiungi like
+    // Aggiungi like — il vincolo UNIQUE(post_id, squadra_id) sul DB blocca
+    // eventuali doppioni anche se la cache locale fosse disallineata
     try{
-      await sb.from('social_likes').insert({post_id:postId,squadra_id:utenteLoggato.id});
-      if(!socialLikesDB[postId]) socialLikesDB[postId]=[];
+      const{error}=await sb.from('social_likes').insert({post_id:postId,squadra_id:utenteLoggato.id});
+      if(error){
+        // Violazione del vincolo di unicità: il like esiste già sul DB,
+        // semplicemente non aggiorniamo i follower una seconda volta
+        if(error.code==='23505'){
+          socialLikesDB[postId].push(utenteLoggato.id);
+          showToast('Hai già messo like a questo post');
+          switchSocialTab('feed');
+          return;
+        }
+        throw error;
+      }
       socialLikesDB[postId].push(utenteLoggato.id);
       await aggiornaFollower(utenteLoggato.id,FOLLOWER_LIKE_DATO);
       await aggiornaFollower(post.squadra_id,FOLLOWER_LIKE_RICEVUTO);
       showToast(`❤️ +${FOLLOWER_LIKE_DATO} tuoi follower, +${FOLLOWER_LIKE_RICEVUTO} a ${squadreDB.find(s=>s.id===post.squadra_id)?.owner_name||'—'}`);
-    }catch(e){}
+    }catch(e){ showToast('❌ Errore like: '+e.message,'error'); return; }
   }
   switchSocialTab('feed');
 }
