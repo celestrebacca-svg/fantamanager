@@ -111,6 +111,11 @@ async function eseguiTrasferimento(t){
       tipo_contratto: upd.contratto,
       importo: parseFloat(t.importo)||null,
     });
+
+    // Post social automatico — non blocca il trasferimento se fallisce
+    if(typeof pubblicaPostAutomatico==='function'){
+      await pubblicaPostAutomatico(t, gId);
+    }
   }
 
   // ── SCAMBIO ──

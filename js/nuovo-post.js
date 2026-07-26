@@ -7,15 +7,18 @@ function apriNuovoPost(){
 
 function renderFormNuovoPost(tipo){
   const miei=giocatoriDB.filter(g=>g.squadra_id===utenteLoggato.id&&g.lista==='principale');
-  const gia_postati=new Set(socialPostsDB.filter(p=>p.tipo==='acquisto'&&String(p.squadra_id)===String(utenteLoggato.id)).map(p=>p.trattativa_id));
+  // Trattative approvate il cui giocatore risulta ORA di proprietà dell'utente loggato.
+  // Usiamo la proprietà attuale del giocatore (aggiornata da eseguiTrasferimento)
+  // come fonte di verità, invece dei campi squadra_acquirente_id/offerente_id della
+  // trattativa che su record più vecchi possono essere inconsistenti o mancanti.
+  // Non escludiamo quelle già postate: il post viene creato in automatico al momento
+  // del trasferimento, e qui l'utente può ancora personalizzarne la didascalia.
   const acquisti=trattativeDB.filter(t=>{
     if(t.stato!=='approvata') return false;
-    // Confronto robusto: String() evita mismatch se un id è number e l'altro string,
-    // e il fallback ai campi legacy copre trattative vecchie create prima della
-    // stabilizzazione dei nomi campo squadra_cedente_id/squadra_acquirente_id.
-    const acquirente=t.squadra_acquirente_id||t.squadra_offerente_id;
-    if(String(acquirente)!==String(utenteLoggato.id)) return false;
-    return !gia_postati.has(t.id);
+    if(!t.giocatore_id) return false;
+    const g=giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id));
+    if(!g) return false;
+    return String(g.squadra_id)===String(utenteLoggato.id);
   });
   document.getElementById('social-post-body').innerHTML=`
     <!-- TIPO POST -->
@@ -59,21 +62,22 @@ function renderFormNuovoPost(tipo){
     `:''}
 
     ${tipo==='acquisto'?`
-      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Ufficializza un acquisto — i follower dipendono dal valore TM del giocatore</div>
-      ${acquisti.length===0?'<div class="empty">Nessun acquisto completato da ufficializzare</div>':`
+      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">I tuoi acquisti/prestiti vengono pubblicati in automatico. Qui puoi personalizzare la didascalia.</div>
+      ${acquisti.length===0?'<div class="empty">Nessun acquisto/prestito da ufficializzare</div>':`
         <div class="form-group">
           <label class="form-label">Seleziona acquisto</label>
           <select class="form-select" id="post-acquisto-tid" onchange="aggiornaPrevAcquisto(this.value)">
             <option value="">— Seleziona —</option>
             ${acquisti.map(t=>{
               const g=giocatoriDB.find(x=>x.id===t.giocatore_id);
-              return g?`<option value="${t.id}">${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
+              const giaPostato=socialPostsDB.some(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(t.id));
+              return g?`<option value="${t.id}">${giaPostato?'✓ ':''}${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
             }).join('')}
           </select>
         </div>
         <div id="acquisto-preview" style="margin-bottom:12px"></div>
         <div class="form-group"><label class="form-label">Messaggio ufficiale</label><textarea id="post-contenuto-acq" class="form-input" rows="2" placeholder="Es: Benvenuto nella famiglia! 🔴⚫"></textarea></div>
-        <button onclick="pubblicaPost('acquisto')" class="btn-primary">🔴 UFFICIALIZZA ACQUISTO</button>
+        <button onclick="pubblicaPost('acquisto')" class="btn-primary">🔴 SALVA DIDASCALIA</button>
       `}
     `:''}
   `;
@@ -139,15 +143,20 @@ function aggiornaPrevAcquisto(tIdStr){
   const t=tId?trattativeDB.find(x=>x.id===tId):null;
   const g=t?giocatoriDB.find(x=>x.id===t.giocatore_id):null;
   const el=document.getElementById('acquisto-preview');
+  const textarea=document.getElementById('post-contenuto-acq');
+  if(textarea) textarea.value='';
   if(!el) return;
   if(!g){el.innerHTML='';return;}
+  // Se esiste già un post (creato in automatico dal trasferimento), precompila la didascalia attuale
+  const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(tId));
+  if(postEsistente&&textarea) textarea.value=postEsistente.contenuto||'';
   const f=followerAcquisto(g.quotazione);
   el.innerHTML=`<div style="background:rgba(255,68,68,0.08);border:1px solid rgba(255,68,68,0.2);border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
     <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:var(--grigio-chiaro);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">
       ${g.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniziali(g.nome)}
     </div>
     <div style="flex:1"><div style="font-weight:600">${g.nome}</div><div style="font-size:11px;color:var(--testo-dim)">${g.ruolo} ${g.quotazione?'• '+g.quotazione+'M€':''}</div></div>
-    <div style="text-align:center"><div style="font-family:'Space Mono',monospace;font-size:14px;color:var(--verde);font-weight:700">+${fmtNum(f)}</div><div style="font-size:9px;color:var(--testo-dim)">follower</div></div>
+    <div style="text-align:center"><div style="font-family:'Space Mono',monospace;font-size:14px;color:${postEsistente?'var(--testo-dim)':'var(--verde)'};font-weight:700">${postEsistente?'✓ pubblicato':'+'+fmtNum(f)}</div><div style="font-size:9px;color:var(--testo-dim)">${postEsistente?'':'follower'}</div></div>
   </div>`;
 }
 
@@ -184,9 +193,27 @@ async function pubblicaPost(tipo){
   } else if(tipo==='acquisto'){
     const tId=parseInt(document.getElementById('post-acquisto-tid')?.value)||null;
     if(!tId){showToast('❌ Seleziona un acquisto','error');return;}
+    const contenuto=document.getElementById('post-contenuto-acq')?.value?.trim()||'';
+    const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(tId));
+
+    if(postEsistente){
+      // Il post è già stato creato in automatico al momento del trasferimento:
+      // qui aggiorniamo solo la didascalia, senza toccare i follower già assegnati.
+      try{
+        const{error}=await sb.from('social_posts').update({contenuto}).eq('id',postEsistente.id);
+        if(error) throw error;
+        postEsistente.contenuto=contenuto;
+        showToast('✅ Didascalia aggiornata!');
+        document.getElementById('modal-social-post').classList.remove('open');
+        if(typeof renderSocial==='function') renderSocial();
+      }catch(e){ showToast('❌ Errore: '+e.message,'error'); }
+      return;
+    }
+
+    // Fallback: trattativa vecchia senza post automatico associato (creato prima
+    // dell'introduzione della pubblicazione automatica) — crea il post da qui.
     const t=trattativeDB.find(x=>x.id===tId);
     const g=t?giocatoriDB.find(x=>x.id===t.giocatore_id):null;
-    const contenuto=document.getElementById('post-contenuto-acq')?.value?.trim()||'';
     const guadagnati=followerAcquisto(g?.quotazione);
     payload={...payload, giocatore_id:g?.id||null, trattativa_id:tId, titolo:`🔴 UFFICIALE: ${g?.nome||''} È NOSTRO!`, contenuto, follower_guadagnati:guadagnati};
   }

@@ -333,6 +333,55 @@ async function toggleLike(postId){
   switchSocialTab('feed');
 }
 
+// ══════════════════════════════════════════════
+// POST AUTOMATICO ACQUISTO/PRESTITO
+// Chiamata da eseguiTrasferimento() in mercato.js: ogni trasferimento
+// (admin diretto o trattativa approvata) genera SEMPRE un post, con
+// didascalia di default che il proprietario potrà poi modificare dal
+// tab "ACQUISTO" del form nuovo post (non crea un post nuovo, aggiorna
+// quello esistente — vedi pubblicaPost in nuovo-post.js).
+// Non blocca mai il trasferimento: eventuali errori vengono solo loggati.
+// ══════════════════════════════════════════════
+async function pubblicaPostAutomatico(t, gId){
+  try{
+    if(!t || !gId) return;
+    const sqAcquirente = t.squadra_acquirente_id;
+    if(!sqAcquirente) return; // niente squadra valida, niente post
+
+    // Evita doppioni se la funzione viene richiamata due volte sulla stessa trattativa
+    if(t.id){
+      const {data: esistente} = await sb.from('social_posts').select('id').eq('trattativa_id', t.id).eq('tipo','acquisto').limit(1);
+      if(esistente && esistente.length) return;
+    }
+
+    const g = giocatoriDB.find(x=>String(x.id)===String(gId));
+    if(!g) return;
+
+    const isPrestito = (t.tipo||'').toLowerCase().includes('prestito');
+    const guadagnati = followerAcquisto(g.quotazione);
+    const titolo = isPrestito
+      ? `🔵 UFFICIALE: ${g.nome} arriva in prestito!`
+      : `🔴 UFFICIALE: ${g.nome} È NOSTRO!`;
+
+    const payload = {
+      squadra_id: sqAcquirente,
+      tipo: 'acquisto',
+      giocatore_id: g.id,
+      trattativa_id: t.id || null,
+      titolo,
+      contenuto: '',
+      follower_guadagnati: guadagnati
+    };
+
+    const {data, error} = await sb.from('social_posts').insert(payload).select();
+    if(error){ console.warn('Post automatico non creato:', error); return; }
+    if(data && data[0]) socialPostsDB.unshift(data[0]);
+    if(guadagnati>0) await aggiornaFollower(sqAcquirente, guadagnati);
+  }catch(e){
+    console.warn('Errore post automatico:', e);
+  }
+}
+
 async function aggiornaFollower(sqId, delta){
   const idx=squadreDB.findIndex(s=>s.id===sqId);
   if(idx<0) return;
