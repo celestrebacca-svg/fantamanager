@@ -377,11 +377,11 @@ async function pubblicaPostAutomatico(t, gId){
     const sqAcquirente = t.squadra_acquirente_id;
     if(!sqAcquirente) return; // niente squadra valida, niente post
 
-    // Evita doppioni se la funzione viene richiamata due volte sulla stessa trattativa
-    if(t.id){
-      const {data: esistente} = await sb.from('social_posts').select('id').eq('trattativa_id', t.id).eq('tipo','acquisto').limit(1);
-      if(esistente && esistente.length) return;
-    }
+    // Un giocatore può essere "ufficializzato" una sola volta in assoluto,
+    // anche se viene ceduto e ripreso più volte nel tempo — evita di generare
+    // più post (e più follower) per lo stesso giocatore.
+    const {data: esistente} = await sb.from('social_posts').select('id').eq('tipo','acquisto').eq('giocatore_id', gId).limit(1);
+    if(esistente && esistente.length) return;
 
     const g = giocatoriDB.find(x=>String(x.id)===String(gId));
     if(!g) return;
@@ -450,13 +450,15 @@ async function apriCommenti(postId){
           </div>`;
         }).join(''):'<div style="text-align:center;color:var(--testo-dim);padding:16px">Nessun commento ancora</div>'}
       </div>
-      ${utenteLoggato&&post.squadra_id!==utenteLoggato.id?`
-        <div style="display:flex;gap:8px">
-          <input id="nuovo-commento-input" class="form-input" type="text" placeholder="Scrivi un commento..." style="flex:1">
-          <button onclick="inviaCommento(${postId},'${post.squadra_id}')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;padding:8px 14px;border-radius:8px;border:none;cursor:pointer">INVIA</button>
-        </div>
-        <div style="font-size:10px;color:var(--testo-dim);margin-top:4px">+${FOLLOWER_COMMENTO_DATO} tuoi follower • +${FOLLOWER_COMMENTO_RICEVUTO} follower al proprietario</div>
-      `:''}`;
+      ${utenteLoggato&&post.squadra_id!==utenteLoggato.id?(
+        commenti.some(cm=>String(cm.squadra_id)===String(utenteLoggato.id))
+        ? `<div style="font-size:11px;color:var(--testo-dim);text-align:center;padding:6px">Hai già commentato questo post</div>`
+        : `<div style="display:flex;gap:8px">
+            <input id="nuovo-commento-input" class="form-input" type="text" placeholder="Scrivi un commento..." style="flex:1">
+            <button onclick="inviaCommento(${postId},'${post.squadra_id}')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;padding:8px 14px;border-radius:8px;border:none;cursor:pointer">INVIA</button>
+          </div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-top:4px">+${FOLLOWER_COMMENTO_DATO} tuoi follower • +${FOLLOWER_COMMENTO_RICEVUTO} follower al proprietario</div>`
+      ):''}`;
   }catch(e){body.innerHTML='<div class="empty">Errore caricamento</div>';}
 }
 
@@ -465,9 +467,29 @@ async function inviaCommento(postId, postOwnerSqId){
   const testo=input?.value?.trim();
   if(!testo){showToast('❌ Scrivi qualcosa','error');return;}
   if(!utenteLoggato) return;
+
+  // Un solo commento per post per squadra: verifica sempre sul DB, non solo
+  // sull'interfaccia, per evitare farming di follower da sessioni disallineate.
+  try{
+    const{data,error:errSel}=await sb.from('social_commenti').select('id').eq('post_id',postId).eq('squadra_id',utenteLoggato.id).limit(1);
+    if(errSel) throw errSel;
+    if(data && data.length){
+      showToast('Hai già commentato questo post');
+      apriCommenti(postId);
+      return;
+    }
+  }catch(e){ showToast('❌ Errore verifica: '+e.message,'error'); return; }
+
   try{
     const{error}=await sb.from('social_commenti').insert({post_id:postId,squadra_id:utenteLoggato.id,testo});
-    if(error) throw error;
+    if(error){
+      if(error.code==='23505'){
+        showToast('Hai già commentato questo post');
+        apriCommenti(postId);
+        return;
+      }
+      throw error;
+    }
     await aggiornaFollower(utenteLoggato.id,FOLLOWER_COMMENTO_DATO);
     await aggiornaFollower(postOwnerSqId,FOLLOWER_COMMENTO_RICEVUTO);
     showToast(`💬 Commento pubblicato! +${FOLLOWER_COMMENTO_DATO} tuoi follower`);

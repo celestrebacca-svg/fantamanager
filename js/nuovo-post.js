@@ -70,7 +70,7 @@ function renderFormNuovoPost(tipo){
             <option value="">— Seleziona —</option>
             ${acquisti.map(t=>{
               const g=giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id));
-              const giaPostato=socialPostsDB.some(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(t.id));
+              const giaPostato=socialPostsDB.some(p=>p.tipo==='acquisto'&&String(p.giocatore_id)===String(g.id));
               return g?`<option value="${t.id}">${giaPostato?'✓ ':''}${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
             }).join('')}
           </select>
@@ -147,8 +147,8 @@ function aggiornaPrevAcquisto(tIdStr){
   if(textarea) textarea.value='';
   if(!el) return;
   if(!g){el.innerHTML='';return;}
-  // Se esiste già un post (creato in automatico dal trasferimento), precompila la didascalia attuale
-  const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(tId));
+  // Se esiste già un post per questo giocatore (auto o manuale), precompila la didascalia attuale
+  const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.giocatore_id)===String(g.id));
   if(postEsistente&&textarea) textarea.value=postEsistente.contenuto||'';
   const f=followerAcquisto(g.quotazione);
   el.innerHTML=`<div style="background:rgba(255,68,68,0.08);border:1px solid rgba(255,68,68,0.2);border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
@@ -194,11 +194,16 @@ async function pubblicaPost(tipo){
     const tId=parseInt(document.getElementById('post-acquisto-tid')?.value)||null;
     if(!tId){showToast('❌ Seleziona un acquisto','error');return;}
     const contenuto=document.getElementById('post-contenuto-acq')?.value?.trim()||'';
-    const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(tId));
+    const t=trattativeDB.find(x=>x.id===tId);
+    const g=t?giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id)):null;
+    if(!g){showToast('❌ Giocatore non trovato','error');return;}
+
+    // Un giocatore può avere un solo post di acquisto in assoluto: se esiste già
+    // (per questa o per una trattativa precedente dello stesso giocatore), lo
+    // aggiorniamo soltanto, senza crearne uno nuovo e senza riassegnare follower.
+    const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.giocatore_id)===String(g.id));
 
     if(postEsistente){
-      // Il post è già stato creato in automatico al momento del trasferimento:
-      // qui aggiorniamo solo la didascalia, senza toccare i follower già assegnati.
       try{
         const{error}=await sb.from('social_posts').update({contenuto}).eq('id',postEsistente.id);
         if(error) throw error;
@@ -211,16 +216,26 @@ async function pubblicaPost(tipo){
     }
 
     // Fallback: trattativa vecchia senza post automatico associato (creato prima
-    // dell'introduzione della pubblicazione automatica) — crea il post da qui.
-    const t=trattativeDB.find(x=>x.id===tId);
-    const g=t?giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id)):null;
+    // dell'introduzione della pubblicazione automatica) — crea il post da qui,
+    // una sola volta per questo giocatore.
     const guadagnati=followerAcquisto(g?.quotazione);
     payload={...payload, giocatore_id:g?.id||null, trattativa_id:tId, titolo:`🔴 UFFICIALE: ${g?.nome||''} È NOSTRO!`, contenuto, follower_guadagnati:guadagnati};
   }
 
   try{
     const{data,error}=await sb.from('social_posts').insert(payload).select();
-    if(error) throw error;
+    if(error){
+      // Vincolo UNIQUE violato: nel frattempo è già stato creato un post per
+      // questo giocatore (es. doppio click, o pubblicazione automatica nel
+      // frattempo) — non assegniamo follower una seconda volta.
+      if(error.code==='23505'){
+        showToast('Questo giocatore è già stato ufficializzato');
+        if(typeof renderSocial==='function') renderSocial();
+        document.getElementById('modal-social-post').classList.remove('open');
+        return;
+      }
+      throw error;
+    }
 
     // Accredita i follower guadagnati alla squadra che pubblica
     if(payload.follower_guadagnati>0){
