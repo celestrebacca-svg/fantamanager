@@ -29,7 +29,7 @@ function renderFormNuovoPost(tipo){
 
     ${tipo==='foto'?`
       <div class="form-group"><label class="form-label">Didascalia (obbligatoria)</label><textarea id="post-contenuto" class="form-input" rows="3" placeholder="Scrivi qualcosa..." style="resize:vertical"></textarea></div>
-      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:10px">Max 3 foto • +${FOLLOWER_FOTO} follower per ogni foto</div>
+      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:10px">Max 3 foto per post • +${FOLLOWER_FOTO} follower per ogni foto • Max ${LIMITE_FOTO_SETTIMANA} post a settimana</div>
       ${[0,1,2].map(i=>`
         <div style="margin-bottom:10px">
           <div style="font-size:10px;color:var(--testo-dim);margin-bottom:4px">FOTO ${i+1}${i===0?' (obbligatoria)':' (opzionale)'}</div>
@@ -53,7 +53,7 @@ function renderFormNuovoPost(tipo){
           ${miei.map(g=>`<option value="${g.id}">${g.nome} (${g.ruolo})</option>`).join('')}
         </select>
       </div>
-      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Min 3 domande (+${FOLLOWER_INTERVISTA_3} follower) • Max 5 domande (+${FOLLOWER_INTERVISTA_5} follower)</div>
+      <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Min 3 domande (+${FOLLOWER_INTERVISTA_3} follower) • Max 5 domande (+${FOLLOWER_INTERVISTA_5} follower) • Max ${LIMITE_INTERVISTA_SETTIMANA} interviste a settimana</div>
       <div id="domande-container">
         ${[0,1,2].map(i=>renderDomandaRow(i)).join('')}
       </div>
@@ -70,7 +70,7 @@ function renderFormNuovoPost(tipo){
             <option value="">— Seleziona —</option>
             ${acquisti.map(t=>{
               const g=giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id));
-              const giaPostato=socialPostsDB.some(p=>p.tipo==='acquisto'&&String(p.giocatore_id)===String(g.id));
+              const giaPostato=socialPostsDB.some(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(t.id));
               return g?`<option value="${t.id}">${giaPostato?'✓ ':''}${g.nome} (${g.ruolo}) ${g.quotazione?'• '+g.quotazione+'M€':''}</option>`:'';
             }).join('')}
           </select>
@@ -147,8 +147,8 @@ function aggiornaPrevAcquisto(tIdStr){
   if(textarea) textarea.value='';
   if(!el) return;
   if(!g){el.innerHTML='';return;}
-  // Se esiste già un post per questo giocatore (auto o manuale), precompila la didascalia attuale
-  const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.giocatore_id)===String(g.id));
+  // Se esiste già un post per questa trattativa (auto o manuale), precompila la didascalia attuale
+  const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(tId));
   if(postEsistente&&textarea) textarea.value=postEsistente.contenuto||'';
   const f=followerAcquisto(g.quotazione);
   el.innerHTML=`<div style="background:rgba(255,68,68,0.08);border:1px solid rgba(255,68,68,0.2);border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px">
@@ -165,6 +165,13 @@ async function pubblicaPost(tipo){
   let payload={squadra_id:utenteLoggato.id, tipo, follower_guadagnati:0};
 
   if(tipo==='foto'){
+    try{
+      const nSettimana=await contaPostUltimaSettimana('foto');
+      if(nSettimana>=LIMITE_FOTO_SETTIMANA){
+        showToast(`❌ Limite raggiunto: max ${LIMITE_FOTO_SETTIMANA} post foto a settimana`,'error');
+        return;
+      }
+    }catch(e){ showToast('❌ Errore verifica limite: '+e.message,'error'); return; }
     const contenuto=document.getElementById('post-contenuto')?.value?.trim();
     if(!contenuto){showToast('❌ Didascalia obbligatoria','error');return;}
     // Raccogli foto da url inputs
@@ -174,6 +181,13 @@ async function pubblicaPost(tipo){
     payload={...payload, contenuto, foto_urls:urls, follower_guadagnati:guadagnati};
 
   } else if(tipo==='intervista'){
+    try{
+      const nSettimana=await contaPostUltimaSettimana('intervista');
+      if(nSettimana>=LIMITE_INTERVISTA_SETTIMANA){
+        showToast(`❌ Limite raggiunto: max ${LIMITE_INTERVISTA_SETTIMANA} interviste a settimana`,'error');
+        return;
+      }
+    }catch(e){ showToast('❌ Errore verifica limite: '+e.message,'error'); return; }
     const gId=parseInt(document.getElementById('post-giocatore')?.value)||null;
     if(!gId){showToast('❌ Seleziona un calciatore','error');return;}
     const domande=[];
@@ -198,10 +212,10 @@ async function pubblicaPost(tipo){
     const g=t?giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id)):null;
     if(!g){showToast('❌ Giocatore non trovato','error');return;}
 
-    // Un giocatore può avere un solo post di acquisto in assoluto: se esiste già
-    // (per questa o per una trattativa precedente dello stesso giocatore), lo
-    // aggiorniamo soltanto, senza crearne uno nuovo e senza riassegnare follower.
-    const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.giocatore_id)===String(g.id));
+    // Un post per acquisizione (trattativa): se lo stesso giocatore viene
+    // ripreso con una NUOVA trattativa dopo essere stato ceduto, deve poter
+    // generare un nuovo post. Blocchiamo solo i doppioni sulla stessa trattativa.
+    const postEsistente=socialPostsDB.find(p=>p.tipo==='acquisto'&&String(p.trattativa_id)===String(tId));
 
     if(postEsistente){
       try{
@@ -226,10 +240,10 @@ async function pubblicaPost(tipo){
     const{data,error}=await sb.from('social_posts').insert(payload).select();
     if(error){
       // Vincolo UNIQUE violato: nel frattempo è già stato creato un post per
-      // questo giocatore (es. doppio click, o pubblicazione automatica nel
+      // questa trattativa (es. doppio click, o pubblicazione automatica nel
       // frattempo) — non assegniamo follower una seconda volta.
       if(error.code==='23505'){
-        showToast('Questo giocatore è già stato ufficializzato');
+        showToast('Questa trattativa è già stata ufficializzata');
         if(typeof renderSocial==='function') renderSocial();
         document.getElementById('modal-social-post').classList.remove('open');
         return;

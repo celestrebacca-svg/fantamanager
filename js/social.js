@@ -14,6 +14,18 @@ const FOLLOWER_COMMENTO_RICEVUTO=10;
 const FOLLOWER_TOP1=150;
 const FOLLOWER_TOP2=100;
 const FOLLOWER_TOP3=50;
+const LIMITE_FOTO_SETTIMANA=3;
+const LIMITE_INTERVISTA_SETTIMANA=2;
+
+// Conta quanti post di un certo tipo la squadra ha pubblicato negli ultimi 7 giorni
+// (finestra mobile, non settimana solare) — usato per far rispettare i limiti
+// settimanali su foto e interviste ed evitare il farming di follower.
+async function contaPostUltimaSettimana(tipo){
+  const settimanaFa=new Date(Date.now()-7*24*60*60*1000).toISOString();
+  const {data,error}=await sb.from('social_posts').select('id').eq('tipo',tipo).eq('squadra_id',utenteLoggato.id).gte('created_at',settimanaFa);
+  if(error) throw error;
+  return (data||[]).length;
+}
 
 // Follower per acquisto in base al valore TM
 function followerAcquisto(quotazione){
@@ -377,11 +389,13 @@ async function pubblicaPostAutomatico(t, gId){
     const sqAcquirente = t.squadra_acquirente_id;
     if(!sqAcquirente) return; // niente squadra valida, niente post
 
-    // Un giocatore può essere "ufficializzato" una sola volta in assoluto,
-    // anche se viene ceduto e ripreso più volte nel tempo — evita di generare
-    // più post (e più follower) per lo stesso giocatore.
-    const {data: esistente} = await sb.from('social_posts').select('id').eq('tipo','acquisto').eq('giocatore_id', gId).limit(1);
-    if(esistente && esistente.length) return;
+    // Un post per acquisizione (trattativa): se lo stesso giocatore viene
+    // ripreso in futuro con una NUOVA trattativa, deve poter generare un
+    // nuovo post. Blocchiamo solo i doppioni sulla stessa identica trattativa.
+    if(t.id){
+      const {data: esistente} = await sb.from('social_posts').select('id').eq('trattativa_id', t.id).eq('tipo','acquisto').limit(1);
+      if(esistente && esistente.length) return;
+    }
 
     const g = giocatoriDB.find(x=>String(x.id)===String(gId));
     if(!g) return;
