@@ -11,6 +11,7 @@ let utenteLoggato = null; // squadra dell'utente loggato
 // Il valore reale viene caricato dal DB (tabella impostazioni) in carica-dati.js;
 // questo è solo il fallback iniziale prima che il caricamento finisca.
 let STAGIONE_CORRENTE = '2025/26';
+let stagioneCaricata = false; // true solo dopo che carica-dati.js ha provato a leggere la stagione vera dal DB
 let squadreDB = [], giocatoriDB = [], tifosi_logDB = [], trattativeDB = [];
 let immaginiConfigDB = {}; // chiave -> url, caricato da tabella immagini_config
 let adminModalitaDirettaTrattativa = false; // true mentre admin sta creando una trattativa diretta

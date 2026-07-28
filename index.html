@@ -421,9 +421,12 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     }
   },500);
 
-  // Stagione: stessa logica, non si arrende mai.
+  // Stagione: aspetta che carica-dati.js abbia davvero finito (flag esplicito),
+  // non che la variabile sia "definita" — era sempre vera fin da subito per via
+  // del fallback in config.js, quindi scriveva il valore vecchio prima che la
+  // query al DB avesse il tempo di completare.
   const timerStagione=setInterval(()=>{
-    if(typeof STAGIONE_CORRENTE!=='undefined'&&STAGIONE_CORRENTE){
+    if(typeof stagioneCaricata!=='undefined'&&stagioneCaricata){
       const corta=STAGIONE_CORRENTE.split('/').map((p,i)=>i===0?p:p.slice(-2)).join('/');
       const b=document.getElementById('home-badge-stagione'); if(b) b.textContent=STAGIONE_CORRENTE;
       const s=document.getElementById('home-stat-stagione'); if(s) s.textContent=corta;

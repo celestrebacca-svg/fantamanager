@@ -21,6 +21,7 @@ async function caricaDati(){
       const imp=await sb.from('impostazioni').select('*').eq('id',1).single();
       if(!imp.error&&imp.data?.stagione_corrente) STAGIONE_CORRENTE=normalizzaStagione(imp.data.stagione_corrente);
     }catch(e){ console.warn('Impostazioni non caricate, uso fallback:',e.message); }
+    stagioneCaricata=true; // segnala alla UI che il tentativo di caricamento è concluso (successo o fallback)
 
     sb.from('domande_custom').select('*').order('created_at')
       .then(r=>{if(!r.error) domandeCustomDB=r.data||[];})
