@@ -55,17 +55,34 @@ async function caricaDati(){
 
 async function caricaGiocatoriBackground(){
   try{
-    const r1=await sb.from('giocatori').select('*').order('nome').range(0,199);
+    // Prima pagina: fa vedere qualcosa il prima possibile
+    const PAGE=200;
+    const r1=await sb.from('giocatori').select('*').order('nome').range(0,PAGE-1);
     if(!r1.error){
       giocatoriDB=r1.data||[];
       if(document.getElementById('section-rose')?.classList.contains('active')) renderOverview();
     }
-    const r2=await sb.from('giocatori').select('*').order('nome').range(200,599);
-    if(!r2.error){
-      giocatoriDB=[...giocatoriDB,...(r2.data||[])];
+    // Continua a caricare pagine successive finché l'ultima non torna incompleta
+    // (meno righe della dimensione pagina = fine tabella) — niente più limite
+    // fisso a 600 righe che tagliava fuori giocatori/svincolati oltre quel punto.
+    let offset=PAGE;
+    while(true){
+      const r=await sb.from('giocatori').select('*').order('nome').range(offset,offset+PAGE-1);
+      if(r.error) break;
+      const batch=r.data||[];
+      giocatoriDB=[...giocatoriDB,...batch];
+      if(batch.length<PAGE) break; // ultima pagina raggiunta
+      offset+=PAGE;
     }
     sb.from('tifosi_log').select('*').order('created_at',{ascending:false})
       .then(r=>{if(!r.error)tifosi_logDB=r.data||[];});
+    // Se l'utente ha già aperto la scheda Svincolati mentre il caricamento era
+    // ancora parziale, la ricarico ora con i dati completi al posto di lasciarla
+    // ferma sul conteggio incompleto.
+    if(typeof svincolatiCaricati!=='undefined'&&svincolatiCaricati&&typeof caricaSvincolati==='function'){
+      svincolatiCaricati=false;
+      caricaSvincolati();
+    }
   }catch(e){console.warn('Background load error:',e);}
 }
 
