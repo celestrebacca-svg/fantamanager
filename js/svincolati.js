@@ -1,5 +1,6 @@
 // ===== SVINCOLATI =====
 let svincolatiDB=[],svincolatiFiltrati=[];
+let svincolatiVisibili=120; // quanti mostrarne ora; sale di 120 ad ogni "Carica altri"
 const SERIE_A_BASE=[
   {nome:'Lookman',ruolo:'A',club:'Atalanta'},{nome:'Retegui',ruolo:'A',club:'Atalanta'},{nome:'De Ketelaere',ruolo:'A',club:'Atalanta'},{nome:'Kolasinac',ruolo:'D',club:'Atalanta'},{nome:'Toloi',ruolo:'D',club:'Atalanta'},{nome:'Hateboer',ruolo:'D',club:'Atalanta'},{nome:'Ruggeri',ruolo:'D',club:'Atalanta'},{nome:'Samardzic',ruolo:'C',club:'Atalanta'},{nome:'Kossounou',ruolo:'D',club:'Atalanta'},{nome:'Carnesecchi',ruolo:'P',club:'Atalanta'},{nome:'Bellanova',ruolo:'D',club:'Atalanta'},
   {nome:'Orsolini',ruolo:'A',club:'Bologna'},{nome:'Ndoye',ruolo:'A',club:'Bologna'},{nome:'Dallinga',ruolo:'A',club:'Bologna'},{nome:'Odgaard',ruolo:'C',club:'Bologna'},{nome:'Freuler',ruolo:'C',club:'Bologna'},{nome:'Fabbian',ruolo:'C',club:'Bologna'},{nome:'Lucumi',ruolo:'D',club:'Bologna'},{nome:'Beukema',ruolo:'D',club:'Bologna'},{nome:'Skorupski',ruolo:'P',club:'Bologna'},
@@ -92,6 +93,7 @@ async function caricaSvincolati(){
 }
 
 function filtraSvincolati(val){
+  svincolatiVisibili=120; // ogni nuova ricerca/filtro riparte dalla prima pagina
   const search=(val||document.getElementById('svincola-search')?.value||'').toLowerCase();
   const ruolo=document.getElementById('svincola-ruolo')?.value||'';
   const squadra=document.getElementById('svincola-squadra')?.value||'';
@@ -115,7 +117,7 @@ function renderSvincolati(){
   const grid=document.getElementById('svincolati-grid');
   if(!grid) return;
   if(!svincolatiFiltrati.length){grid.innerHTML='<div class="empty">Nessun giocatore trovato</div>';return;}
-  const vis=svincolatiFiltrati.slice(0,120);
+  const vis=svincolatiFiltrati.slice(0,svincolatiVisibili);
   grid.innerHTML=vis.map(p=>{
     // Troviamo l'indice globale in svincolatiDB per riferirci
     const dbIdx=svincolatiDB.indexOf(p);
@@ -187,7 +189,18 @@ function renderSvincolati(){
       </div>
     </div>`;
   }).join('');
-  if(svincolatiFiltrati.length>120) grid.innerHTML+=`<div style="grid-column:1/-1;text-align:center;color:var(--testo-dim);font-size:13px;padding:12px">... e altri ${svincolatiFiltrati.length-120}. Usa i filtri.</div>`;
+  if(svincolatiFiltrati.length>svincolatiVisibili){
+    grid.innerHTML+=`<div style="grid-column:1/-1;text-align:center;padding:12px">
+      <button onclick="caricaAltriSvincolati()" style="background:var(--grigio);border:1px solid var(--grigio-chiaro);color:var(--testo);font-size:12px;font-weight:600;padding:8px 16px;border-radius:8px;cursor:pointer">
+        Carica altri (${svincolatiFiltrati.length-svincolatiVisibili} rimanenti)
+      </button>
+    </div>`;
+  }
+}
+
+function caricaAltriSvincolati(){
+  svincolatiVisibili+=120;
+  renderSvincolati();
 }
 
 function apriEditSvincolo(dbIdx){
