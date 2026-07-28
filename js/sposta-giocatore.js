@@ -6,7 +6,7 @@ function apriSpostaGiocatore(){
   document.getElementById('sposta-step1').style.display='block';
   document.getElementById('sposta-step2').style.display='none';
   document.getElementById('sposta-search').value='';
-  document.getElementById('sposta-lista').innerHTML='';
+  document.getElementById('sposta-risultati-ricerca').innerHTML='';
   const sel=document.getElementById('sposta-squadra-id');
   sel.innerHTML='<option value="">— Lascia nella stessa squadra —</option>'+
     squadreDB.map(s=>`<option value="${s.id}">${s.nome} (${s.owner_name})</option>`).join('');
@@ -14,9 +14,9 @@ function apriSpostaGiocatore(){
 }
 
 function cercaGiocatoreSposta(val){
-  if(val.length<2){document.getElementById('sposta-lista').innerHTML='';return;}
+  if(val.length<2){document.getElementById('sposta-risultati-ricerca').innerHTML='';return;}
   const results=giocatoriDB.filter(g=>g.nome.toLowerCase().includes(val.toLowerCase())).slice(0,15);
-  document.getElementById('sposta-lista').innerHTML=results.map(g=>{
+  document.getElementById('sposta-risultati-ricerca').innerHTML=results.map(g=>{
     const sq=squadreDB.find(s=>s.id===g.squadra_id);
     return`<div class="giocatore-search-item" onclick="selezionaGiocatoreSposta(${g.id})">
       <div class="gsi-avatar">${g.foto_url?`<img src="${g.foto_url}">`:iniziali(g.nome)}</div>
@@ -52,7 +52,7 @@ function tornaSpostaStep1(){
   document.getElementById('sposta-step1').style.display='block';
   document.getElementById('sposta-step2').style.display='none';
   document.getElementById('sposta-search').value='';
-  document.getElementById('sposta-lista').innerHTML='';
+  document.getElementById('sposta-risultati-ricerca').innerHTML='';
 }
 
 function aggiornaCountSposta(){
