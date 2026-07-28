@@ -683,6 +683,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div class="admin-card" onclick="apriNuovoGiocatore()" style="border-color:rgba(0,255,135,0.4);background:rgba(0,255,135,0.05)"><div class="admin-card-icon">➕</div><div class="admin-card-title">Nuovo Giocatore</div><div class="admin-card-sub">Aggiungi a qualsiasi rosa</div></div>
             <div class="admin-card" onclick="apriModificaGiocatore()" style="border-color:rgba(68,136,255,0.4);background:rgba(68,136,255,0.05)"><div class="admin-card-icon">🔓</div><div class="admin-card-title">Svincola / Elimina</div><div class="admin-card-sub">Rimuovi con cifra cessione</div></div>
             <div class="admin-card" onclick="apriSpostaGiocatore()"><div class="admin-card-icon">🔄</div><div class="admin-card-title">Sposta Giocatore</div><div class="admin-card-sub">Principale↔Marginale↔Primavera</div></div>
+            <div class="admin-card" id="card-limiti-rose" onclick="toggleLimitiRose()"><div class="admin-card-icon">🔢</div><div class="admin-card-title">Limiti Rose</div><div class="admin-card-sub" id="card-limiti-rose-sub">Caricamento…</div></div>
             <div class="admin-card" onclick="showToast('⬆️ In costruzione')"><div class="admin-card-icon">⬆️</div><div class="admin-card-title">Promuovi Primavera</div><div class="admin-card-sub">Con controllo età</div></div>
           </div>
           <div class="admin-section-title">🏟️ GESTIONE SQUADRE</div>

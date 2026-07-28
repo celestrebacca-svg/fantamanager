@@ -110,6 +110,33 @@ async function salvaSposta(){
   }catch(e){showToast('❌ Errore: '+e.message,'error');}
 }
 
+// Aggiorna il testo della card "Limiti Rose" nel pannello admin in base allo
+// stato attuale di LIMITI_ROSE_ATTIVI (chiamata al caricamento e dopo ogni toggle)
+function aggiornaCardLimitiRose(){
+  const el=document.getElementById('card-limiti-rose-sub');
+  if(!el) return;
+  el.textContent=LIMITI_ROSE_ATTIVI
+    ? '🔴 ATTIVI (25/14/15) — clicca per disattivare'
+    : '🟢 Nessun limite — clicca per attivare (25/14/15)';
+}
+
+// Attiva/disattiva i limiti di rosa direttamente dal pannello admin, senza
+// dover passare da Supabase SQL Editor.
+async function toggleLimitiRose(){
+  const nuovoStato=!LIMITI_ROSE_ATTIVI;
+  const messaggio=nuovoStato
+    ? 'Attivare i limiti di rosa (25 principale, 14 marginale, 15 primavera)?'
+    : 'Disattivare i limiti di rosa (nessun vincolo su nessuna lista)?';
+  if(!confirm(messaggio)) return;
+  try{
+    const{error}=await sb.from('impostazioni').update({limiti_rose_attivi:nuovoStato}).eq('id',1);
+    if(error) throw error;
+    LIMITI_ROSE_ATTIVI=nuovoStato;
+    aggiornaCardLimitiRose();
+    showToast(nuovoStato?'🔴 Limiti rose attivati':'🟢 Limiti rose disattivati');
+  }catch(e){ showToast('❌ Errore: '+e.message,'error'); }
+}
+
 let svincolatiCaricati=false;
 function switchTabRose(tab){
   const sqDiv=document.getElementById('rose-tab-squadre');

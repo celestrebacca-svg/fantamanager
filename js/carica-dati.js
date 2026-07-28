@@ -23,6 +23,7 @@ async function caricaDati(){
       if(!imp.error) LIMITI_ROSE_ATTIVI=!!imp.data?.limiti_rose_attivi;
     }catch(e){ console.warn('Impostazioni non caricate, uso fallback:',e.message); }
     stagioneCaricata=true; // segnala alla UI che il tentativo di caricamento è concluso (successo o fallback)
+    if(typeof aggiornaCardLimitiRose==='function') aggiornaCardLimitiRose();
 
     sb.from('domande_custom').select('*').order('created_at')
       .then(r=>{if(!r.error) domandeCustomDB=r.data||[];})
