@@ -20,6 +20,7 @@ async function caricaDati(){
     try{
       const imp=await sb.from('impostazioni').select('*').eq('id',1).single();
       if(!imp.error&&imp.data?.stagione_corrente) STAGIONE_CORRENTE=normalizzaStagione(imp.data.stagione_corrente);
+      if(!imp.error) LIMITI_ROSE_ATTIVI=!!imp.data?.limiti_rose_attivi;
     }catch(e){ console.warn('Impostazioni non caricate, uso fallback:',e.message); }
     stagioneCaricata=true; // segnala alla UI che il tentativo di caricamento è concluso (successo o fallback)
 

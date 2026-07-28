@@ -61,9 +61,14 @@ function aggiornaCountSposta(){
   const listaEl=document.getElementById('sposta-lista');
   const lista=listaEl?listaEl.value:'principale';
   if(!sqId){document.getElementById('sposta-count').textContent='';return;}
-  const max={principale:25,marginale:14};
   const n=giocatoriDB.filter(g=>g.squadra_id===sqId&&g.lista===lista&&
     (!giocatoreDaSpostare||g.id!==giocatoreDaSpostare.id)).length;
+  if(!LIMITI_ROSE_ATTIVI){
+    document.getElementById('sposta-count').innerHTML=
+      `<span style="color:var(--testo-dim)">${lista.charAt(0).toUpperCase()+lista.slice(1)}: ${n} (nessun limite attivo)</span>`;
+    return;
+  }
+  const max={principale:25,marginale:14,primavera:15};
   const m=max[lista];
   const color=m&&n>=m?'var(--rosso)':'var(--verde)';
   document.getElementById('sposta-count').innerHTML=m?
@@ -74,10 +79,15 @@ async function salvaSposta(){
   if(!giocatoreDaSpostare){showToast('❌ Nessun giocatore selezionato','error');return;}
   const nuovaSqId=document.getElementById('sposta-squadra-id').value||giocatoreDaSpostare.squadra_id;
   const nuovaLista=document.getElementById('sposta-lista').value;
-  const max={principale:25,marginale:14};
-  const n=giocatoriDB.filter(g=>g.squadra_id===nuovaSqId&&g.lista===nuovaLista&&g.id!==giocatoreDaSpostare.id).length;
-  if(max[nuovaLista]&&n>=max[nuovaLista]){
-    showToast(`❌ Rosa ${nuovaLista} piena (max ${max[nuovaLista]})!`,'error');return;
+  // I limiti di rosa (25 principale, 14 marginale, 15 primavera) si applicano
+  // solo quando l'admin li attiva esplicitamente (asta riparazione) tramite
+  // LIMITI_ROSE_ATTIVI — prima di allora si può spostare senza vincoli.
+  if(LIMITI_ROSE_ATTIVI){
+    const max={principale:25,marginale:14,primavera:15};
+    const n=giocatoriDB.filter(g=>g.squadra_id===nuovaSqId&&g.lista===nuovaLista&&g.id!==giocatoreDaSpostare.id).length;
+    if(max[nuovaLista]&&n>=max[nuovaLista]){
+      showToast(`❌ Rosa ${nuovaLista} piena (max ${max[nuovaLista]})!`,'error');return;
+    }
   }
   const updates={squadra_id:nuovaSqId,lista:nuovaLista};
   try{
