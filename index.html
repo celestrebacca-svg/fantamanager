@@ -386,6 +386,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <div class="home-card" onclick="entraApp('risiko')"><div class="home-card-icon" id="home-icon-risiko">🎯</div><div class="home-card-title">Risiko</div><div class="home-card-sub">Obiettivi segreti</div></div>
       <div class="home-card" onclick="entraApp('bilancio')"><div class="home-card-icon" id="home-icon-bilancio">💰</div><div class="home-card-title">Bilancio</div><div class="home-card-sub">Budget e rate</div></div>
       <div class="home-card home-card-special" onclick="entraApp('talentboy')"><div class="home-card-badge-new">NEW</div><div class="home-card-icon" id="home-icon-talentboy">🌱</div><div class="home-card-title">Talent Boy</div><div class="home-card-sub">Torneo Under 23</div></div>
+      <div class="home-card home-card-special" onclick="entraApp('listamercato');caricaListaMercato()"><div class="home-card-badge-new">NEW</div><div class="home-card-icon" id="home-icon-listamercato">✉️</div><div class="home-card-title">Lista Mercato</div><div class="home-card-sub">Buste segrete obiettivi</div></div>
     </div>
     <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
     <div class="home-stats">
@@ -401,7 +402,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 // delle emoji, se presenti. Riprova per qualche secondo finché immaginiConfigDB
 // non è stato popolato dal caricamento dati (evita di dipendere dall'ordine script).
 (function(){
-  const chiavi=['rose','tifosi','stadio','competizioni','mercato','classifica','social','risiko','bilancio','talentboy'];
+  const chiavi=['rose','tifosi','stadio','competizioni','mercato','classifica','social','risiko','bilancio','talentboy','listamercato'];
 
   // Immagini: non si arrende mai, perché su rete mobile lenta il caricamento
   // può richiedere più di qualche secondo — se ci si fermasse prima, le
@@ -452,6 +453,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <button class="nav-btn" onclick="showSection('risiko',this)">🎯 Risiko</button>
       <button class="nav-btn" onclick="showSection('bilancio',this)">💰 Bilancio</button>
       <button class="nav-btn" onclick="showSection('talentboy',this)">🌱 Talent Boy U23</button>
+      <button class="nav-btn" onclick="showSection('listamercato',this);caricaListaMercato()">✉️ Lista Mercato</button>
     </nav>
     <div class="user-chip" id="user-chip" onclick="doLogout()">👤 <span id="user-nome">—</span> 🚪</div>
     <button class="admin-btn" id="admin-btn-header" style="display:none" onclick="apriAdmin()">⚙️ ADMIN</button>
@@ -471,6 +473,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <button onclick="chiudiMenuRapido();showSection('risiko',document.querySelector('.nav-btn[onclick*=\'risiko\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🎯 Risiko</button>
     <button onclick="chiudiMenuRapido();showSection('bilancio',document.querySelector('.nav-btn[onclick*=\'bilancio\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">💰 Bilancio</button>
     <button onclick="chiudiMenuRapido();showSection('talentboy',document.querySelector('.nav-btn[onclick*=\'talentboy\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🌱 Talent Boy U23</button>
+    <button onclick="chiudiMenuRapido();showSection('listamercato',document.querySelector('.nav-btn[onclick*=\'listamercato\']'));caricaListaMercato()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">✉️ Lista Mercato</button>
   </div>
   <button onclick="toggleMenuRapido()" style="display:none;position:fixed;bottom:16px;left:16px;width:52px;height:52px;border-radius:50%;background:var(--verde);color:var(--nero);font-size:22px;border:none;cursor:pointer;z-index:202;box-shadow:0 4px 16px rgba(0,255,135,0.4)" id="quick-menu-btn">☰</button>
   <div class="main">
@@ -650,6 +653,12 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 
     <div class="section" id="section-talentboy">
       <div id="talentboy-content">
+        <div class="loading"><div class="loading-spinner"></div>Caricamento...</div>
+      </div>
+    </div>
+
+    <div class="section" id="section-listamercato">
+      <div id="listamercato-content">
         <div class="loading"><div class="loading-spinner"></div>Caricamento...</div>
       </div>
     </div>
@@ -1461,5 +1470,6 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/risiko.js"></script>
 <script src="js/bilancio.js"></script>
 <script src="js/admin-trattativa.js"></script>
+<script src="js/lista-mercato.js"></script>
 </body>
 </html>
