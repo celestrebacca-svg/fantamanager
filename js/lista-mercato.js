@@ -26,6 +26,13 @@ function sessioneScaduta(s){
   return !!s && new Date(s.scadenza).getTime()<=Date.now();
 }
 
+// Normalizza un nome scritto a mano per il confronto: minuscolo, spazi ai
+// bordi rimossi, spazi multipli interni ridotti a uno solo. Così "De  Silvestri",
+// "de silvestri" e "DE SILVESTRI" risultano tutti la stessa chiave.
+function normalizzaNomeListaMercato(nome){
+  return (nome||'').trim().toLowerCase().replace(/\s+/g,' ');
+}
+
 async function caricaListaMercato(){
   const content=document.getElementById('listamercato-content');
   if(content) content.innerHTML='<div class="loading"><div class="loading-spinner"></div>Caricamento...</div>';
@@ -104,6 +111,7 @@ function renderListaMercato(){
           Scrivi i nomi dei giocatori che ti interessano — resteranno segreti fino alla scadenza.
           ${max?`Massimo ${max} nomi.`:'Nessun limite di nomi.'}<br>
           ⏰ Scadenza: <strong>${dataScadenza}</strong>
+          ${adminLoggato?` <button onclick="modificaScadenzaListaMercato()" style="background:none;border:none;color:var(--oro);text-decoration:underline;cursor:pointer;font-size:12px;padding:0">✏️ modifica scadenza</button>`:''}
         </div>
         <div id="lm-righe-nomi"></div>
         ${(!max||bozzaListaMercato.length<max)?`<button onclick="aggiungiRigaListaMercato()" style="background:var(--grigio-chiaro);border:none;color:var(--testo);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;margin-top:6px">+ Aggiungi giocatore</button>`:''}
@@ -116,7 +124,7 @@ function renderListaMercato(){
   // ===== FASE RIVELAZIONE (busta aperta) =====
   const gruppi={};
   vociTutteSessione.forEach(v=>{
-    const key=(v.nome_giocatore||'').trim().toLowerCase();
+    const key=normalizzaNomeListaMercato(v.nome_giocatore);
     if(!key) return;
     if(!gruppi[key]) gruppi[key]={nomeVisualizzato:v.nome_giocatore.trim(),squadre:[]};
     const sq=squadreDB.find(s=>String(s.id)===String(v.squadra_id));
@@ -183,6 +191,25 @@ async function salvaListaMercato(){
   }catch(e){ showToast('❌ Errore: '+e.message,'error'); }
 }
 
+// Corregge solo la data di scadenza della sessione attuale (es. errore di
+// battitura), senza toccare i nomi già scritti dalle squadre.
+async function modificaScadenzaListaMercato(){
+  if(!adminLoggato||!sessioneMercatoCorrente) return;
+  const attuale=new Date(sessioneMercatoCorrente.scadenza);
+  const pad=n=>String(n).padStart(2,'0');
+  const valoreAttuale=`${attuale.getFullYear()}-${pad(attuale.getMonth()+1)}-${pad(attuale.getDate())}T${pad(attuale.getHours())}:${pad(attuale.getMinutes())}`;
+  const nuovoValore=prompt('Nuova data/ora di scadenza (formato: AAAA-MM-GGTHH:MM)',valoreAttuale);
+  if(!nuovoValore) return;
+  const nuovaData=new Date(nuovoValore);
+  if(isNaN(nuovaData.getTime())){showToast('❌ Data non valida','error');return;}
+  try{
+    const{error}=await sb.from('lista_mercato_sessioni').update({scadenza:nuovaData.toISOString()}).eq('id',sessioneMercatoCorrente.id);
+    if(error) throw error;
+    showToast('✅ Scadenza aggiornata!');
+    caricaListaMercato();
+  }catch(e){ showToast('❌ Errore: '+e.message,'error'); }
+}
+
 async function creaSessioneListaMercato(){
   if(!adminLoggato) return;
   const tipo=document.querySelector('input[name="lm-tipo"]:checked')?.value||'primavera';
@@ -208,7 +235,7 @@ async function eliminaGruppoListaMercato(keyNormalizzato){
   try{
     // Cancella lato client tutte le voci il cui nome normalizzato corrisponde,
     // così gestiamo correttamente maiuscole/minuscole e spazi come da digitazione libera.
-    const daRimuovere=vociTutteSessione.filter(v=>(v.nome_giocatore||'').trim().toLowerCase()===keyNormalizzato);
+    const daRimuovere=vociTutteSessione.filter(v=>normalizzaNomeListaMercato(v.nome_giocatore)===keyNormalizzato);
     for(const v of daRimuovere){
       const{error}=await sb.from('lista_mercato_voci').delete().eq('id',v.id);
       if(error) throw error;
