@@ -126,11 +126,18 @@ function renderListaMercato(){
   vociTutteSessione.forEach(v=>{
     const key=normalizzaNomeListaMercato(v.nome_giocatore);
     if(!key) return;
-    if(!gruppi[key]) gruppi[key]={nomeVisualizzato:v.nome_giocatore.trim(),squadre:[]};
-    const sq=squadreDB.find(s=>String(s.id)===String(v.squadra_id));
-    gruppi[key].squadre.push(sq?.nome||sq?.owner_name||'—');
+    if(!gruppi[key]) gruppi[key]={nomeVisualizzato:v.nome_giocatore.trim(),squadreIds:new Set()};
+    gruppi[key].squadreIds.add(String(v.squadra_id));
   });
-  const listaGruppi=Object.entries(gruppi).sort((a,b)=>b[1].squadre.length-a[1].squadre.length);
+  const listaGruppi=Object.entries(gruppi)
+    .map(([key,g])=>[key,{
+      nomeVisualizzato:g.nomeVisualizzato,
+      squadre:[...g.squadreIds].map(id=>{
+        const sq=squadreDB.find(s=>String(s.id)===id);
+        return sq?.nome||sq?.owner_name||'—';
+      })
+    }])
+    .sort((a,b)=>b[1].squadre.length-a[1].squadre.length);
 
   content.innerHTML=`
     ${adminLoggato?formNuovaSessione:''}
@@ -177,6 +184,21 @@ async function salvaListaMercato(){
   const nomi=bozzaListaMercato.map(n=>(n||'').trim()).filter(Boolean);
   const max=sessioneMercatoCorrente.max_nomi;
   if(max&&nomi.length>max){showToast(`❌ Massimo ${max} nomi`,'error');return;}
+
+  // Blocca doppioni nella stessa lista (stesso nome scritto due volte, a
+  // prescindere da maiuscole/spazi) — es. "Gianni" due volte non è ammesso,
+  // ma "Gianni" e "C.Gianni" sono considerati nomi diversi perché il testo
+  // digitato è diverso.
+  const viste=new Set();
+  for(const n of nomi){
+    const key=normalizzaNomeListaMercato(n);
+    if(viste.has(key)){
+      showToast(`❌ Hai scritto "${n}" più di una volta`,'error');
+      return;
+    }
+    viste.add(key);
+  }
+
   try{
     const{error:errDel}=await sb.from('lista_mercato_voci').delete()
       .eq('sessione_id',sessioneMercatoCorrente.id).eq('squadra_id',utenteLoggato.id);
