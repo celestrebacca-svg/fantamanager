@@ -11,10 +11,11 @@
 // i dati grezzi prima della scadenza.
 
 let sessioneMercatoCorrente=null; // riga più recente di lista_mercato_sessioni
-let vociMieSessione=[];           // le mie voci (prima della rivelazione)
+let vociMieSessione=[];           // le mie voci già salvate (prima della rivelazione)
 let vociTutteSessione=[];         // tutte le voci (solo dopo la scadenza)
-let bozzaListaMercato=[];         // nomi in modifica, non ancora salvati
+let bozzaListaMercato=[];         // righe in modifica: [{id, nome}] — id=null se non ancora salvata
 let timerListaMercato=null;
+let salvandoListaMercato=false;   // blocca doppio salvataggio da click ripetuti
 
 const LISTA_MERCATO_TIPI={
   primavera:{label:'Lista Primavera',max:25},
@@ -52,7 +53,7 @@ async function caricaListaMercato(){
         if(r.error) throw r.error;
         vociMieSessione=r.data||[];
         vociTutteSessione=[];
-        bozzaListaMercato=vociMieSessione.map(v=>v.nome_giocatore);
+        bozzaListaMercato=vociMieSessione.map(v=>({id:v.id,nome:v.nome_giocatore}));
       }
     } else {
       vociMieSessione=[];vociTutteSessione=[];bozzaListaMercato=[];
@@ -114,8 +115,11 @@ function renderListaMercato(){
           ${adminLoggato?` <button onclick="modificaScadenzaListaMercato()" style="background:none;border:none;color:var(--oro);text-decoration:underline;cursor:pointer;font-size:12px;padding:0">✏️ modifica scadenza</button>`:''}
         </div>
         <div id="lm-righe-nomi"></div>
-        ${(!max||bozzaListaMercato.length<max)?`<button onclick="aggiungiRigaListaMercato()" style="background:var(--grigio-chiaro);border:none;color:var(--testo);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;margin-top:6px">+ Aggiungi giocatore</button>`:''}
-        <button onclick="salvaListaMercato()" class="btn-primary" style="width:100%;margin-top:14px">💾 Salva la mia lista</button>
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+          ${(!max||bozzaListaMercato.length<max)?`<button onclick="aggiungiRigaListaMercato()" style="background:var(--grigio-chiaro);border:none;color:var(--testo);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px">+ Aggiungi giocatore</button>`:''}
+          ${bozzaListaMercato.length>0?`<button onclick="svuotaListaMercato()" style="background:rgba(255,68,68,0.1);border:1px solid rgba(255,68,68,0.3);color:var(--rosso);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px">🗑️ Svuota tutto</button>`:''}
+        </div>
+        <button id="lm-btn-salva" onclick="salvaListaMercato()" class="btn-primary" style="width:100%;margin-top:14px">💾 Salva (aggiunge solo i nomi nuovi)</button>
       </div>`;
     renderRigheListaMercato();
     return;
@@ -158,9 +162,9 @@ function renderListaMercato(){
 function renderRigheListaMercato(){
   const cont=document.getElementById('lm-righe-nomi');
   if(!cont) return;
-  cont.innerHTML=bozzaListaMercato.map((nome,i)=>`
+  cont.innerHTML=bozzaListaMercato.map((riga,i)=>`
     <div style="display:flex;gap:6px;margin-bottom:6px">
-      <input class="form-input" value="${(nome||'').replace(/"/g,'&quot;')}" placeholder="Nome giocatore" oninput="aggiornaRigaListaMercato(${i},this.value)" style="flex:1">
+      <input class="form-input" value="${(riga.nome||'').replace(/"/g,'&quot;')}" placeholder="Nome giocatore" oninput="aggiornaRigaListaMercato(${i},this.value)" style="flex:1">
       <button onclick="rimuoviRigaListaMercato(${i})" style="background:var(--grigio-chiaro);border:none;color:var(--rosso);width:36px;border-radius:8px;cursor:pointer;font-size:16px">×</button>
     </div>`).join('');
 }
@@ -168,49 +172,65 @@ function renderRigheListaMercato(){
 function aggiungiRigaListaMercato(){
   const max=sessioneMercatoCorrente?.max_nomi;
   if(max&&bozzaListaMercato.length>=max){showToast(`❌ Massimo ${max} nomi`,'error');return;}
-  bozzaListaMercato.push('');
+  bozzaListaMercato.push({id:null,nome:''});
   renderListaMercato();
 }
 
-function aggiornaRigaListaMercato(i,val){ bozzaListaMercato[i]=val; }
+function aggiornaRigaListaMercato(i,val){ bozzaListaMercato[i].nome=val; }
 
-function rimuoviRigaListaMercato(i){
+// Se la riga era già salvata sul database (ha un id), la cancella subito lì;
+// se era solo una bozza non ancora salvata, la toglie semplicemente in locale.
+async function rimuoviRigaListaMercato(i){
+  const riga=bozzaListaMercato[i];
+  if(riga.id){
+    try{
+      const{error}=await sb.from('lista_mercato_voci').delete().eq('id',riga.id);
+      if(error) throw error;
+    }catch(e){ showToast('❌ Errore rimozione: '+e.message,'error'); return; }
+  }
   bozzaListaMercato.splice(i,1);
   renderListaMercato();
 }
 
-async function salvaListaMercato(){
-  if(!sessioneMercatoCorrente||sessioneScaduta(sessioneMercatoCorrente)){showToast('❌ Sessione non più aperta','error');return;}
-  const nomi=bozzaListaMercato.map(n=>(n||'').trim()).filter(Boolean);
-  const max=sessioneMercatoCorrente.max_nomi;
-  if(max&&nomi.length>max){showToast(`❌ Massimo ${max} nomi`,'error');return;}
-
-  // Blocca doppioni nella stessa lista (stesso nome scritto due volte, a
-  // prescindere da maiuscole/spazi) — es. "Gianni" due volte non è ammesso,
-  // ma "Gianni" e "C.Gianni" sono considerati nomi diversi perché il testo
-  // digitato è diverso.
-  const viste=new Set();
-  for(const n of nomi){
-    const key=normalizzaNomeListaMercato(n);
-    if(viste.has(key)){
-      showToast(`❌ Hai scritto "${n}" più di una volta`,'error');
-      return;
-    }
-    viste.add(key);
-  }
-
+// Cancella TUTTE le mie voci di questa sessione in un colpo solo (utile per
+// ripartire da zero senza dover rimuovere le righe una per una).
+async function svuotaListaMercato(){
+  if(!sessioneMercatoCorrente) return;
+  if(!confirm('Svuotare completamente la tua lista per questa sessione? Non si può annullare.')) return;
   try{
-    const{error:errDel}=await sb.from('lista_mercato_voci').delete()
+    const{error}=await sb.from('lista_mercato_voci').delete()
       .eq('sessione_id',sessioneMercatoCorrente.id).eq('squadra_id',utenteLoggato.id);
-    if(errDel) throw errDel;
-    if(nomi.length){
-      const payload=nomi.map(n=>({sessione_id:sessioneMercatoCorrente.id,squadra_id:utenteLoggato.id,nome_giocatore:n}));
-      const{error:errIns}=await sb.from('lista_mercato_voci').insert(payload);
-      if(errIns) throw errIns;
-    }
-    showToast('✅ Lista salvata!');
+    if(error) throw error;
+    bozzaListaMercato=[];
+    showToast('✅ Lista svuotata');
     caricaListaMercato();
   }catch(e){ showToast('❌ Errore: '+e.message,'error'); }
+}
+
+// Salvataggio ADDITIVO: aggiunge solo le righe nuove (senza id, cioè mai
+// salvate prima) e non tocca quelle già presenti sul database. Non fa mai
+// più un cancella-e-reinserisci-tutto, che era la causa dei doppioni.
+async function salvaListaMercato(){
+  if(salvandoListaMercato) return; // blocca doppio click / doppio salvataggio
+  if(!sessioneMercatoCorrente||sessioneScaduta(sessioneMercatoCorrente)){showToast('❌ Sessione non più aperta','error');return;}
+
+  const nomiNuovi=bozzaListaMercato.filter(r=>!r.id&&(r.nome||'').trim()).map(r=>r.nome.trim());
+  const totaleFinale=bozzaListaMercato.filter(r=>(r.nome||'').trim()).length;
+  const max=sessioneMercatoCorrente.max_nomi;
+  if(max&&totaleFinale>max){showToast(`❌ Massimo ${max} nomi`,'error');return;}
+  if(!nomiNuovi.length){showToast('Nessun nome nuovo da salvare');return;}
+
+  salvandoListaMercato=true;
+  const btn=document.getElementById('lm-btn-salva');
+  if(btn){btn.disabled=true;btn.textContent='Salvataggio...';}
+  try{
+    const payload=nomiNuovi.map(n=>({sessione_id:sessioneMercatoCorrente.id,squadra_id:utenteLoggato.id,nome_giocatore:n}));
+    const{error}=await sb.from('lista_mercato_voci').insert(payload);
+    if(error) throw error;
+    showToast(`✅ Aggiunti ${nomiNuovi.length} nomi nuovi!`);
+    await caricaListaMercato();
+  }catch(e){ showToast('❌ Errore: '+e.message,'error'); }
+  finally{ salvandoListaMercato=false; }
 }
 
 // Corregge solo la data di scadenza della sessione attuale (es. errore di
