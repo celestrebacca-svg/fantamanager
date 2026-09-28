@@ -487,6 +487,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
         <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
           <button id="tab-rose-squadre" onclick="switchTabRose('squadre')" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer">🏟️ SQUADRE</button>
           <button id="tab-rose-svincolati" onclick="switchTabRose('svincolati')" style="background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">🔓 SVINCOLATI SERIE A</button>
+          <button id="btn-gestione-rose" onclick="apriGestioneRosa()" style="display:none;background:var(--grigio-medio);color:var(--oro);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px 18px;border-radius:8px;border:1px solid var(--oro);cursor:pointer">🔀 GESTIONE ROSE</button>
         </div>
         <div id="rose-tab-squadre">
           <div class="controls"><input class="search-box" type="text" placeholder="🔍 Cerca squadra o giocatore..." oninput="cercaSquadra(this.value)"></div>
@@ -1455,6 +1456,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/transfermarkt.js"></script>
 <script src="js/nuovo-giocatore.js"></script>
 <script src="js/sposta-giocatore.js"></script>
+<script src="js/gestione-rosa.js"></script>
 <script src="js/svincolati.js"></script>
 <script src="js/formazione.js"></script>
 <script src="js/talentboy.js"></script>
