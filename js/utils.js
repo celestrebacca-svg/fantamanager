@@ -78,11 +78,16 @@ function getTipoTrofeo(compId){
 // Verifica se un giocatore è eleggibile per l'Under 23: età massima 23 anni
 // calcolata al 1° settembre dell'anno di inizio della stagione corrente
 // (convenzione calcistica). Se li compie durante la stagione, resta eleggibile.
-function eleggibileU23(dataNascita){
-  if(!dataNascita) return false;
+function eleggibileU23(dataNascita,etaFallback){
   const annoInizio=parseInt(String(STAGIONE_CORRENTE).split('/')[0]);
   if(!annoInizio) return false;
   const cutoff=new Date(annoInizio,8,1); // 1 settembre (mese 8 = settembre, 0-indexed)
+  if(!dataNascita){
+    // Nessuna data di nascita salvata (es. giocatore creato inserendo solo l'età):
+    // stima l'idoneità dall'età nota, così resta schierabile subito.
+    if(etaFallback==null||isNaN(etaFallback)) return false;
+    return etaFallback<=23;
+  }
   const nascita=new Date(dataNascita);
   let eta=cutoff.getFullYear()-nascita.getFullYear();
   const m=cutoff.getMonth()-nascita.getMonth();

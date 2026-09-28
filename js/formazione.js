@@ -99,7 +99,7 @@ async function caricaFormazioneU23(sqId){
 }
 
 function poolU23(sqId){
-  return giocatoriDB.filter(g=>g.squadra_id===sqId&&['principale','marginale','primavera'].includes(g.lista)&&eleggibileU23(g.data_nascita));
+  return giocatoriDB.filter(g=>g.squadra_id===sqId&&['principale','marginale','primavera'].includes(g.lista)&&eleggibileU23(g.data_nascita,g.eta));
 }
 
 async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u23-content'){
