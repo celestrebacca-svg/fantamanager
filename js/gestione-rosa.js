@@ -46,6 +46,8 @@ function grInjectStyle(){
   .gr-nm span{color:var(--testo-dim,#999);font-size:10px}
   .gr-ghost{position:fixed;z-index:10000;pointer-events:none;width:110px;opacity:.9;box-shadow:0 6px 18px rgba(0,0,0,.6)}
   .gr-sec.gr-target .gr-sec-h{background:rgba(241,196,15,.25)}
+  .gr-cell.gr-promosso{box-shadow:inset 0 0 0 1px var(--oro,#f1c40f)}
+  .gr-star{position:absolute;top:2px;right:3px;font-size:13px;line-height:1;padding:3px;cursor:pointer;touch-action:manipulation}
   `;
   document.head.appendChild(st);
 }
@@ -114,6 +116,8 @@ function grGiocatori(lista){
       return oa-ob||(a.nome||'').localeCompare(b.nome||'');
     });
 }
+// I "promossi" sono uno slot aggiuntivo: non contano nel limite della lista.
+function grContaPerLimite(lista){ return grGiocatori(lista).filter(g=>!g.promosso).length; }
 
 function grRender(){
   const body=document.getElementById('gr-body');
@@ -125,16 +129,20 @@ function grRender(){
     let html='';
     gs.forEach(g=>{
       const rk=grRuoloKey(g);
-      html+=`<div class="gr-cell ${String(g.id)===String(grSelId)?'gr-sel':''}" data-gid="${g.id}" data-lista="${L.k}" style="border-left:4px solid ${rk?GR_RUOLI[rk].col:'var(--grigio-chiaro,#333)'}">
+      html+=`<div class="gr-cell ${String(g.id)===String(grSelId)?'gr-sel':''} ${g.promosso?'gr-promosso':''}" data-gid="${g.id}" data-lista="${L.k}" style="border-left:4px solid ${rk?GR_RUOLI[rk].col:'var(--grigio-chiaro,#333)'}">
         <div class="gr-av">${g.foto_url?`<img src="${g.foto_url}" draggable="false">`:iniziali(g.nome)}</div>
-        <div class="gr-nm"><b>${g.nome}</b><span>${g.ruolo||''}</span></div></div>`;
+        <div class="gr-nm"><b>${g.nome}</b><span>${g.ruolo||''}</span></div>
+        <div class="gr-star" data-promuovi="${g.id}" title="${g.promosso?'Togli stato promosso':'Segna come promosso (slot aggiuntivo)'}">${g.promosso?'⭐':'☆'}</div></div>`;
     });
     for(let i=gs.length;i<cells;i++){
       html+=`<div class="gr-cell gr-empty" data-lista="${L.k}" data-empty="1">+</div>`;
     }
-    const over=LIMITI_ROSE_ATTIVI&&gs.length>cap;
+    const nLimite=grContaPerLimite(L.k);
+    const nProm=gs.length-nLimite;
+    const over=LIMITI_ROSE_ATTIVI&&nLimite>cap;
+    const promTxt=nProm>0?` <span style="color:var(--oro,#f1c40f)">+${nProm}⭐</span>`:'';
     const cnt=LIMITI_ROSE_ATTIVI
-      ?`<span class="gr-cnt" style="color:${gs.length>=cap?'var(--rosso,#e74c3c)':'var(--verde,#2ecc71)'}">${gs.length}/${cap}${over?' ⚠️':''}</span>`
+      ?`<span class="gr-cnt" style="color:${nLimite>=cap?'var(--rosso,#e74c3c)':'var(--verde,#2ecc71)'}">${nLimite}/${cap}${over?' ⚠️':''}${promTxt}</span>`
       :`<span class="gr-cnt" style="color:var(--testo-dim,#999)">${gs.length} (nessun limite)</span>`;
     return `<div class="gr-sec" data-lista="${L.k}" data-sec="1">
       <div class="gr-sec-h" data-lista="${L.k}" data-sechead="1"><span>${L.label}</span>${cnt}</div>
@@ -170,8 +178,8 @@ async function grEsegui(gIdSorgente,targetEl){
   if(src.lista===listaDest){ grSelId=null; grRender(); return; }
   if(LIMITI_ROSE_ATTIVI){
     const L=GR_LISTE.find(x=>x.k===listaDest);
-    const n=grGiocatori(listaDest).length;
-    if(L&&n>=L.max){ showToast(`❌ Rosa ${listaDest} piena (max ${L.max})!`,'error'); return; }
+    const n=grContaPerLimite(listaDest);
+    if(L&&n>=L.max&&!src.promosso){ showToast(`❌ Rosa ${listaDest} piena (max ${L.max})!`,'error'); return; }
   }
   await grSalva([{g:src,lista:listaDest}],`✅ ${src.nome} → ${listaDest}`);
 }
@@ -200,6 +208,33 @@ async function grSalva(modifiche,msgOk){
   grBusy=false;
 }
 
+async function grTogglePromosso(id){
+  if(grBusy) return;
+  const g=grTrovaGiocatore(id);
+  if(!g) return;
+  const nuovo=!g.promosso;
+  if(nuovo&&LIMITI_ROSE_ATTIVI){
+    // Nessun limite da controllare: diventa uno slot aggiuntivo, quindi può sempre essere segnato.
+  }
+  grBusy=true;
+  const prec=g.promosso;
+  const i=giocatoriDB.findIndex(x=>x.id===g.id);
+  if(i>=0) giocatoriDB[i]={...giocatoriDB[i],promosso:nuovo};
+  grRender();
+  try{
+    const{data,error}=await sb.from('giocatori').update({promosso:nuovo}).eq('id',g.id).select();
+    if(error) throw error;
+    if(!data||data.length===0) throw new Error('nessuna riga aggiornata (controlla RLS sulla tabella giocatori)');
+    showToast(nuovo?`⭐ ${g.nome} promosso (slot aggiuntivo)`:`${g.nome}: stato promosso rimosso`);
+  }catch(e){
+    const j=giocatoriDB.findIndex(x=>x.id===g.id);
+    if(j>=0) giocatoriDB[j]={...giocatoriDB[j],promosso:prec};
+    grRender();
+    showToast('❌ Non salvato: '+e.message,'error');
+  }
+  grBusy=false;
+}
+
 // ---------- Eventi: tap + long-press drag ----------
 function grBindEvents(body){
   body.onpointerdown=grPointerDown;
@@ -217,6 +252,12 @@ function grClearTargets(){
 
 function grPointerDown(ev){
   if(grBusy) return;
+  const star=ev.target.closest('.gr-star');
+  if(star){
+    ev.stopPropagation();
+    grTogglePromosso(star.dataset.promuovi);
+    return;
+  }
   const cell=ev.target.closest('.gr-cell');
   const head=ev.target.closest('[data-sechead]');
   const startX=ev.clientX,startY=ev.clientY;

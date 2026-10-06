@@ -397,6 +397,16 @@ async function apriNuovoBilancio() {
     }
   } catch(e) { console.error('Errore mark rate:', e); }
 
+  // Azzera lo stato "promosso": con la nuova stagione lo slot aggiuntivo decade,
+  // il giocatore torna un giocatore normale della lista in cui si trova.
+  try {
+    const promossi = giocatoriDB.filter(g => g.promosso);
+    if (promossi.length > 0) {
+      await sb.from('giocatori').update({ promosso: false }).eq('promosso', true);
+      promossi.forEach(g => { g.promosso = false; });
+    }
+  } catch(e) { console.error('Errore reset promossi:', e); }
+
   // Avanza la stagione corrente (unificata per bilancio, competizioni, risiko, storico giocatori)
   const nuovaStagione = prossimaStagione(STAGIONE_CORRENTE);
   try {
