@@ -385,6 +385,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
       <div class="home-card" onclick="entraApp('social')"><div class="home-card-icon" id="home-icon-social">📱</div><div class="home-card-title">Social</div><div class="home-card-sub">Social Manager</div></div>
       <div class="home-card" onclick="entraApp('risiko')"><div class="home-card-icon" id="home-icon-risiko">🎯</div><div class="home-card-title">Risiko</div><div class="home-card-sub">Obiettivi segreti</div></div>
       <div class="home-card" onclick="entraApp('bilancio')"><div class="home-card-icon" id="home-icon-bilancio">💰</div><div class="home-card-title">Bilancio</div><div class="home-card-sub">Budget e rate</div></div>
+            <div class="home-card home-card-special" onclick="apriTabelle()"><div class="home-card-badge-new">NEW</div><div class="home-card-icon">📜</div><div class="home-card-title">Tabelle</div><div class="home-card-sub">Sponsor e classifiche</div></div>
       <div class="home-card home-card-special" onclick="entraApp('talentboy')"><div class="home-card-badge-new">NEW</div><div class="home-card-icon" id="home-icon-talentboy">🌱</div><div class="home-card-title">Talent Boy</div><div class="home-card-sub">Torneo Under 23</div></div>
       <div class="home-card home-card-special" onclick="entraApp('listamercato');caricaListaMercato()"><div class="home-card-badge-new">NEW</div><div class="home-card-icon" id="home-icon-listamercato">✉️</div><div class="home-card-title">Lista Mercato</div><div class="home-card-sub">Buste segrete obiettivi</div></div>
     </div>
@@ -1457,6 +1458,8 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/nuovo-giocatore.js"></script>
 <script src="js/sposta-giocatore.js"></script>
 <script src="js/gestione-rosa.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/gestione-sponsor.js"></script>
 <script src="js/svincolati.js"></script>
 <script src="js/formazione.js"></script>
 <script src="js/talentboy.js"></script>
