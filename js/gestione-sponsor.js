@@ -32,6 +32,26 @@ function gsEDerby(a, b) {
   return GS_DERBY.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
 }
 
+// --- Serie/striscie 5-10-15: soglie per ciascun tipo di serie ---
+const GS_SOGLIE_SERIE = {
+  vittorie:         { campo: "vittorie_fila",         soglie_campo: "soglie_premiate_vittorie",
+    5: { soldi: 3500000, tifosi: 120, nome: "5 vittorie di fila" },
+    10: { soldi: 8500000, tifosi: 240, nome: "10 vittorie di fila" },
+    15: { soldi: 15000000, tifosi: 360, nome: "15 vittorie di fila" } },
+  sconfitte:        { campo: "sconfitte_fila",        soglie_campo: "soglie_premiate_sconfitte",
+    5: { soldi: 1500000, tifosi: -30, nome: "5 sconfitte di fila" },
+    10: { soldi: 4000000, tifosi: -50, nome: "10 sconfitte di fila" },
+    15: { soldi: 9500000, tifosi: -70, nome: "15 sconfitte di fila" } },
+  senza_sconfitta:  { campo: "senza_sconfitta_fila",  soglie_campo: "soglie_premiate_senza_sconfitta",
+    5: { soldi: 1000000, tifosi: 80, nome: "5 giornate senza sconfitta" },
+    10: { soldi: 3500000, tifosi: 160, nome: "10 giornate senza sconfitta" },
+    15: { soldi: 8000000, tifosi: 240, nome: "15 giornate senza sconfitta" } },
+  senza_vittoria:   { campo: "senza_vittoria_fila",   soglie_campo: "soglie_premiate_senza_vittoria",
+    5: { soldi: 500000, tifosi: -20, nome: "5 giornate senza vittoria" },
+    10: { soldi: 3000000, tifosi: -40, nome: "10 giornate senza vittoria" },
+    15: { soldi: 7000000, tifosi: -60, nome: "15 giornate senza vittoria" } },
+};
+
 // --- Tabella sponsor settimanali (identica al riferimento dell'admin) ---
 const GS_SPONSOR = {
   tripletta_gol:         { nome: "Tripletta in campo",             soldi: 2500000,  tifosi: 100 },
@@ -55,8 +75,12 @@ const GS_SPONSOR = {
   maglia_gol_assist:     { nome: "Maglia 7/9/10 — gol o assist",   soldi: 100000,  tifosi: 10 },
   capitano_gol_assist:   { nome: "Capitano — gol o assist",        soldi: 200000,  tifosi: 20 },
   capitano_sufficienza:  { nome: "Capitano — voto 6 o più",        soldi: 150000,  tifosi: 10 },
+  vittoria_allenatore:   { nome: "Vittoria allenatore",            soldi: 1000000, tifosi: 40 },
+  sconfitta_allenatore:  { nome: "Sconfitta allenatore",           soldi: -500000, tifosi: -10 },
 };
-// NOTA: vittoria/sconfitta allenatore non e' ancora qui: richiede il collegamento a football-data.org.
+// NOTA: vittoria/sconfitta allenatore sono gia' in tabella (sopra) ma il calcolo automatico
+// NON e' ancora collegato: serve prima l'account football-data.org e la squadra reale assegnata
+// a ogni allenatore. Finche' non e' collegato, questi due non scattano mai da soli.
 // I numeri di maglia 7/9/10 vengono letti da squadre.maglie (gestiti in magliette.js), NON da una
 // tabella separata; il capitano/vice capitano viene letto direttamente dal simbolo Ⓒ/Ⓥ del file voti
 // (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
@@ -663,11 +687,98 @@ async function gsConfermaESalva() {
         tifosi: (data?.tifosi || 0) + v.tifosi,
       }).eq("id", sq.id);
     }
-    showToast(`✅ Giornata ${gsGiornataNum} salvata: ${eventi.length} sponsor assegnati`);
+    // 3) aggiorna le serie (vittorie/sconfitte di fila ecc.) e premia le soglie 5/10/15
+    const bonusSerie = await gsAggiornaSerie(gsPartiteLette);
+
+    showToast(`✅ Giornata ${gsGiornataNum} salvata: ${eventi.length + bonusSerie} sponsor assegnati`);
     gsMostraTab("log");
   } catch (e) {
     showToast("❌ Errore salvataggio: " + e.message, "error");
   }
+}
+
+// ============================================================
+// 2ter) SERIE / STRISCE: vittorie, sconfitte, senza sconfitta, senza vittoria (soglie 5-10-15)
+// ============================================================
+function gsEsitoSquadra(risultato, lato) {
+  const m = /^(\d+)-(\d+)$/.exec(String(risultato || "").trim());
+  if (!m) return null;
+  const gCasa = parseInt(m[1]), gTrasf = parseInt(m[2]);
+  const gMia = lato === "casa" ? gCasa : gTrasf;
+  const gAvv = lato === "casa" ? gTrasf : gCasa;
+  if (gMia > gAvv) return "vittoria";
+  if (gMia < gAvv) return "sconfitta";
+  return "pareggio";
+}
+
+async function gsAggiornaSerie(partite) {
+  let bonusAssegnati = 0;
+  for (const p of partite) {
+    for (const [lato, nomeFile] of [["casa", p.casa], ["trasferta", p.trasferta]]) {
+      const nomeVero = gsNomeVero(nomeFile);
+      const sq = squadreDB.find(s => s.nome === nomeVero);
+      if (!sq) continue;
+      const esito = gsEsitoSquadra(p.risultato, lato);
+      if (!esito) continue;
+      bonusAssegnati += await gsAggiornaSerieSquadra(sq, esito);
+    }
+  }
+  return bonusAssegnati;
+}
+
+async function gsAggiornaSerieSquadra(sq, esito) {
+  const { data: riga } = await sb.from("serie_squadre").select("*").eq("squadra_id", sq.id).maybeSingle();
+  const stato = riga || {
+    squadra_id: sq.id, vittorie_fila: 0, sconfitte_fila: 0,
+    senza_sconfitta_fila: 0, senza_vittoria_fila: 0,
+    soglie_premiate_vittorie: [], soglie_premiate_sconfitte: [],
+    soglie_premiate_senza_sconfitta: [], soglie_premiate_senza_vittoria: [],
+  };
+
+  // Aggiorno i 4 contatori in base all'esito. Un contatore che si azzera
+  // riparte anche con le soglie azzerate (puo' essere ri-premiato in una nuova serie).
+  if (esito === "vittoria") {
+    stato.vittorie_fila++;
+    stato.sconfitte_fila = 0; stato.soglie_premiate_sconfitte = [];
+    stato.senza_sconfitta_fila++;
+    stato.senza_vittoria_fila = 0; stato.soglie_premiate_senza_vittoria = [];
+  } else if (esito === "sconfitta") {
+    stato.sconfitte_fila++;
+    stato.vittorie_fila = 0; stato.soglie_premiate_vittorie = [];
+    stato.senza_vittoria_fila++;
+    stato.senza_sconfitta_fila = 0; stato.soglie_premiate_senza_sconfitta = [];
+  } else { // pareggio: non interrompe "senza sconfitta" ne' "senza vittoria", ma ferma le serie pure
+    stato.vittorie_fila = 0; stato.soglie_premiate_vittorie = [];
+    stato.sconfitte_fila = 0; stato.soglie_premiate_sconfitte = [];
+    stato.senza_sconfitta_fila++;
+    stato.senza_vittoria_fila++;
+  }
+
+  let bonusAssegnati = 0;
+  for (const [tipo, cfg] of Object.entries(GS_SOGLIE_SERIE)) {
+    const valore = stato[cfg.campo];
+    const premiate = stato[cfg.soglie_campo];
+    for (const soglia of [5, 10, 15]) {
+      if (valore >= soglia && !premiate.includes(soglia)) {
+        const premio = cfg[soglia];
+        await sb.from("sponsor_eventi").insert({
+          giornata: gsGiornataNum, squadra_id: sq.id, tipo_sponsor: `serie_${tipo}_${soglia}`,
+          nome_sponsor: premio.nome, soldi: premio.soldi, tifosi: premio.tifosi,
+          dettaglio: `${sq.nome}: ${valore} di fila`,
+        });
+        const { data: sqDati } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
+        await sb.from("squadre").update({
+          bilancio: (sqDati?.bilancio || 0) + premio.soldi,
+          tifosi: (sqDati?.tifosi || 0) + premio.tifosi,
+        }).eq("id", sq.id);
+        premiate.push(soglia);
+        bonusAssegnati++;
+      }
+    }
+  }
+
+  await sb.from("serie_squadre").upsert(stato, { onConflict: "squadra_id" });
+  return bonusAssegnati;
 }
 
 async function gsRenderLog(body) {
