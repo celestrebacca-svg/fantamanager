@@ -236,14 +236,21 @@ function gsCalcolaSponsor(partite) {
     }
 
     if (risultatoOk) {
-      if (gCasa > gTrasf) {
+      // risultato e' "gol_casa-gol_trasferta". "Vittoria in trasferta" e "Sconfitta in
+      // casa" sono LO STESSO evento (la trasferta vince <=> la casa perde in casa):
+      // quando succede, scattano ENTRAMBI insieme, non uno al posto dell'altro.
+      if (gTrasf > gCasa) {
+        // la squadra in trasferta ha segnato piu' gol: vince la trasferta, perde la casa
         aggiungi(trasf, "vittoria_trasferta", `${trasf} vince in trasferta ${p.risultato}`);
-        if (isDerby) aggiungi(trasf, "vittoria_derby", `${trasf} vince il derby ${p.risultato}`);
-        if (isDerby) aggiungi(casa, "sconfitta_derby", `${casa} perde il derby ${p.risultato}`);
-      } else if (gTrasf > gCasa) {
         aggiungi(casa, "sconfitta_casa_tifosi", `${casa} perde in casa ${p.risultato}`);
-        if (isDerby) aggiungi(casa, "sconfitta_derby", `${casa} perde il derby ${p.risultato}`);
         if (isDerby) aggiungi(trasf, "vittoria_derby", `${trasf} vince il derby ${p.risultato}`);
+        if (isDerby) aggiungi(casa, "sconfitta_derby", `${casa} perde il derby ${p.risultato}`);
+      } else if (gCasa > gTrasf) {
+        // la squadra di casa ha segnato piu' gol: vince la casa.
+        // Questa tabella sponsor non ha un bonus per "vittoria in casa" ne' un malus
+        // per "sconfitta in trasferta" - scatta solo il derby, se la partita lo e'.
+        if (isDerby) aggiungi(casa, "vittoria_derby", `${casa} vince il derby ${p.risultato}`);
+        if (isDerby) aggiungi(trasf, "sconfitta_derby", `${trasf} perde il derby ${p.risultato}`);
       }
     }
   }
