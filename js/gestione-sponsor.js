@@ -52,10 +52,14 @@ const GS_SPONSOR = {
   peggiore_fantavoto:    { nome: "Peggior giocatore di giornata (con i malus, senza portieri)",    soldi: -350000, tifosi: -20 },
   punteggio_top_sett:    { nome: "Punteggio più alto settimanale", soldi: 350000,   tifosi: 30 },
   punteggio_basso_sett:  { nome: "Punteggio più basso settimanale", soldi: -200000, tifosi: -10 },
+  maglia_gol_assist:     { nome: "Maglia 7/9/10 — gol o assist",   soldi: 100000,  tifosi: 10 },
+  capitano_gol_assist:   { nome: "Capitano — gol o assist",        soldi: 200000,  tifosi: 20 },
+  capitano_sufficienza:  { nome: "Capitano — voto 6 o più",        soldi: 150000,  tifosi: 10 },
 };
-// NOTA: vittoria/sconfitta allenatore e bonus maglia 7/9/10 non sono ancora qui:
-// richiedono rispettivamente il collegamento a football-data.org e l'assegnazione
-// manuale dei numeri di maglia (squadre.maglia_7/9/10_giocatore_id) - prossimo passo.
+// NOTA: vittoria/sconfitta allenatore non e' ancora qui: richiede il collegamento a football-data.org.
+// I numeri di maglia 7/9/10 vengono letti da squadre.maglie (gestiti in magliette.js), NON da una
+// tabella separata; il capitano/vice capitano viene letto direttamente dal simbolo Ⓒ/Ⓥ del file voti
+// (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
 
 // Pesi confermati per leggere conteggi reali dalle colonne-punti del file voti
 const GS_PESO = { gol: 3, assistStd: 1, assistSoft: 0.5, assistGold: 1.5 };
@@ -187,10 +191,12 @@ function gsConta(valore, peso) {
   return v ? Math.round(v / peso) : 0;
 }
 
-function gsCalcolaSponsor(partite) {
+function gsCalcolaSponsor(partite, risoluzioniMaglie) {
+  risoluzioniMaglie = risoluzioniMaglie || {}; // chiave "pIdx_lato_numero" -> indice in blocco.giocatori, o "nessuno"
   const eventi = [];
   const totali = {}; // nomeSquadraVero -> {soldi, tifosi}
   const incerti = [];
+  const daRisolvere = []; // maglie 7/9/10 senza corrispondenza esatta, in attesa di scelta manuale
   const squadreTotali = [];
   const tuttiGiocatori = [];
 
@@ -202,7 +208,8 @@ function gsCalcolaSponsor(partite) {
     eventi.push({ squadra, tipo: chiave, nome: s.nome, soldi: s.soldi, tifosi: s.tifosi, dettaglio });
   }
 
-  for (const p of partite) {
+  for (let pIdx = 0; pIdx < partite.length; pIdx++) {
+    const p = partite[pIdx];
     const casa = gsNomeVero(p.casa), trasf = gsNomeVero(p.trasferta);
     const m = /^(\d+)-(\d+)$/.exec(String(p.risultato || "").trim());
     const risultatoOk = !!m;
@@ -210,7 +217,7 @@ function gsCalcolaSponsor(partite) {
     const gTrasf = risultatoOk ? parseInt(m[2]) : null;
     const isDerby = gsEDerby(casa, trasf);
 
-    for (const [nomeSq, blocco] of [[casa, p.squadraCasa], [trasf, p.squadraTrasferta]]) {
+    for (const [lato, nomeSq, blocco] of [["casa", casa, p.squadraCasa], ["trasferta", trasf, p.squadraTrasferta]]) {
       const totale = blocco.totale;
       if (typeof totale === "number") {
         squadreTotali.push([nomeSq, totale]);
@@ -231,6 +238,65 @@ function gsCalcolaSponsor(partite) {
         else if (nAssist === 2) aggiungi(nomeSq, "doppietta_assist", `${gi.nome} (${nAssist} assist)`);
         if (gi.cartellinoColore && gi.cartellinoColore !== GS_COLORE_AMMONIZIONE) {
           incerti.push(`[${nomeSq}] ${gi.nome}: colore cartellino ${gi.cartellinoColore} non riconosciuto -> verificare se e' espulsione (rosso)`);
+        }
+      }
+
+      // --- Maglia 7/9/10: bonus se chi la indossa ha fatto gol o assist ---
+      const sqReale = (typeof squadreDB !== "undefined") ? squadreDB.find(s => s.nome === nomeSq) : null;
+      const maglie = sqReale && sqReale.maglie ? sqReale.maglie : null;
+      if (maglie) {
+        for (const [key, numero] of [["n7", "7"], ["n9", "9"], ["n10", "10"]]) {
+          const giocatoreId = maglie[key];
+          if (!giocatoreId) continue;
+          const giocatoreVero = (typeof giocatoriDB !== "undefined") ? giocatoriDB.find(g => String(g.id) === String(giocatoreId)) : null;
+          if (!giocatoreVero) continue;
+
+          const chiaveRisoluzione = `${pIdx}_${lato}_${numero}`;
+          let nelFile = blocco.giocatori.find(gi => gi.nome === giocatoreVero.nome);
+          let fonte = "nome esatto";
+
+          if (!nelFile && Object.prototype.hasOwnProperty.call(risoluzioniMaglie, chiaveRisoluzione)) {
+            const scelta = risoluzioniMaglie[chiaveRisoluzione];
+            if (scelta !== "nessuno") {
+              nelFile = blocco.giocatori[parseInt(scelta)];
+              fonte = "scelto a mano";
+            } else {
+              fonte = "confermato: non ha giocato";
+            }
+          }
+
+          if (!nelFile) {
+            if (fonte !== "confermato: non ha giocato") {
+              daRisolvere.push({
+                chiave: chiaveRisoluzione, squadra: nomeSq, numero,
+                giocatoreVeroNome: giocatoreVero.nome,
+                opzioni: blocco.giocatori.map((gi, idx) => ({ idx, nome: gi.nome })),
+              });
+            }
+            continue;
+          }
+          if (!nelFile.haContato) continue;
+          const nGolM = gsConta(nelFile.gol, GS_PESO.gol);
+          const nAssistM = gsConta(nelFile.assist, GS_PESO.assistStd) + gsConta(nelFile.assistSoft, GS_PESO.assistSoft) + gsConta(nelFile.assistGold, GS_PESO.assistGold);
+          if (nGolM > 0 || nAssistM > 0) {
+            const nota = fonte === "scelto a mano" ? ` [abbinato a mano a "${nelFile.nome}"]` : "";
+            aggiungi(nomeSq, "maglia_gol_assist", `Maglia ${numero} — ${giocatoreVero.nome} (${nGolM} gol, ${nAssistM} assist)${nota}`);
+          }
+        }
+      }
+
+      // --- Capitano/vice capitano della giornata (simbolo Ⓒ/Ⓥ nel file voti) ---
+      let capGiornata = blocco.giocatori.find(gi => gi.capitano && gi.haContato);
+      if (!capGiornata) capGiornata = blocco.giocatori.find(gi => gi.viceCapitano && gi.haContato);
+      if (capGiornata) {
+        const nomeCapPulito = capGiornata.nome.replace(/[ⒸⓋ]/g, "").trim();
+        const nGolC = gsConta(capGiornata.gol, GS_PESO.gol);
+        const nAssistC = gsConta(capGiornata.assist, GS_PESO.assistStd) + gsConta(capGiornata.assistSoft, GS_PESO.assistSoft) + gsConta(capGiornata.assistGold, GS_PESO.assistGold);
+        if (nGolC > 0 || nAssistC > 0) {
+          aggiungi(nomeSq, "capitano_gol_assist", `${nomeCapPulito} (${nGolC} gol, ${nAssistC} assist)`);
+        }
+        if (typeof capGiornata.voto === "number" && capGiornata.voto >= 6) {
+          aggiungi(nomeSq, "capitano_sufficienza", `${nomeCapPulito} (voto ${capGiornata.voto})`);
         }
       }
     }
@@ -283,7 +349,7 @@ function gsCalcolaSponsor(partite) {
     }
   }
 
-  return { eventi, totali, incerti };
+  return { eventi, totali, incerti, daRisolvere };
 }
 
 // ============================================================
@@ -340,6 +406,7 @@ async function gsPosizioniGiaPagateT5(fine) {
 let gsFileCorrente = null;
 let gsPartiteLette = null;
 let gsGiornataNum = null;
+let gsRisoluzioniMaglie = {}; // si azzera a ogni nuovo file caricato
 
 function gsInjectStyle() {
   if (document.getElementById("gs-style")) return;
@@ -506,6 +573,7 @@ async function gsLeggiFile() {
   if (!input.files.length) { showToast("❌ Scegli un file .xlsx", "error"); return; }
   gsFileCorrente = input.files[0];
   gsGiornataNum = giornataNum;
+  gsRisoluzioniMaglie = {}; // nuovo file = si riparte da zero con gli abbinamenti
   try {
     const buf = await gsFileCorrente.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array", cellStyles: true });
@@ -516,11 +584,28 @@ async function gsLeggiFile() {
   }
 }
 
+function gsRisolviMaglia(chiave, valore) {
+  gsRisoluzioniMaglie[chiave] = valore;
+  gsRenderAnteprima();
+}
+
 function gsRenderAnteprima() {
   const div = document.getElementById("gs-anteprima");
-  const { eventi, totali, incerti } = gsCalcolaSponsor(gsPartiteLette);
+  const { eventi, totali, incerti, daRisolvere } = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
   let html = `<h3>Giornata ${gsGiornataNum} — ${gsPartiteLette.length} partite lette</h3>`;
   html += `<p>Controlla sotto cosa ha letto l'app. Se qualcosa non torna (un voto, un giocatore che non doveva/doveva contare, un cartellino), <b>correggilo prima di confermare</b> — dopo la conferma i soldi vengono assegnati.</p>`;
+  if (daRisolvere.length) {
+    html += `<div class="gs-warn"><b>👕 Maglie da confermare:</b> il nome in rosa non combacia esatto con quello nel file voti — cerca e scegli tu chi è.<br>`;
+    for (const d of daRisolvere) {
+      html += `<div style="margin-top:8px">[${d.squadra}] Maglia ${d.numero} — in rosa è "<b>${d.giocatoreVeroNome}</b>", nel file è:
+        <select onchange="gsRisolviMaglia('${d.chiave}', this.value)">
+          <option value="">— scegli —</option>
+          ${d.opzioni.map(o => `<option value="${o.idx}">${o.nome}</option>`).join("")}
+          <option value="nessuno">— non ha giocato / nessuna corrispondenza —</option>
+        </select></div>`;
+    }
+    html += `</div>`;
+  }
   if (incerti.length) {
     html += `<div class="gs-warn"><b>⚠️ Da controllare a mano (non ancora calcolato):</b><br>${incerti.map(i => i.replace(/</g, "&lt;")).join("<br>")}</div>`;
   }
@@ -541,7 +626,7 @@ function gsRenderAnteprima() {
 
 async function gsConfermaESalva() {
   if (!gsPartiteLette) return;
-  const { eventi, totali } = gsCalcolaSponsor(gsPartiteLette);
+  const { eventi, totali } = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
   try {
     // 1) salva i dati grezzi della giornata
     for (const p of gsPartiteLette) {

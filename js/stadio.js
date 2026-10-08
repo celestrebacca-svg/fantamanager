@@ -119,12 +119,17 @@ function getBonusMuseo(capienza){
   return Math.floor(extra/10000)*10;
 }
 
-async function renderStadio(){
+let stadioSqSelezionataAdmin=null; // ricorda quale squadra l'admin sta guardando, tra un refresh e l'altro
+
+async function renderStadio(sqIdForzato){
   const container=document.getElementById('stadio-content');
   if(!container) return;
 
-  // Prendo la mia squadra SEMPRE da squadreDB per avere i dati aggiornati
-  const sqBase=utenteLoggato;
+  // L'admin puo' guardare/modificare lo stadio di qualsiasi squadra tramite il
+  // selettore in alto; un manager normale vede sempre e solo la propria.
+  if(adminLoggato&&sqIdForzato) stadioSqSelezionataAdmin=sqIdForzato;
+  const idEffettivo=(adminLoggato&&stadioSqSelezionataAdmin)?stadioSqSelezionataAdmin:(utenteLoggato&&utenteLoggato.id);
+  const sqBase=squadreDB.find(s=>s.id===idEffettivo)||utenteLoggato;
   if(!sqBase){container.innerHTML='<div class="empty">Accedi per vedere il tuo stadio</div>';return;}
   const sq=squadreDB.find(s=>s.id===sqBase.id)||sqBase;
 
@@ -155,6 +160,13 @@ async function renderStadio(){
   const renditaMuseoConBonus=renditaMuseoBase*(1+bonusMuseo/100);
 
   container.innerHTML=`
+    ${adminLoggato?`
+    <!-- SELETTORE SQUADRA (solo admin) -->
+    <div style="margin-bottom:12px">
+      <select onchange="renderStadio(this.value)" style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--grigio-chiaro);background:var(--grigio-scuro);color:var(--testo);font-size:13px">
+        ${squadreDB.map(s=>`<option value="${s.id}" ${s.id===sq.id?'selected':''}>${s.nome_squadra||s.nome}</option>`).join('')}
+      </select>
+    </div>`:''}
     <!-- HEADER -->
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div>
