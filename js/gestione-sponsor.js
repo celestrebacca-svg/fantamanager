@@ -86,7 +86,10 @@ const GS_SPONSOR = {
 // (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
 
 // --- Allenatore: risultato reale di Serie A della squadra associata a ogni allenatore ---
-const GS_FOOTBALL_API_KEY = "87e59ca42baf4e4daa4057c803ecfc5a"; // football-data.org, piano gratuito
+// La chiamata vera a football-data.org passa da una Edge Function di Supabase
+// (cartella supabase-functions/risultati-serie-a), NON dal browser: football-data.org
+// blocca le chiamate dirette dal sito (CORS) e cosi' la chiave API resta nascosta sul server.
+const GS_URL_FUNZIONE_RISULTATI = "/functions/v1/risultati-serie-a";
 const GS_FOOTBALL_SPONSOR = {
   vittoria: { soldi: 1000000, tifosi: 40, nome: "Vittoria allenatore" },
   sconfitta: { soldi: -500000, tifosi: -10, nome: "Sconfitta allenatore" },
@@ -448,10 +451,13 @@ function gsNormalizzaNomeSquadra(nome) {
 }
 
 async function gsLeggiRisultatiSerieA(matchday) {
-  const url = `https://api.football-data.org/v4/competitions/SA/matches?matchday=${matchday}`;
-  const res = await fetch(url, { headers: { "X-Auth-Token": GS_FOOTBALL_API_KEY } });
-  if (!res.ok) throw new Error(`football-data.org ha risposto ${res.status} (controlla la chiave API o il numero di giornata)`);
+  // Chiamo la Edge Function (non football-data.org direttamente): vedi nota sopra sul perche'.
+  const baseUrl = sb.supabaseUrl || sb.rest?.url?.replace(/\/rest\/v1\/?$/, "");
+  if (!baseUrl) throw new Error("Non riesco a trovare l'indirizzo del progetto Supabase (sb.supabaseUrl)");
+  const url = `${baseUrl}${GS_URL_FUNZIONE_RISULTATI}?matchday=${matchday}`;
+  const res = await fetch(url);
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `La funzione ha risposto ${res.status}`);
   const risultati = []; // {squadraReale, esito, dettaglio}
   for (const m of (data.matches || [])) {
     if (m.status !== "FINISHED") continue;
@@ -503,7 +509,10 @@ function gsInjectStyle() {
   .gs-top h2{flex:1;font-family:'Bebas Neue',sans-serif;letter-spacing:1px;font-size:20px;margin:0}
   .gs-close{background:var(--rosso,#c0392b);color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer}
   .gs-body{flex:1;overflow-y:auto;padding:10px 12px 40px}
-  .gs-tabs{display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0}
+  .gs-tabs{display:flex;gap:6px;padding:0 12px 8px;flex-shrink:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .gs-tab{flex-shrink:0}
+  .gs-scroll-tbl{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:16px}
+  .gs-scroll-tbl table.gs-tbl{margin-bottom:0;min-width:560px}
   .gs-tab{background:var(--grigio-medio,#222);border:1px solid var(--grigio-chiaro,#333);color:var(--testo,#eee);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer}
   .gs-tab.active{background:var(--oro,#f1c40f);color:#111;font-weight:bold}
   table.gs-tbl{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:16px}
@@ -531,7 +540,6 @@ function gsEnsureOverlay() {
       <button class="gs-tab" data-tab="tabella" onclick="gsMostraTab('tabella')">Tabella sponsor</button>
       <button class="gs-tab" data-tab="tabella5" onclick="gsMostraTab('tabella5')">Tabella 5 giornate</button>
       <button class="gs-tab" data-tab="allenatore" onclick="gsMostraTab('allenatore')">Allenatore</button>
-      ${(typeof adminLoggato !== "undefined" && adminLoggato) ? `<button class="gs-tab" data-tab="allenatori-admin" onclick="gsMostraTab('allenatori-admin')">Allenatori & Stipendi</button>` : ""}
     </div>
     <div class="gs-body" id="gs-body"></div>`;
   document.body.appendChild(o);
@@ -555,13 +563,12 @@ function gsMostraTab(tab) {
   else if (tab === "tabella") gsRenderTabellaStatica(body);
   else if (tab === "tabella5") gsRenderTabella5(body);
   else if (tab === "allenatore") gsRenderAllenatore(body);
-  else if (tab === "allenatori-admin") gsRenderAllenatoriAdmin(body);
 }
 
 function gsRenderAllenatoriAdmin(body) {
   body.innerHTML = `
     <p>Nome della squadra reale di Serie A (es. "Juventus", "Inter") e stipendio dell'allenatore, per ogni squadra. Salva una squadra alla volta.</p>
-    <table class="gs-tbl"><tr><th>Squadra</th><th>Allenatore (squadra reale)</th><th>Stipendio</th><th></th></tr>
+    <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Allenatore (squadra reale)</th><th>Stipendio</th><th></th></tr>
     ${squadreDB.map(sq => `
       <tr>
         <td><input type="text" id="gs-sq-nome-${sq.id}" value="${(sq.nome_squadra || sq.nome || "").replace(/"/g, "&quot;")}"
@@ -572,7 +579,7 @@ function gsRenderAllenatoriAdmin(body) {
             style="width:100px;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
         <td><button class="gs-btn" style="padding:5px 10px;font-size:12px" onclick="gsSalvaAllenatoreAdmin('${sq.id}')">💾</button></td>
       </tr>`).join("")}
-    </table>`;
+    </table></div>`;
 }
 
 async function gsSalvaAllenatoreAdmin(sqId) {
@@ -589,7 +596,7 @@ async function gsSalvaAllenatoreAdmin(sqId) {
     }).eq("id", sqId);
     if (sq) { sq.nome = nomeSquadra; sq.nome_squadra = nomeSquadra; sq.allenatore = allenatore || null; sq.stip_all = stip; }
     showToast(`✅ ${nomeSquadra} salvata`);
-    gsRenderAllenatoriAdmin(document.getElementById("gs-body")); // riaggiorna la tabella coi nomi nuovi
+    gsRenderAllenatoriAdmin(document.getElementById("gs-allenatori-admin-box")); // riaggiorna la tabella coi nomi nuovi
   } catch (e) {
     showToast("❌ Errore: " + e.message, "error");
   }
@@ -598,11 +605,20 @@ async function gsSalvaAllenatoreAdmin(sqId) {
 let gsAllenatoreEventi = null, gsAllenatoreGiornata = null;
 
 function gsRenderAllenatore(body) {
+  const adminBlock = (typeof adminLoggato !== "undefined" && adminLoggato) ? `
+    <details style="margin-top:22px">
+      <summary style="cursor:pointer;color:var(--oro,#f1c40f);font-weight:bold">✏️ Modifica allenatore e stipendio di ogni squadra</summary>
+      <div id="gs-allenatori-admin-box" style="margin-top:10px"></div>
+    </details>` : "";
   body.innerHTML = `
     <p>Inserisci la giornata di Serie A da controllare (di solito coincide con la giornata di campionato).</p>
     <input type="number" id="gs-all-giornata" placeholder="N. giornata Serie A" style="width:180px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
     <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Leggi risultati Serie A</button>
-    <div id="gs-all-risultato" style="margin-top:14px"></div>`;
+    <div id="gs-all-risultato" style="margin-top:14px"></div>
+    ${adminBlock}`;
+  if (typeof adminLoggato !== "undefined" && adminLoggato) {
+    gsRenderAllenatoriAdmin(document.getElementById("gs-allenatori-admin-box"));
+  }
 }
 
 async function gsCaricaAllenatore() {
@@ -622,13 +638,13 @@ async function gsCaricaAllenatore() {
     if (!eventi.length) {
       html += `<p>Nessun bonus/malus allenatore da assegnare per questa giornata.</p>`;
     } else {
-      html += `<table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
+      html += `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
       for (const e of eventi) {
         html += `<tr><td>${e.squadra}</td><td>${e.nome}</td><td>${e.dettaglio}</td>
           <td class="${e.soldi >= 0 ? "gs-pos" : "gs-neg"}">${e.soldi.toLocaleString("it-IT")}</td>
           <td class="${e.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${e.tifosi}</td></tr>`;
       }
-      html += `</table><button class="gs-btn" onclick="gsConfermaAllenatore()">✅ Confermo, assegna</button>`;
+      html += `</table></div><button class="gs-btn" onclick="gsConfermaAllenatore()">✅ Confermo, assegna</button>`;
     }
     div.innerHTML = html;
   } catch (e) {
@@ -692,7 +708,7 @@ function gsRenderRigheT5() {
   if (gsT5Lista.length < 12) {
     html += `<div class="gs-warn">⚠️ Ho trovato dati per solo ${gsT5Lista.length} squadre su 12 in questa finestra — controlla di aver importato tutte le giornate prima di pagare.</div>`;
   }
-  html += `<table class="gs-tbl"><tr><th>Pos.</th><th>Squadra</th><th>Punti</th><th>V</th><th>P</th><th>S</th><th>Fantapunti tot.</th><th>Premio</th><th></th></tr>`;
+  html += `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Pos.</th><th>Squadra</th><th>Punti</th><th>V</th><th>P</th><th>S</th><th>Fantapunti tot.</th><th>Premio</th><th></th></tr>`;
   gsT5Lista.forEach((st, i) => {
     const pos = i + 1;
     const premio = GS_TABELLA5[Math.min(i, GS_TABELLA5.length - 1)];
@@ -704,7 +720,7 @@ function gsRenderRigheT5() {
         ? `<span style="color:var(--testo-dim,#999)">✅ Già pagata</span>`
         : `<button class="gs-btn" style="padding:5px 10px;font-size:12px" onclick="gsPagaPosizioneT5(${pos})">💰 Paga</button>`}</td></tr>`;
   });
-  html += `</table>`;
+  html += `</table></div>`;
   div.innerHTML = html;
 }
 
@@ -798,18 +814,18 @@ function gsRenderAnteprima() {
   if (incerti.length) {
     html += `<div class="gs-warn"><b>⚠️ Da controllare a mano (non ancora calcolato):</b><br>${incerti.map(i => i.replace(/</g, "&lt;")).join("<br>")}</div>`;
   }
-  html += `<table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
+  html += `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
   for (const e of eventi) {
     html += `<tr><td>${e.squadra}</td><td>${e.nome}</td><td>${e.dettaglio}</td>
       <td class="${e.soldi >= 0 ? "gs-pos" : "gs-neg"}">${e.soldi.toLocaleString("it-IT")}</td>
       <td class="${e.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${e.tifosi}</td></tr>`;
   }
-  html += `</table><h3>Totale per squadra</h3><table class="gs-tbl"><tr><th>Squadra</th><th>FM</th><th>Tifosi</th></tr>`;
+  html += `</table></div><h3>Totale per squadra</h3><div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>FM</th><th>Tifosi</th></tr>`;
   for (const [sq, v] of Object.entries(totali).sort((a, b) => b[1].soldi - a[1].soldi)) {
     html += `<tr><td>${sq}</td><td class="${v.soldi >= 0 ? "gs-pos" : "gs-neg"}">${v.soldi.toLocaleString("it-IT")}</td>
       <td class="${v.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${v.tifosi}</td></tr>`;
   }
-  html += `</table><button class="gs-btn" onclick="gsConfermaESalva()">✅ Confermo, salva e assegna</button>`;
+  html += `</table></div><button class="gs-btn" onclick="gsConfermaESalva()">✅ Confermo, salva e assegna</button>`;
   div.innerHTML = html;
 }
 
@@ -951,23 +967,23 @@ async function gsRenderLog(body) {
   const { data, error } = await sb.from("sponsor_eventi").select("*").order("giornata", { ascending: false }).order("id", { ascending: false }).limit(200);
   if (error) { body.innerHTML = "Errore: " + error.message; return; }
   const squadrePerId = Object.fromEntries(squadreDB.map(s => [s.id, s.nome]));
-  let html = `<table class="gs-tbl"><tr><th>Giornata</th><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
+  let html = `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Giornata</th><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
   for (const e of (data || [])) {
     html += `<tr><td>${e.giornata}</td><td>${squadrePerId[e.squadra_id] || "?"}</td><td>${e.nome_sponsor}</td><td>${e.dettaglio || ""}</td>
       <td class="${e.soldi >= 0 ? "gs-pos" : "gs-neg"}">${Number(e.soldi).toLocaleString("it-IT")}</td>
       <td class="${e.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${e.tifosi}</td></tr>`;
   }
-  html += `</table>`;
+  html += `</table></div>`;
   body.innerHTML = html || "Nessuno sponsor ancora registrato.";
 }
 
 function gsRenderTabellaStatica(body) {
-  let html = `<table class="gs-tbl"><tr><th>Bonus</th><th>Soldi</th><th>Tifosi</th></tr>`;
+  let html = `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Bonus</th><th>Soldi</th><th>Tifosi</th></tr>`;
   for (const s of Object.values(GS_SPONSOR)) {
     html += `<tr><td>${s.nome}</td>
       <td class="${s.soldi >= 0 ? "gs-pos" : "gs-neg"}">${(s.soldi / 1000000).toLocaleString("it-IT")} M</td>
       <td class="${s.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${s.tifosi}</td></tr>`;
   }
-  html += `</table><p style="font-size:12px;color:var(--testo-dim,#999)">Vittoria/sconfitta allenatore e bonus maglia 7/9/10 in arrivo.</p>`;
+  html += `</table></div>`;
   body.innerHTML = html;
 }
