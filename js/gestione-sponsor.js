@@ -85,6 +85,13 @@ const GS_SPONSOR = {
 // tabella separata; il capitano/vice capitano viene letto direttamente dal simbolo Ⓒ/Ⓥ del file voti
 // (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
 
+// --- Allenatore: risultato reale di Serie A della squadra associata a ogni allenatore ---
+const GS_FOOTBALL_API_KEY = "87e59ca42baf4e4daa4057c803ecfc5a"; // football-data.org, piano gratuito
+const GS_FOOTBALL_SPONSOR = {
+  vittoria: { soldi: 1000000, tifosi: 40, nome: "Vittoria allenatore" },
+  sconfitta: { soldi: -500000, tifosi: -10, nome: "Sconfitta allenatore" },
+};
+
 // Pesi confermati per leggere conteggi reali dalle colonne-punti del file voti
 const GS_PESO = { gol: 3, assistStd: 1, assistSoft: 0.5, assistGold: 1.5 };
 const GS_COLORE_AMMONIZIONE = "FFFACC15"; // confermato (giallo)
@@ -207,6 +214,13 @@ function gsNomeVero(nomeFile) {
   return GS_MAPPATURA_SQUADRE[nomeFile] || nomeFile;
 }
 
+// Il nome fantasy (es. "Hood FC") puo' stare in squadre.nome_squadra oppure in
+// squadre.nome a seconda di come e' popolato il record: controllo entrambi,
+// stessa precedenza gia' usata in squadra.js (nome_squadra || nome).
+function gsTrovaSquadra(nomeFantasy) {
+  return squadreDB.find(s => (s.nome_squadra || s.nome) === nomeFantasy);
+}
+
 // ============================================================
 // 2) CALCOLO SPONSOR SETTIMANALI
 // ============================================================
@@ -266,7 +280,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
       }
 
       // --- Maglia 7/9/10: bonus se chi la indossa ha fatto gol o assist ---
-      const sqReale = (typeof squadreDB !== "undefined") ? squadreDB.find(s => s.nome === nomeSq) : null;
+      const sqReale = (typeof squadreDB !== "undefined") ? gsTrovaSquadra(nomeSq) : null;
       const maglie = sqReale && sqReale.maglie ? sqReale.maglie : null;
       if (maglie) {
         for (const [key, numero] of [["n7", "7"], ["n9", "9"], ["n10", "10"]]) {
@@ -425,6 +439,52 @@ async function gsPosizioniGiaPagateT5(fine) {
 }
 
 // ============================================================
+// 2quater) ALLENATORE: risultato reale Serie A (football-data.org)
+// ============================================================
+function gsNormalizzaNomeSquadra(nome) {
+  return String(nome || "").toLowerCase()
+    .replace(/\bfc\b|\bac\b|\bssc\b|\bus\b|\bcalcio\b/g, "")
+    .replace(/[^a-z]/g, "").trim();
+}
+
+async function gsLeggiRisultatiSerieA(matchday) {
+  const url = `https://api.football-data.org/v4/competitions/SA/matches?matchday=${matchday}`;
+  const res = await fetch(url, { headers: { "X-Auth-Token": GS_FOOTBALL_API_KEY } });
+  if (!res.ok) throw new Error(`football-data.org ha risposto ${res.status} (controlla la chiave API o il numero di giornata)`);
+  const data = await res.json();
+  const risultati = []; // {squadraReale, esito, dettaglio}
+  for (const m of (data.matches || [])) {
+    if (m.status !== "FINISHED") continue;
+    const gCasa = m.score.fullTime.home, gTrasf = m.score.fullTime.away;
+    const nomeCasa = m.homeTeam.name, nomeTrasf = m.awayTeam.name;
+    const dettaglio = `${nomeCasa} ${gCasa}-${gTrasf} ${nomeTrasf}`;
+    if (gCasa > gTrasf) { risultati.push({ nome: nomeCasa, esito: "vittoria", dettaglio }); risultati.push({ nome: nomeTrasf, esito: "sconfitta", dettaglio }); }
+    else if (gTrasf > gCasa) { risultati.push({ nome: nomeTrasf, esito: "vittoria", dettaglio }); risultati.push({ nome: nomeCasa, esito: "sconfitta", dettaglio }); }
+    else { risultati.push({ nome: nomeCasa, esito: "pareggio", dettaglio }); risultati.push({ nome: nomeTrasf, esito: "pareggio", dettaglio }); }
+  }
+  return risultati;
+}
+
+function gsCalcolaAllenatore(risultatiSerieA) {
+  const eventi = [];
+  const nonTrovate = [];
+  for (const sq of squadreDB) {
+    const allenatore = sq.allenatore;
+    if (!allenatore) continue;
+    const norm = gsNormalizzaNomeSquadra(allenatore);
+    const match = risultatiSerieA.find(r => gsNormalizzaNomeSquadra(r.nome) === norm
+      || gsNormalizzaNomeSquadra(r.nome).includes(norm) || norm.includes(gsNormalizzaNomeSquadra(r.nome)));
+    if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": non ho trovato un risultato per questa squadra in questa giornata (non giocava? nome scritto diverso dall'ufficiale?)`); continue; }
+    if (match.esito === "pareggio") continue; // nessun bonus/malus sul pareggio
+    const premio = GS_FOOTBALL_SPONSOR[match.esito];
+    eventi.push({ squadra: sq.nome, tipo: match.esito === "vittoria" ? "vittoria_allenatore" : "sconfitta_allenatore",
+      nome: premio.nome, soldi: premio.soldi, tifosi: premio.tifosi,
+      dettaglio: `${allenatore}: ${match.dettaglio}` });
+  }
+  return { eventi, nonTrovate };
+}
+
+// ============================================================
 // 3) INTERFACCIA: overlay "Tabelle"
 // ============================================================
 let gsFileCorrente = null;
@@ -470,6 +530,8 @@ function gsEnsureOverlay() {
       <button class="gs-tab" data-tab="log" onclick="gsMostraTab('log')">Sponsor sbloccati</button>
       <button class="gs-tab" data-tab="tabella" onclick="gsMostraTab('tabella')">Tabella sponsor</button>
       <button class="gs-tab" data-tab="tabella5" onclick="gsMostraTab('tabella5')">Tabella 5 giornate</button>
+      <button class="gs-tab" data-tab="allenatore" onclick="gsMostraTab('allenatore')">Allenatore</button>
+      ${(typeof adminLoggato !== "undefined" && adminLoggato) ? `<button class="gs-tab" data-tab="allenatori-admin" onclick="gsMostraTab('allenatori-admin')">Allenatori & Stipendi</button>` : ""}
     </div>
     <div class="gs-body" id="gs-body"></div>`;
   document.body.appendChild(o);
@@ -492,6 +554,109 @@ function gsMostraTab(tab) {
   else if (tab === "log") gsRenderLog(body);
   else if (tab === "tabella") gsRenderTabellaStatica(body);
   else if (tab === "tabella5") gsRenderTabella5(body);
+  else if (tab === "allenatore") gsRenderAllenatore(body);
+  else if (tab === "allenatori-admin") gsRenderAllenatoriAdmin(body);
+}
+
+function gsRenderAllenatoriAdmin(body) {
+  body.innerHTML = `
+    <p>Nome della squadra reale di Serie A (es. "Juventus", "Inter") e stipendio dell'allenatore, per ogni squadra. Salva una squadra alla volta.</p>
+    <table class="gs-tbl"><tr><th>Squadra</th><th>Allenatore (squadra reale)</th><th>Stipendio</th><th></th></tr>
+    ${squadreDB.map(sq => `
+      <tr>
+        <td><input type="text" id="gs-sq-nome-${sq.id}" value="${(sq.nome_squadra || sq.nome || "").replace(/"/g, "&quot;")}"
+            style="width:100%;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
+        <td><input type="text" id="gs-all-nome-${sq.id}" value="${(sq.allenatore || "").replace(/"/g, "&quot;")}" placeholder="es. Sassuolo"
+            style="width:100%;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
+        <td><input type="number" id="gs-all-stip-${sq.id}" value="${sq.stip_all || ""}" placeholder="0"
+            style="width:100px;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
+        <td><button class="gs-btn" style="padding:5px 10px;font-size:12px" onclick="gsSalvaAllenatoreAdmin('${sq.id}')">💾</button></td>
+      </tr>`).join("")}
+    </table>`;
+}
+
+async function gsSalvaAllenatoreAdmin(sqId) {
+  const sq = squadreDB.find(s => String(s.id) === String(sqId));
+  const nomeSquadra = document.getElementById(`gs-sq-nome-${sqId}`).value.trim();
+  const allenatore = document.getElementById(`gs-all-nome-${sqId}`).value.trim();
+  const stipRaw = document.getElementById(`gs-all-stip-${sqId}`).value;
+  const stip = stipRaw === "" ? null : parseFloat(stipRaw);
+  if (!nomeSquadra) { showToast("❌ Il nome squadra non può essere vuoto", "error"); return; }
+  try {
+    await sb.from("squadre").update({
+      nome: nomeSquadra, nome_squadra: nomeSquadra,
+      allenatore: allenatore || null, stip_all: stip,
+    }).eq("id", sqId);
+    if (sq) { sq.nome = nomeSquadra; sq.nome_squadra = nomeSquadra; sq.allenatore = allenatore || null; sq.stip_all = stip; }
+    showToast(`✅ ${nomeSquadra} salvata`);
+    gsRenderAllenatoriAdmin(document.getElementById("gs-body")); // riaggiorna la tabella coi nomi nuovi
+  } catch (e) {
+    showToast("❌ Errore: " + e.message, "error");
+  }
+}
+
+let gsAllenatoreEventi = null, gsAllenatoreGiornata = null;
+
+function gsRenderAllenatore(body) {
+  body.innerHTML = `
+    <p>Inserisci la giornata di Serie A da controllare (di solito coincide con la giornata di campionato).</p>
+    <input type="number" id="gs-all-giornata" placeholder="N. giornata Serie A" style="width:180px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
+    <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Leggi risultati Serie A</button>
+    <div id="gs-all-risultato" style="margin-top:14px"></div>`;
+}
+
+async function gsCaricaAllenatore() {
+  const num = parseInt(document.getElementById("gs-all-giornata").value);
+  if (!num) { showToast("❌ Inserisci la giornata di Serie A", "error"); return; }
+  gsAllenatoreGiornata = num;
+  const div = document.getElementById("gs-all-risultato");
+  div.innerHTML = "Leggo i risultati da football-data.org...";
+  try {
+    const risultatiSerieA = await gsLeggiRisultatiSerieA(num);
+    const { eventi, nonTrovate } = gsCalcolaAllenatore(risultatiSerieA);
+    gsAllenatoreEventi = eventi;
+    let html = `<h3>Serie A — giornata ${num}</h3>`;
+    if (nonTrovate.length) {
+      html += `<div class="gs-warn"><b>⚠️ Da controllare:</b><br>${nonTrovate.map(n => n.replace(/</g, "&lt;")).join("<br>")}</div>`;
+    }
+    if (!eventi.length) {
+      html += `<p>Nessun bonus/malus allenatore da assegnare per questa giornata.</p>`;
+    } else {
+      html += `<table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
+      for (const e of eventi) {
+        html += `<tr><td>${e.squadra}</td><td>${e.nome}</td><td>${e.dettaglio}</td>
+          <td class="${e.soldi >= 0 ? "gs-pos" : "gs-neg"}">${e.soldi.toLocaleString("it-IT")}</td>
+          <td class="${e.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${e.tifosi}</td></tr>`;
+      }
+      html += `</table><button class="gs-btn" onclick="gsConfermaAllenatore()">✅ Confermo, assegna</button>`;
+    }
+    div.innerHTML = html;
+  } catch (e) {
+    div.innerHTML = "Errore: " + e.message;
+  }
+}
+
+async function gsConfermaAllenatore() {
+  if (!gsAllenatoreEventi) return;
+  try {
+    for (const e of gsAllenatoreEventi) {
+      const sq = gsTrovaSquadra(e.squadra);
+      if (!sq) continue;
+      await sb.from("sponsor_eventi").insert({
+        giornata: gsAllenatoreGiornata, squadra_id: sq.id, tipo_sponsor: e.tipo,
+        nome_sponsor: e.nome, soldi: e.soldi, tifosi: e.tifosi, dettaglio: e.dettaglio,
+      });
+      const { data } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
+      await sb.from("squadre").update({
+        bilancio: (data?.bilancio || 0) + e.soldi,
+        tifosi: (data?.tifosi || 0) + e.tifosi,
+      }).eq("id", sq.id);
+    }
+    showToast(`✅ Bonus allenatore assegnati: ${gsAllenatoreEventi.length}`);
+    gsMostraTab("log");
+  } catch (e) {
+    showToast("❌ Errore: " + e.message, "error");
+  }
 }
 
 async function gsRenderTabella5(body) {
