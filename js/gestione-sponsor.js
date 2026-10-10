@@ -86,10 +86,15 @@ const GS_SPONSOR = {
 // (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
 
 // --- Allenatore: risultato reale di Serie A della squadra associata a ogni allenatore ---
-// La chiamata vera a football-data.org passa da una Edge Function di Supabase
-// (cartella supabase-functions/risultati-serie-a), NON dal browser: football-data.org
-// blocca le chiamate dirette dal sito (CORS) e cosi' la chiave API resta nascosta sul server.
-const GS_URL_FUNZIONE_RISULTATI = "/functions/v1/risultati-serie-a";
+// La chiamata vera a football-data.org passa da una funzione serverless di Vercel
+// (file api/risultati-serie-a.js), NON dal browser: football-data.org blocca le chiamate
+// dirette dal sito (CORS) e cosi' la chiave API resta nascosta sul server, non nel codice.
+const GS_URL_FUNZIONE_RISULTATI = "/api/risultati-serie-a";
+const GS_SQUADRE_SERIE_A = [
+  "Atalanta", "Bologna", "Cagliari", "Como", "Fiorentina", "Frosinone", "Genoa", "Inter",
+  "Juventus", "Lazio", "Lecce", "Milan", "Monza", "Napoli", "Parma", "Roma", "Sassuolo",
+  "Torino", "Udinese", "Venezia",
+];
 const GS_FOOTBALL_SPONSOR = {
   vittoria: { soldi: 1000000, tifosi: 40, nome: "Vittoria allenatore" },
   sconfitta: { soldi: -500000, tifosi: -10, nome: "Sconfitta allenatore" },
@@ -451,10 +456,9 @@ function gsNormalizzaNomeSquadra(nome) {
 }
 
 async function gsLeggiRisultatiSerieA(matchday) {
-  // Chiamo la Edge Function (non football-data.org direttamente): vedi nota sopra sul perche'.
-  const baseUrl = sb.supabaseUrl || sb.rest?.url?.replace(/\/rest\/v1\/?$/, "");
-  if (!baseUrl) throw new Error("Non riesco a trovare l'indirizzo del progetto Supabase (sb.supabaseUrl)");
-  const url = `${baseUrl}${GS_URL_FUNZIONE_RISULTATI}?matchday=${matchday}`;
+  // Chiamo la funzione serverless di Vercel (stesso sito, percorso relativo),
+  // non football-data.org direttamente: vedi nota sopra sul perche'.
+  const url = `${GS_URL_FUNZIONE_RISULTATI}?matchday=${matchday}`;
   const res = await fetch(url);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `La funzione ha risposto ${res.status}`);
@@ -573,8 +577,11 @@ function gsRenderAllenatoriAdmin(body) {
       <tr>
         <td><input type="text" id="gs-sq-nome-${sq.id}" value="${(sq.nome_squadra || sq.nome || "").replace(/"/g, "&quot;")}"
             style="width:100%;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
-        <td><input type="text" id="gs-all-nome-${sq.id}" value="${(sq.allenatore || "").replace(/"/g, "&quot;")}" placeholder="es. Sassuolo"
-            style="width:100%;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
+        <td><select id="gs-all-nome-${sq.id}"
+            style="width:100%;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee">
+            <option value="">— nessuna —</option>
+            ${GS_SQUADRE_SERIE_A.map(t => `<option value="${t}" ${sq.allenatore === t ? "selected" : ""}>${t}</option>`).join("")}
+          </select></td>
         <td><input type="number" id="gs-all-stip-${sq.id}" value="${sq.stip_all || ""}" placeholder="0"
             style="width:100px;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
         <td><button class="gs-btn" style="padding:5px 10px;font-size:12px" onclick="gsSalvaAllenatoreAdmin('${sq.id}')">💾</button></td>
