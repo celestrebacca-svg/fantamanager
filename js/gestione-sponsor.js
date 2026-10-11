@@ -78,9 +78,9 @@ const GS_SPONSOR = {
   vittoria_allenatore:   { nome: "Vittoria allenatore",            soldi: 1000000, tifosi: 40 },
   sconfitta_allenatore:  { nome: "Sconfitta allenatore",           soldi: -500000, tifosi: -10 },
 };
-// NOTA: vittoria/sconfitta allenatore scattano dalla tab "Allenatore": l'admin carica lo
-// screenshot dei risultati reali di Serie A, che viene letto da una funzione Supabase
-// (leggi-risultati-screenshot) e abbinato alla squadra reale assegnata a ogni allenatore.
+// NOTA: vittoria/sconfitta allenatore scattano dalla tab "Allenatore": l'admin incolla i
+// risultati reali di Serie A (una partita per riga) e vengono abbinati alla squadra reale
+// assegnata a ogni allenatore. Nessuna API, nessuna immagine.
 // I numeri di maglia 7/9/10 vengono letti da squadre.maglie (gestiti in magliette.js), NON da una
 // tabella separata; il capitano/vice capitano viene letto direttamente dal simbolo Ⓒ/Ⓥ del file voti
 // (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
@@ -439,7 +439,7 @@ async function gsPosizioniGiaPagateT5(fine) {
 }
 
 // ============================================================
-// 2quater) ALLENATORE: risultati reali Serie A letti da uno screenshot
+// 2quater) ALLENATORE: risultati reali Serie A incollati come testo
 // ============================================================
 function gsNormalizzaNomeSquadra(nome) {
   return String(nome || "").toLowerCase()
@@ -457,58 +457,17 @@ function gsNomeUfficiale(nomeLetto) {
   if (!n) return null;
   const esatto = GS_SQUADRE_SERIE_A.find(t => gsNormalizzaNomeSquadra(t) === n);
   if (esatto) return esatto;
-  return GS_SQUADRE_SERIE_A.find(t => {
+  // Sigle tipo INT, VEN, ROM: conta solo l'inizio del nome, e solo se e' una scelta unica.
+  const inizio = GS_SQUADRE_SERIE_A.filter(t => {
+    const u = gsNormalizzaNomeSquadra(t);
+    return u.startsWith(n) || n.startsWith(u);
+  });
+  if (inizio.length === 1) return inizio[0];
+  const dentro = GS_SQUADRE_SERIE_A.filter(t => {
     const u = gsNormalizzaNomeSquadra(t);
     return n.includes(u) || u.includes(n);
-  }) || null;
-}
-
-function gsFileInBase64(file) {
-  return new Promise((ok, ko) => {
-    const r = new FileReader();
-    r.onload = () => ok(String(r.result).split(",")[1]);
-    r.onerror = () => ko(new Error("Non riesco a leggere il file scelto, riprova"));
-    r.readAsDataURL(file);
   });
-}
-
-// Prova a ridurre lo screenshot (max 2400px sul lato lungo, JPEG). Lancia un errore se qualsiasi passaggio fallisce.
-async function gsRiduciImmagine(file) {
-  let url = null;
-  try {
-    let sorgente, w, h;
-    try {
-      sorgente = await createImageBitmap(file);
-      w = sorgente.width; h = sorgente.height;
-    } catch (e1) {
-      url = URL.createObjectURL(file);
-      const img = new Image();
-      img.src = url;
-      await img.decode();
-      sorgente = img; w = img.naturalWidth; h = img.naturalHeight;
-    }
-    if (!w || !h) throw new Error("dimensioni non valide");
-    const scala = Math.min(1, 2400 / Math.max(w, h));
-    const c = document.createElement("canvas");
-    c.width = Math.round(w * scala);
-    c.height = Math.round(h * scala);
-    c.getContext("2d").drawImage(sorgente, 0, 0, c.width, c.height);
-    return { image_base64: c.toDataURL("image/jpeg", 0.85).split(",")[1], media_type: "image/jpeg" };
-  } finally {
-    if (url) URL.revokeObjectURL(url);
-  }
-}
-
-// Se la riduzione fallisce per qualsiasi motivo, invia il file originale cosi' com'e'.
-async function gsPreparaImmagine(file) {
-  try {
-    return await gsRiduciImmagine(file);
-  } catch (e) {
-    console.warn("Riduzione immagine non riuscita, invio l'originale:", e);
-  }
-  if (file.size > 5 * 1024 * 1024) throw new Error("Immagine troppo pesante: usa uno screenshot normale");
-  const tipo = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) ? file.type : "image/jpeg";
-  return { image_base64: await gsFileInBase64(file), media_type: tipo };
+  return dentro.length === 1 ? dentro[0] : null;
 }
 
 // Controlli automatici sulle partite lette. "gravi" = problemi che meritano una seconda lettura.
@@ -539,7 +498,7 @@ function gsControllaPartite(data) {
     partite.push({ casa, trasf, gCasa: p.gol_casa, gTrasf: p.gol_trasferta });
   }
   if (partite.length !== 10) {
-    avvisi.push(`Ho letto ${partite.length} partite valide su 10: controlla che lo screenshot sia completo.`);
+    avvisi.push(`Ho letto ${partite.length} partite valide su 10: controlla di aver incollato tutte le partite.`);
   }
   const risultati = []; // {nome, esito, dettaglio}
   for (const m of partite) {
@@ -552,16 +511,21 @@ function gsControllaPartite(data) {
   return { giornata, partite, risultati, avvisi, gravi };
 }
 
-async function gsLeggiScreenshot(file) {
-  const img = await gsPreparaImmagine(file);
-  let esito = null;
-  for (let tentativo = 1; tentativo <= 2; tentativo++) { // una sola rilettura automatica se qualcosa non torna
-    const { data, error } = await sb.functions.invoke("leggi-risultati-screenshot", { body: img });
-    if (error) throw new Error(error.message || "Errore nella lettura dell'immagine");
-    if (data && data.error) throw new Error(data.error);
-    esito = gsControllaPartite(data);
-    if (!esito.gravi) break;
+// Legge il testo incollato: una partita per riga, es. "Inter 4-1 Monza" (vanno bene anche "Inter 4 1 Monza" e le sigle INT, MON...).
+function gsLeggiTesto(testo) {
+  const partite = [], nonCapite = [];
+  let giornata = null;
+  for (const riga of String(testo || "").split(/\r?\n/)) {
+    const r = riga.trim();
+    if (!r) continue;
+    const m = r.match(/^(.*?[A-Za-z\u00C0-\u00FF])\s+(\d{1,2})\s*[-\u2013\u2014:]?\s*(\d{1,2})\s+([A-Za-z\u00C0-\u00FF].*)$/);
+    if (m) { partite.push({ casa: m[1].trim(), trasferta: m[4].trim(), gol_casa: parseInt(m[2]), gol_trasferta: parseInt(m[3]) }); continue; }
+    const g = r.match(/giornata\s*(\d{1,2})/i);
+    if (g) { giornata = parseInt(g[1]); continue; }
+    nonCapite.push(r);
   }
+  const esito = gsControllaPartite({ giornata, partite });
+  nonCapite.forEach(r => esito.avvisi.push(`Riga non capita, saltata: "${r}"`));
   return esito;
 }
 
@@ -573,7 +537,7 @@ function gsCalcolaAllenatore(risultatiSerieA) {
     if (!allenatore) continue;
     const norm = gsNormalizzaNomeSquadra(allenatore);
     const match = risultatiSerieA.find(r => gsNormalizzaNomeSquadra(r.nome) === norm);
-    if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": nessun risultato nello screenshot per questa squadra (non giocava? screenshot incompleto?)`); continue; }
+    if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": nessun risultato per questa squadra (non giocava? partita mancante nel testo?)`); continue; }
     if (match.esito === "pareggio") continue; // nessun bonus/malus sul pareggio
     const tipo = match.esito === "vittoria" ? "vittoria_allenatore" : "sconfitta_allenatore";
     const premio = GS_SPONSOR[tipo];
@@ -708,10 +672,11 @@ function gsRenderAllenatore(body) {
       <div id="gs-allenatori-admin-box" style="margin-top:10px"></div>
     </details>` : "";
   body.innerHTML = `
-    <p>Carica lo screenshot dei risultati reali della giornata di Serie A. Il numero di giornata lo leggo dall'immagine; scrivilo qui solo se vuoi forzarlo.</p>
-    <input type="number" id="gs-all-giornata" placeholder="N. giornata (facoltativo)" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
-    <input type="file" id="gs-all-file" accept="image/*" style="display:block;margin-bottom:10px;color:#eee">
-    <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Leggi screenshot</button>
+    <p>Incolla qui i risultati reali della giornata di Serie A, una partita per riga (es. <b>Inter 4-1 Monza</b>). Vanno bene anche le sigle (INT, MON...). Il numero di giornata puoi scriverlo qui sotto oppure aggiungere una riga "Giornata 1".</p>
+    <input type="number" id="gs-all-giornata" placeholder="N. giornata" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
+    <textarea id="gs-all-testo" rows="11" placeholder="Inter 4-1 Monza&#10;Udinese 1-1 Como&#10;Genoa 0-2 Napoli&#10;..." style="display:block;width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px"></textarea>
+    <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Controlla risultati</button>
+    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4</div>
     <div id="gs-all-risultato" style="margin-top:14px"></div>
     ${adminBlock}`;
   if (typeof adminLoggato !== "undefined" && adminLoggato) {
@@ -720,19 +685,19 @@ function gsRenderAllenatore(body) {
 }
 
 async function gsCaricaAllenatore() {
-  const file = document.getElementById("gs-all-file").files[0];
-  if (!file) { showToast("❌ Scegli lo screenshot dei risultati", "error"); return; }
+  const testo = document.getElementById("gs-all-testo").value;
+  if (!testo.trim()) { showToast("❌ Incolla i risultati della giornata", "error"); return; }
   const div = document.getElementById("gs-all-risultato");
-  div.innerHTML = "Leggo lo screenshot...";
+  div.innerHTML = "Controllo i risultati...";
   try {
-    const lett = await gsLeggiScreenshot(file);
+    const lett = gsLeggiTesto(testo);
     const manuale = parseInt(document.getElementById("gs-all-giornata").value);
     const num = manuale || lett.giornata;
-    if (!num) { div.innerHTML = "Non riesco a leggere il numero di giornata dall'immagine: scrivilo nel campo e riprova."; return; }
+    if (!num) { div.innerHTML = "Scrivi il numero di giornata nel campo e riprova."; return; }
     gsAllenatoreGiornata = num;
     const avvisi = [...lett.avvisi];
     if (manuale && lett.giornata && manuale !== lett.giornata) {
-      avvisi.push(`Hai scritto giornata ${manuale} ma nell'immagine leggo giornata ${lett.giornata}: controlla.`);
+      avvisi.push(`Hai scritto giornata ${manuale} ma nel testo leggo giornata ${lett.giornata}: controlla.`);
     }
     const { eventi, nonTrovate } = gsCalcolaAllenatore(lett.risultati);
 
