@@ -463,16 +463,44 @@ function gsNomeUfficiale(nomeLetto) {
   }) || null;
 }
 
-// Riduce lo screenshot (max 2400px sul lato lungo, JPEG): resta leggibile ma leggero.
+function gsFileInBase64(file) {
+  return new Promise((ok, ko) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).split(",")[1]);
+    r.onerror = () => ko(new Error("Non riesco a leggere il file scelto, riprova"));
+    r.readAsDataURL(file);
+  });
+}
+
+// Riduce lo screenshot (max 2400px sul lato lungo, JPEG). Se il telefono non riesce a decodificarlo,
+// prova un secondo metodo e in ultima istanza invia il file originale.
 async function gsPreparaImmagine(file) {
-  const bmp = await createImageBitmap(file);
-  const scala = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
-  const c = document.createElement("canvas");
-  c.width = Math.round(bmp.width * scala);
-  c.height = Math.round(bmp.height * scala);
-  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-  const dataUrl = c.toDataURL("image/jpeg", 0.85);
-  return { image_base64: dataUrl.split(",")[1], media_type: "image/jpeg" };
+  let sorgente = null, w = 0, h = 0, url = null;
+  try {
+    sorgente = await createImageBitmap(file);
+    w = sorgente.width; h = sorgente.height;
+  } catch (e1) {
+    try {
+      url = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = url;
+      await img.decode();
+      sorgente = img; w = img.naturalWidth; h = img.naturalHeight;
+    } catch (e2) { sorgente = null; }
+  }
+  if (sorgente && w && h) {
+    const scala = Math.min(1, 2400 / Math.max(w, h));
+    const c = document.createElement("canvas");
+    c.width = Math.round(w * scala);
+    c.height = Math.round(h * scala);
+    c.getContext("2d").drawImage(sorgente, 0, 0, c.width, c.height);
+    if (url) URL.revokeObjectURL(url);
+    return { image_base64: c.toDataURL("image/jpeg", 0.85).split(",")[1], media_type: "image/jpeg" };
+  }
+  if (url) URL.revokeObjectURL(url);
+  if (file.size > 5 * 1024 * 1024) throw new Error("Immagine troppo pesante: usa uno screenshot normale");
+  const tipo = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) ? file.type : "image/jpeg";
+  return { image_base64: await gsFileInBase64(file), media_type: tipo };
 }
 
 // Controlli automatici sulle partite lette. "gravi" = problemi che meritano una seconda lettura.
