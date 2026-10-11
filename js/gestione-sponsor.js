@@ -629,6 +629,15 @@ function gsMostraTab(tab) {
   else if (tab === "allenatore") gsRenderAllenatore(body);
 }
 
+// Se l'elenco squadre dell'app e' vuoto (non ancora caricato in questa schermata), lo carico dal database.
+async function gsAssicuraSquadre() {
+  if (typeof squadreDB !== "undefined" && squadreDB && squadreDB.length) return;
+  const { data, error } = await sb.from("squadre").select("*");
+  if (error) throw error;
+  if (typeof squadreDB !== "undefined" && Array.isArray(squadreDB)) squadreDB.push(...(data || []));
+  else window.squadreDB = data || [];
+}
+
 function gsRenderAllenatoriAdmin(body) {
   body.innerHTML = `
     <p>Nome della squadra reale di Serie A (es. "Juventus", "Inter") e stipendio dell'allenatore, per ogni squadra. Salva una squadra alla volta.</p>
@@ -671,7 +680,10 @@ async function gsSalvaAllenatoreAdmin(sqId) {
 
 let gsAllenatoreEventi = null, gsAllenatoreGiornata = null;
 
-function gsRenderAllenatore(body) {
+async function gsRenderAllenatore(body) {
+  body.innerHTML = "Carico le squadre...";
+  try { await gsAssicuraSquadre(); }
+  catch (e) { body.innerHTML = "Errore nel caricare le squadre: " + gsEsc(e.message); return; }
   const adminBlock = (typeof adminLoggato !== "undefined" && adminLoggato) ? `
     <details style="margin-top:22px">
       <summary style="cursor:pointer;color:var(--oro,#f1c40f);font-weight:bold">✏️ Modifica allenatore e stipendio di ogni squadra</summary>
@@ -682,7 +694,7 @@ function gsRenderAllenatore(body) {
     <input type="number" id="gs-all-giornata" placeholder="N. giornata" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
     <textarea id="gs-all-testo" rows="11" placeholder="Inter 4-1 Monza&#10;Udinese 1-1 Como&#10;Genoa 0-2 Napoli&#10;..." style="display:block;width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px"></textarea>
     <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Controlla risultati</button>
-    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.2</div>
+    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.3</div>
     <div id="gs-all-risultato" style="margin-top:14px"></div>
     ${adminBlock}`;
   if (typeof adminLoggato !== "undefined" && adminLoggato) {
@@ -696,6 +708,7 @@ async function gsCaricaAllenatore() {
   const div = document.getElementById("gs-all-risultato");
   div.innerHTML = "Controllo i risultati...";
   try {
+    await gsAssicuraSquadre();
     const lett = gsLeggiTesto(testo);
     const manuale = parseInt(document.getElementById("gs-all-giornata").value);
     const num = manuale || lett.giornata;
