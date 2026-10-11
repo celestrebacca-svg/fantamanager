@@ -533,11 +533,13 @@ function gsCalcolaAllenatore(risultatiSerieA) {
   const eventi = [];
   const nonTrovate = [];
   const senzaAllenatore = [];
+  const riepilogo = [];
   for (const sq of squadreDB) {
     const allenatore = sq.allenatore;
-    if (!allenatore) { senzaAllenatore.push(sq.nome_squadra || sq.nome); continue; }
+    if (!allenatore) { senzaAllenatore.push(sq.nome_squadra || sq.nome); riepilogo.push({ squadra: sq.nome_squadra || sq.nome, allenatore: "NESSUNO", esito: "-" }); continue; }
     const norm = gsNormalizzaNomeSquadra(allenatore);
     const match = risultatiSerieA.find(r => gsNormalizzaNomeSquadra(r.nome) === norm);
+    riepilogo.push({ squadra: sq.nome_squadra || sq.nome, allenatore, esito: match ? match.esito : "nessun risultato" });
     if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": nessun risultato per questa squadra (non giocava? partita mancante nel testo?)`); continue; }
     if (match.esito === "pareggio") continue; // nessun bonus/malus sul pareggio
     const tipo = match.esito === "vittoria" ? "vittoria_allenatore" : "sconfitta_allenatore";
@@ -549,7 +551,7 @@ function gsCalcolaAllenatore(risultatiSerieA) {
   if (senzaAllenatore.length) {
     nonTrovate.unshift(`Squadre senza allenatore assegnato: ${senzaAllenatore.join(", ")}. Sceglilo nel riquadro "Modifica allenatore e stipendio" qui sotto e premi Salva.`);
   }
-  return { eventi, nonTrovate };
+  return { eventi, nonTrovate, riepilogo };
 }
 
 // ============================================================
@@ -680,7 +682,7 @@ function gsRenderAllenatore(body) {
     <input type="number" id="gs-all-giornata" placeholder="N. giornata" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
     <textarea id="gs-all-testo" rows="11" placeholder="Inter 4-1 Monza&#10;Udinese 1-1 Como&#10;Genoa 0-2 Napoli&#10;..." style="display:block;width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px"></textarea>
     <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Controlla risultati</button>
-    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.1</div>
+    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.2</div>
     <div id="gs-all-risultato" style="margin-top:14px"></div>
     ${adminBlock}`;
   if (typeof adminLoggato !== "undefined" && adminLoggato) {
@@ -703,7 +705,7 @@ async function gsCaricaAllenatore() {
     if (manuale && lett.giornata && manuale !== lett.giornata) {
       avvisi.push(`Hai scritto giornata ${manuale} ma nel testo leggo giornata ${lett.giornata}: controlla.`);
     }
-    const { eventi, nonTrovate } = gsCalcolaAllenatore(lett.risultati);
+    const { eventi, nonTrovate, riepilogo } = gsCalcolaAllenatore(lett.risultati);
 
     // Non assegno due volte lo stesso bonus/malus alla stessa squadra nella stessa giornata.
     const { data: gia, error } = await sb.from("sponsor_eventi").select("squadra_id,tipo_sponsor")
@@ -720,6 +722,9 @@ async function gsCaricaAllenatore() {
     let html = `<h3>Serie A — giornata ${num}</h3>`;
     html += `<details open><summary>Partite lette (${lett.partite.length})</summary><p style="line-height:1.6">${
       lett.partite.map(m => `${gsEsc(m.casa)} ${m.gCasa}-${m.gTrasf} ${gsEsc(m.trasf)}`).join("<br>")}</p></details>`;
+    html += `<details open><summary>Allenatori nell'app (${riepilogo.length} squadre)</summary><p style="line-height:1.6">${
+      riepilogo.length ? riepilogo.map(r => `${gsEsc(r.squadra)} → ${gsEsc(r.allenatore)}: ${gsEsc(r.esito)}`).join("<br>")
+        : "Non trovo nessuna squadra caricata nell'app."}</p></details>`;
     const tuttiAvvisi = [...avvisi, ...nonTrovate];
     if (tuttiAvvisi.length) {
       html += `<div class="gs-warn"><b>⚠️ Da controllare:</b><br>${tuttiAvvisi.map(gsEsc).join("<br>")}</div>`;
