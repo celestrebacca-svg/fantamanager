@@ -532,9 +532,10 @@ function gsLeggiTesto(testo) {
 function gsCalcolaAllenatore(risultatiSerieA) {
   const eventi = [];
   const nonTrovate = [];
+  const senzaAllenatore = [];
   for (const sq of squadreDB) {
     const allenatore = sq.allenatore;
-    if (!allenatore) continue;
+    if (!allenatore) { senzaAllenatore.push(sq.nome_squadra || sq.nome); continue; }
     const norm = gsNormalizzaNomeSquadra(allenatore);
     const match = risultatiSerieA.find(r => gsNormalizzaNomeSquadra(r.nome) === norm);
     if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": nessun risultato per questa squadra (non giocava? partita mancante nel testo?)`); continue; }
@@ -544,6 +545,9 @@ function gsCalcolaAllenatore(risultatiSerieA) {
     eventi.push({ squadra: sq.nome, tipo,
       nome: premio.nome, soldi: premio.soldi, tifosi: premio.tifosi,
       dettaglio: `${allenatore}: ${match.dettaglio}` });
+  }
+  if (senzaAllenatore.length) {
+    nonTrovate.unshift(`Squadre senza allenatore assegnato: ${senzaAllenatore.join(", ")}. Sceglilo nel riquadro "Modifica allenatore e stipendio" qui sotto e premi Salva.`);
   }
   return { eventi, nonTrovate };
 }
@@ -676,7 +680,7 @@ function gsRenderAllenatore(body) {
     <input type="number" id="gs-all-giornata" placeholder="N. giornata" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
     <textarea id="gs-all-testo" rows="11" placeholder="Inter 4-1 Monza&#10;Udinese 1-1 Como&#10;Genoa 0-2 Napoli&#10;..." style="display:block;width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px"></textarea>
     <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Controlla risultati</button>
-    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4</div>
+    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.1</div>
     <div id="gs-all-risultato" style="margin-top:14px"></div>
     ${adminBlock}`;
   if (typeof adminLoggato !== "undefined" && adminLoggato) {
