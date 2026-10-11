@@ -472,32 +472,40 @@ function gsFileInBase64(file) {
   });
 }
 
-// Riduce lo screenshot (max 2400px sul lato lungo, JPEG). Se il telefono non riesce a decodificarlo,
-// prova un secondo metodo e in ultima istanza invia il file originale.
-async function gsPreparaImmagine(file) {
-  let sorgente = null, w = 0, h = 0, url = null;
+// Prova a ridurre lo screenshot (max 2400px sul lato lungo, JPEG). Lancia un errore se qualsiasi passaggio fallisce.
+async function gsRiduciImmagine(file) {
+  let url = null;
   try {
-    sorgente = await createImageBitmap(file);
-    w = sorgente.width; h = sorgente.height;
-  } catch (e1) {
+    let sorgente, w, h;
     try {
+      sorgente = await createImageBitmap(file);
+      w = sorgente.width; h = sorgente.height;
+    } catch (e1) {
       url = URL.createObjectURL(file);
       const img = new Image();
       img.src = url;
       await img.decode();
       sorgente = img; w = img.naturalWidth; h = img.naturalHeight;
-    } catch (e2) { sorgente = null; }
-  }
-  if (sorgente && w && h) {
+    }
+    if (!w || !h) throw new Error("dimensioni non valide");
     const scala = Math.min(1, 2400 / Math.max(w, h));
     const c = document.createElement("canvas");
     c.width = Math.round(w * scala);
     c.height = Math.round(h * scala);
     c.getContext("2d").drawImage(sorgente, 0, 0, c.width, c.height);
-    if (url) URL.revokeObjectURL(url);
     return { image_base64: c.toDataURL("image/jpeg", 0.85).split(",")[1], media_type: "image/jpeg" };
+  } finally {
+    if (url) URL.revokeObjectURL(url);
   }
-  if (url) URL.revokeObjectURL(url);
+}
+
+// Se la riduzione fallisce per qualsiasi motivo, invia il file originale cosi' com'e'.
+async function gsPreparaImmagine(file) {
+  try {
+    return await gsRiduciImmagine(file);
+  } catch (e) {
+    console.warn("Riduzione immagine non riuscita, invio l'originale:", e);
+  }
   if (file.size > 5 * 1024 * 1024) throw new Error("Immagine troppo pesante: usa uno screenshot normale");
   const tipo = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) ? file.type : "image/jpeg";
   return { image_base64: await gsFileInBase64(file), media_type: tipo };
