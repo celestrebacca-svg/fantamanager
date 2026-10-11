@@ -78,27 +78,19 @@ const GS_SPONSOR = {
   vittoria_allenatore:   { nome: "Vittoria allenatore",            soldi: 1000000, tifosi: 40 },
   sconfitta_allenatore:  { nome: "Sconfitta allenatore",           soldi: -500000, tifosi: -10 },
 };
-// NOTA: vittoria/sconfitta allenatore sono gia' in tabella (sopra) ma il calcolo automatico
-// NON e' ancora collegato: serve prima l'account football-data.org e la squadra reale assegnata
-// a ogni allenatore. Finche' non e' collegato, questi due non scattano mai da soli.
+// NOTA: vittoria/sconfitta allenatore scattano dalla tab "Allenatore": l'admin carica lo
+// screenshot dei risultati reali di Serie A, che viene letto da una funzione Supabase
+// (leggi-risultati-screenshot) e abbinato alla squadra reale assegnata a ogni allenatore.
 // I numeri di maglia 7/9/10 vengono letti da squadre.maglie (gestiti in magliette.js), NON da una
 // tabella separata; il capitano/vice capitano viene letto direttamente dal simbolo Ⓒ/Ⓥ del file voti
 // (e' la scelta settimanale di formazione, diversa dalla maglia fissa di squadre.maglie.capitano).
 
-// --- Allenatore: risultato reale di Serie A della squadra associata a ogni allenatore ---
-// La chiamata vera a football-data.org passa da una funzione serverless di Vercel
-// (file api/risultati-serie-a.js), NON dal browser: football-data.org blocca le chiamate
-// dirette dal sito (CORS) e cosi' la chiave API resta nascosta sul server, non nel codice.
-const GS_URL_FUNZIONE_RISULTATI = "/api/risultati-serie-a";
+// --- Allenatore: squadre reali di Serie A assegnabili a ogni allenatore (stagione 2026/27) ---
 const GS_SQUADRE_SERIE_A = [
   "Atalanta", "Bologna", "Cagliari", "Como", "Fiorentina", "Frosinone", "Genoa", "Inter",
   "Juventus", "Lazio", "Lecce", "Milan", "Monza", "Napoli", "Parma", "Roma", "Sassuolo",
   "Torino", "Udinese", "Venezia",
 ];
-const GS_FOOTBALL_SPONSOR = {
-  vittoria: { soldi: 1000000, tifosi: 40, nome: "Vittoria allenatore" },
-  sconfitta: { soldi: -500000, tifosi: -10, nome: "Sconfitta allenatore" },
-};
 
 // Pesi confermati per leggere conteggi reali dalle colonne-punti del file voti
 const GS_PESO = { gol: 3, assistStd: 1, assistSoft: 0.5, assistGold: 1.5 };
@@ -447,7 +439,7 @@ async function gsPosizioniGiaPagateT5(fine) {
 }
 
 // ============================================================
-// 2quater) ALLENATORE: risultato reale Serie A (football-data.org)
+// 2quater) ALLENATORE: risultati reali Serie A letti da uno screenshot
 // ============================================================
 function gsNormalizzaNomeSquadra(nome) {
   return String(nome || "").toLowerCase()
@@ -455,24 +447,86 @@ function gsNormalizzaNomeSquadra(nome) {
     .replace(/[^a-z]/g, "").trim();
 }
 
-async function gsLeggiRisultatiSerieA(matchday) {
-  // Chiamo la funzione serverless di Vercel (stesso sito, percorso relativo),
-  // non football-data.org direttamente: vedi nota sopra sul perche'.
-  const url = `${GS_URL_FUNZIONE_RISULTATI}?matchday=${matchday}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `La funzione ha risposto ${res.status}`);
-  const risultati = []; // {squadraReale, esito, dettaglio}
-  for (const m of (data.matches || [])) {
-    if (m.status !== "FINISHED") continue;
-    const gCasa = m.score.fullTime.home, gTrasf = m.score.fullTime.away;
-    const nomeCasa = m.homeTeam.name, nomeTrasf = m.awayTeam.name;
-    const dettaglio = `${nomeCasa} ${gCasa}-${gTrasf} ${nomeTrasf}`;
-    if (gCasa > gTrasf) { risultati.push({ nome: nomeCasa, esito: "vittoria", dettaglio }); risultati.push({ nome: nomeTrasf, esito: "sconfitta", dettaglio }); }
-    else if (gTrasf > gCasa) { risultati.push({ nome: nomeTrasf, esito: "vittoria", dettaglio }); risultati.push({ nome: nomeCasa, esito: "sconfitta", dettaglio }); }
-    else { risultati.push({ nome: nomeCasa, esito: "pareggio", dettaglio }); risultati.push({ nome: nomeTrasf, esito: "pareggio", dettaglio }); }
+function gsEsc(t) {
+  return String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Correzione automatica dei nomi: porta il nome letto al nome ufficiale della lista (o null).
+function gsNomeUfficiale(nomeLetto) {
+  const n = gsNormalizzaNomeSquadra(nomeLetto);
+  if (!n) return null;
+  const esatto = GS_SQUADRE_SERIE_A.find(t => gsNormalizzaNomeSquadra(t) === n);
+  if (esatto) return esatto;
+  return GS_SQUADRE_SERIE_A.find(t => {
+    const u = gsNormalizzaNomeSquadra(t);
+    return n.includes(u) || u.includes(n);
+  }) || null;
+}
+
+// Riduce lo screenshot (max 2400px sul lato lungo, JPEG): resta leggibile ma leggero.
+async function gsPreparaImmagine(file) {
+  const bmp = await createImageBitmap(file);
+  const scala = Math.min(1, 2400 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * scala);
+  c.height = Math.round(bmp.height * scala);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const dataUrl = c.toDataURL("image/jpeg", 0.85);
+  return { image_base64: dataUrl.split(",")[1], media_type: "image/jpeg" };
+}
+
+// Controlli automatici sulle partite lette. "gravi" = problemi che meritano una seconda lettura.
+function gsControllaPartite(data) {
+  const avvisi = [];
+  let gravi = false;
+  const viste = new Set();
+  const partite = [];
+  for (const p of (data && data.partite) || []) {
+    const casa = gsNomeUfficiale(p.casa), trasf = gsNomeUfficiale(p.trasferta);
+    if (!casa || !trasf) {
+      avvisi.push(`Nome squadra non riconosciuto: "${!casa ? p.casa : p.trasferta}"`);
+      gravi = true; continue;
+    }
+    if (!Number.isInteger(p.gol_casa) || !Number.isInteger(p.gol_trasferta)) {
+      avvisi.push(`${casa} - ${trasf}: non ancora giocata o punteggio non leggibile, saltata`);
+      continue;
+    }
+    if (p.gol_casa < 0 || p.gol_trasferta < 0 || p.gol_casa > 15 || p.gol_trasferta > 15) {
+      avvisi.push(`${casa} ${p.gol_casa}-${p.gol_trasferta} ${trasf}: punteggio improbabile, saltata`);
+      gravi = true; continue;
+    }
+    if (viste.has(casa) || viste.has(trasf)) {
+      avvisi.push(`${casa} o ${trasf} compaiono in piu' di una partita, saltata`);
+      gravi = true; continue;
+    }
+    viste.add(casa); viste.add(trasf);
+    partite.push({ casa, trasf, gCasa: p.gol_casa, gTrasf: p.gol_trasferta });
   }
-  return risultati;
+  if (partite.length !== 10) {
+    avvisi.push(`Ho letto ${partite.length} partite valide su 10: controlla che lo screenshot sia completo.`);
+  }
+  const risultati = []; // {nome, esito, dettaglio}
+  for (const m of partite) {
+    const dettaglio = `${m.casa} ${m.gCasa}-${m.gTrasf} ${m.trasf}`;
+    if (m.gCasa > m.gTrasf) { risultati.push({ nome: m.casa, esito: "vittoria", dettaglio }); risultati.push({ nome: m.trasf, esito: "sconfitta", dettaglio }); }
+    else if (m.gTrasf > m.gCasa) { risultati.push({ nome: m.trasf, esito: "vittoria", dettaglio }); risultati.push({ nome: m.casa, esito: "sconfitta", dettaglio }); }
+    else { risultati.push({ nome: m.casa, esito: "pareggio", dettaglio }); risultati.push({ nome: m.trasf, esito: "pareggio", dettaglio }); }
+  }
+  const giornata = Number.isInteger(data && data.giornata) ? data.giornata : null;
+  return { giornata, partite, risultati, avvisi, gravi };
+}
+
+async function gsLeggiScreenshot(file) {
+  const img = await gsPreparaImmagine(file);
+  let esito = null;
+  for (let tentativo = 1; tentativo <= 2; tentativo++) { // una sola rilettura automatica se qualcosa non torna
+    const { data, error } = await sb.functions.invoke("leggi-risultati-screenshot", { body: img });
+    if (error) throw new Error(error.message || "Errore nella lettura dell'immagine");
+    if (data && data.error) throw new Error(data.error);
+    esito = gsControllaPartite(data);
+    if (!esito.gravi) break;
+  }
+  return esito;
 }
 
 function gsCalcolaAllenatore(risultatiSerieA) {
@@ -482,12 +536,12 @@ function gsCalcolaAllenatore(risultatiSerieA) {
     const allenatore = sq.allenatore;
     if (!allenatore) continue;
     const norm = gsNormalizzaNomeSquadra(allenatore);
-    const match = risultatiSerieA.find(r => gsNormalizzaNomeSquadra(r.nome) === norm
-      || gsNormalizzaNomeSquadra(r.nome).includes(norm) || norm.includes(gsNormalizzaNomeSquadra(r.nome)));
-    if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": non ho trovato un risultato per questa squadra in questa giornata (non giocava? nome scritto diverso dall'ufficiale?)`); continue; }
+    const match = risultatiSerieA.find(r => gsNormalizzaNomeSquadra(r.nome) === norm);
+    if (!match) { nonTrovate.push(`[${sq.nome}] allenatore "${allenatore}": nessun risultato nello screenshot per questa squadra (non giocava? screenshot incompleto?)`); continue; }
     if (match.esito === "pareggio") continue; // nessun bonus/malus sul pareggio
-    const premio = GS_FOOTBALL_SPONSOR[match.esito];
-    eventi.push({ squadra: sq.nome, tipo: match.esito === "vittoria" ? "vittoria_allenatore" : "sconfitta_allenatore",
+    const tipo = match.esito === "vittoria" ? "vittoria_allenatore" : "sconfitta_allenatore";
+    const premio = GS_SPONSOR[tipo];
+    eventi.push({ squadra: sq.nome, tipo,
       nome: premio.nome, soldi: premio.soldi, tifosi: premio.tifosi,
       dettaglio: `${allenatore}: ${match.dettaglio}` });
   }
@@ -618,9 +672,10 @@ function gsRenderAllenatore(body) {
       <div id="gs-allenatori-admin-box" style="margin-top:10px"></div>
     </details>` : "";
   body.innerHTML = `
-    <p>Inserisci la giornata di Serie A da controllare (di solito coincide con la giornata di campionato).</p>
-    <input type="number" id="gs-all-giornata" placeholder="N. giornata Serie A" style="width:180px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
-    <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Leggi risultati Serie A</button>
+    <p>Carica lo screenshot dei risultati reali della giornata di Serie A. Il numero di giornata lo leggo dall'immagine; scrivilo qui solo se vuoi forzarlo.</p>
+    <input type="number" id="gs-all-giornata" placeholder="N. giornata (facoltativo)" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
+    <input type="file" id="gs-all-file" accept="image/*" style="display:block;margin-bottom:10px;color:#eee">
+    <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Leggi screenshot</button>
     <div id="gs-all-risultato" style="margin-top:14px"></div>
     ${adminBlock}`;
   if (typeof adminLoggato !== "undefined" && adminLoggato) {
@@ -629,25 +684,50 @@ function gsRenderAllenatore(body) {
 }
 
 async function gsCaricaAllenatore() {
-  const num = parseInt(document.getElementById("gs-all-giornata").value);
-  if (!num) { showToast("❌ Inserisci la giornata di Serie A", "error"); return; }
-  gsAllenatoreGiornata = num;
+  const file = document.getElementById("gs-all-file").files[0];
+  if (!file) { showToast("❌ Scegli lo screenshot dei risultati", "error"); return; }
   const div = document.getElementById("gs-all-risultato");
-  div.innerHTML = "Leggo i risultati da football-data.org...";
+  div.innerHTML = "Leggo lo screenshot...";
   try {
-    const risultatiSerieA = await gsLeggiRisultatiSerieA(num);
-    const { eventi, nonTrovate } = gsCalcolaAllenatore(risultatiSerieA);
-    gsAllenatoreEventi = eventi;
-    let html = `<h3>Serie A — giornata ${num}</h3>`;
-    if (nonTrovate.length) {
-      html += `<div class="gs-warn"><b>⚠️ Da controllare:</b><br>${nonTrovate.map(n => n.replace(/</g, "&lt;")).join("<br>")}</div>`;
+    const lett = await gsLeggiScreenshot(file);
+    const manuale = parseInt(document.getElementById("gs-all-giornata").value);
+    const num = manuale || lett.giornata;
+    if (!num) { div.innerHTML = "Non riesco a leggere il numero di giornata dall'immagine: scrivilo nel campo e riprova."; return; }
+    gsAllenatoreGiornata = num;
+    const avvisi = [...lett.avvisi];
+    if (manuale && lett.giornata && manuale !== lett.giornata) {
+      avvisi.push(`Hai scritto giornata ${manuale} ma nell'immagine leggo giornata ${lett.giornata}: controlla.`);
     }
-    if (!eventi.length) {
+    const { eventi, nonTrovate } = gsCalcolaAllenatore(lett.risultati);
+
+    // Non assegno due volte lo stesso bonus/malus alla stessa squadra nella stessa giornata.
+    const { data: gia, error } = await sb.from("sponsor_eventi").select("squadra_id,tipo_sponsor")
+      .eq("giornata", num).in("tipo_sponsor", ["vittoria_allenatore", "sconfitta_allenatore"]);
+    if (error) throw error;
+    const giaSet = new Set((gia || []).map(r => `${r.squadra_id}|${r.tipo_sponsor}`));
+    const daAssegnare = [], giaAssegnati = [];
+    for (const e of eventi) {
+      const sq = gsTrovaSquadra(e.squadra);
+      (sq && giaSet.has(`${sq.id}|${e.tipo}`) ? giaAssegnati : daAssegnare).push(e);
+    }
+    gsAllenatoreEventi = daAssegnare;
+
+    let html = `<h3>Serie A — giornata ${num}</h3>`;
+    html += `<details open><summary>Partite lette (${lett.partite.length})</summary><p style="line-height:1.6">${
+      lett.partite.map(m => `${gsEsc(m.casa)} ${m.gCasa}-${m.gTrasf} ${gsEsc(m.trasf)}`).join("<br>")}</p></details>`;
+    const tuttiAvvisi = [...avvisi, ...nonTrovate];
+    if (tuttiAvvisi.length) {
+      html += `<div class="gs-warn"><b>⚠️ Da controllare:</b><br>${tuttiAvvisi.map(gsEsc).join("<br>")}</div>`;
+    }
+    if (giaAssegnati.length) {
+      html += `<div class="gs-warn">Già assegnati per questa giornata (non li ripeto): ${giaAssegnati.map(e => gsEsc(e.squadra)).join(", ")}</div>`;
+    }
+    if (!daAssegnare.length) {
       html += `<p>Nessun bonus/malus allenatore da assegnare per questa giornata.</p>`;
     } else {
       html += `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
-      for (const e of eventi) {
-        html += `<tr><td>${e.squadra}</td><td>${e.nome}</td><td>${e.dettaglio}</td>
+      for (const e of daAssegnare) {
+        html += `<tr><td>${gsEsc(e.squadra)}</td><td>${gsEsc(e.nome)}</td><td>${gsEsc(e.dettaglio)}</td>
           <td class="${e.soldi >= 0 ? "gs-pos" : "gs-neg"}">${e.soldi.toLocaleString("it-IT")}</td>
           <td class="${e.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${e.tifosi}</td></tr>`;
       }
@@ -655,7 +735,7 @@ async function gsCaricaAllenatore() {
     }
     div.innerHTML = html;
   } catch (e) {
-    div.innerHTML = "Errore: " + e.message;
+    div.innerHTML = "Errore: " + gsEsc(e.message);
   }
 }
 
