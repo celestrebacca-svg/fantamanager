@@ -700,6 +700,11 @@ async function gsSalvaAllenatoreAdmin(sqId) {
   }
 }
 
+// budget in squadre e' salvato in MILIONI (es. 12.5): i bonus sono in unita' (1000000) -> li converto.
+function gsSommaBudget(attuale, soldiInUnita) {
+  return Math.round(((Number(attuale) || 0) + soldiInUnita / 1000000) * 1000) / 1000;
+}
+
 let gsAllenatoreEventi = null, gsAllenatoreGiornata = null;
 
 async function gsRenderAllenatore(body) {
@@ -796,10 +801,10 @@ async function gsConfermaAllenatore() {
         nome_sponsor: e.nome, soldi: e.soldi, tifosi: e.tifosi, dettaglio: e.dettaglio,
       });
       if (e1) throw new Error("Insert sponsor_eventi: " + e1.message);
-      const { data, error: e2 } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
+      const { data, error: e2 } = await sb.from("squadre").select("budget,tifosi").eq("id", sq.id).single();
       if (e2) throw new Error("Lettura squadra: " + e2.message);
       const { error: e3 } = await sb.from("squadre").update({
-        bilancio: (data?.bilancio || 0) + e.soldi,
+        budget: gsSommaBudget(data?.budget, e.soldi),
         tifosi: (data?.tifosi || 0) + e.tifosi,
       }).eq("id", sq.id);
       if (e3) throw new Error("Update squadre: " + e3.message);
@@ -885,9 +890,9 @@ async function gsPagaPosizioneT5(pos) {
       soldi: premio.soldi, tifosi: premio.tifosi,
       dettaglio: `${st.punti} punti, ${st.fantapunti.toFixed(1)} fantapunti totali`,
     });
-    const { data } = await sb.from("squadre").select("bilancio,tifosi").eq("id", st.squadra_id).single();
+    const { data } = await sb.from("squadre").select("budget,tifosi").eq("id", st.squadra_id).single();
     await sb.from("squadre").update({
-      bilancio: (data?.bilancio || 0) + premio.soldi,
+      budget: gsSommaBudget(data?.budget, premio.soldi),
       tifosi: (data?.tifosi || 0) + premio.tifosi,
     }).eq("id", st.squadra_id);
     gsT5Pagate.add(pos);
@@ -1034,9 +1039,9 @@ async function gsConfermaESalva() {
     for (const [nomeSq, v] of Object.entries(totali)) {
       const sq = squadreDB.find(s => s.nome === nomeSq);
       if (!sq) continue;
-      const { data } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
+      const { data } = await sb.from("squadre").select("budget,tifosi").eq("id", sq.id).single();
       await sb.from("squadre").update({
-        bilancio: (data?.bilancio || 0) + v.soldi,
+        budget: gsSommaBudget(data?.budget, v.soldi),
         tifosi: (data?.tifosi || 0) + v.tifosi,
       }).eq("id", sq.id);
     }
@@ -1294,9 +1299,9 @@ async function gsAggiornaSerieSquadra(sq, esito) {
           nome_sponsor: premio.nome, soldi: premio.soldi, tifosi: premio.tifosi,
           dettaglio: `${sq.nome}: ${valore} di fila`,
         });
-        const { data: sqDati } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
+        const { data: sqDati } = await sb.from("squadre").select("budget,tifosi").eq("id", sq.id).single();
         await sb.from("squadre").update({
-          bilancio: (sqDati?.bilancio || 0) + premio.soldi,
+          budget: gsSommaBudget(sqDati?.budget, premio.soldi),
           tifosi: (sqDati?.tifosi || 0) + premio.tifosi,
         }).eq("id", sq.id);
         premiate.push(soglia);
