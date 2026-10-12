@@ -700,9 +700,9 @@ async function gsSalvaAllenatoreAdmin(sqId) {
   }
 }
 
-// budget in squadre e' salvato in MILIONI (es. 12.5): i bonus sono in unita' (1000000) -> li converto.
+// budget in squadre e' salvato in UNITA' (es. 50000000.00), come i bonus: si somma direttamente.
 function gsSommaBudget(attuale, soldiInUnita) {
-  return Math.round(((Number(attuale) || 0) + soldiInUnita / 1000000) * 1000) / 1000;
+  return Math.round(((Number(attuale) || 0) + soldiInUnita) * 100) / 100;
 }
 
 let gsAllenatoreEventi = null, gsAllenatoreGiornata = null;
@@ -803,11 +803,12 @@ async function gsConfermaAllenatore() {
       if (e1) throw new Error("Insert sponsor_eventi: " + e1.message);
       const { data, error: e2 } = await sb.from("squadre").select("budget,tifosi").eq("id", sq.id).single();
       if (e2) throw new Error("Lettura squadra: " + e2.message);
-      const { error: e3 } = await sb.from("squadre").update({
+      const { data: agg, error: e3 } = await sb.from("squadre").update({
         budget: gsSommaBudget(data?.budget, e.soldi),
         tifosi: (data?.tifosi || 0) + e.tifosi,
-      }).eq("id", sq.id);
+      }).eq("id", sq.id).select("id");
       if (e3) throw new Error("Update squadre: " + e3.message);
+      if (!agg || !agg.length) throw new Error("Update squadre: 0 righe aggiornate per " + e.squadra + " (id " + sq.id + "), probabile blocco RLS");
       ok++;
     }
     showToast(`\u2705 Bonus allenatore assegnati: ${ok}`);
