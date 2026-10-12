@@ -786,24 +786,32 @@ async function gsCaricaAllenatore() {
 
 async function gsConfermaAllenatore() {
   if (!gsAllenatoreEventi) return;
+  let ok = 0;
   try {
     for (const e of gsAllenatoreEventi) {
       const sq = gsTrovaSquadra(e.squadra);
-      if (!sq) continue;
-      await sb.from("sponsor_eventi").insert({
+      if (!sq) throw new Error("Squadra non trovata: " + e.squadra);
+      const { error: e1 } = await sb.from("sponsor_eventi").insert({
         giornata: gsAllenatoreGiornata, squadra_id: sq.id, tipo_sponsor: e.tipo,
         nome_sponsor: e.nome, soldi: e.soldi, tifosi: e.tifosi, dettaglio: e.dettaglio,
       });
-      const { data } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
-      await sb.from("squadre").update({
+      if (e1) throw new Error("Insert sponsor_eventi: " + e1.message);
+      const { data, error: e2 } = await sb.from("squadre").select("bilancio,tifosi").eq("id", sq.id).single();
+      if (e2) throw new Error("Lettura squadra: " + e2.message);
+      const { error: e3 } = await sb.from("squadre").update({
         bilancio: (data?.bilancio || 0) + e.soldi,
         tifosi: (data?.tifosi || 0) + e.tifosi,
       }).eq("id", sq.id);
+      if (e3) throw new Error("Update squadre: " + e3.message);
+      ok++;
     }
-    showToast(`✅ Bonus allenatore assegnati: ${gsAllenatoreEventi.length}`);
+    showToast(`\u2705 Bonus allenatore assegnati: ${ok}`);
     gsMostraTab("log");
   } catch (e) {
-    showToast("❌ Errore: " + e.message, "error");
+    const msg = "\u274c " + e.message + " (assegnati prima dell'errore: " + ok + ")";
+    showToast(msg, "error");
+    const box = document.getElementById("gs-all-risultato");
+    if (box) box.insertAdjacentHTML("beforeend", `<div class="gs-warn" style="margin-top:12px"><b>${gsEsc(msg)}</b></div>`);
   }
 }
 
