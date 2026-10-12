@@ -903,6 +903,13 @@ function gsRenderImport(body) {
     <div id="gs-anteprima"></div>`;
 }
 
+// Una giornata gia' salvata non si puo' caricare di nuovo: eviterebbe di sommare due volte sponsor, budget e serie.
+async function gsGiornataGiaImportata(num) {
+  const { count, error } = await sb.from("giornate_import").select("squadra_id", { count: "exact", head: true }).eq("giornata", num);
+  if (error) throw error;
+  return (count || 0) > 0;
+}
+
 async function gsLeggiFile() {
   const input = document.getElementById("gs-file-input");
   const giornataNum = parseInt(document.getElementById("gs-giornata-num").value);
@@ -912,6 +919,14 @@ async function gsLeggiFile() {
   gsGiornataNum = giornataNum;
   gsRisoluzioniMaglie = {}; // nuovo file = si riparte da zero con gli abbinamenti
   try {
+    if (await gsGiornataGiaImportata(giornataNum)) {
+      gsPartiteLette = null;
+      const msg = `La giornata ${giornataNum} è già stata importata: non si può caricare due volte.`;
+      const box = document.getElementById("gs-anteprima");
+      if (box) box.innerHTML = `<div class="gs-warn">⛔ ${msg}</div>`;
+      showToast("❌ " + msg, "error");
+      return;
+    }
     await gsAssicuraSquadre(); // l'elenco squadre serve per le maglie 7/9/10
     const buf = await gsFileCorrente.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array", cellStyles: true });
@@ -970,6 +985,12 @@ function gsRenderAnteprima() {
 
 async function gsConfermaESalva() {
   if (!gsPartiteLette) return;
+  try {
+    if (await gsGiornataGiaImportata(gsGiornataNum)) {
+      showToast(`❌ La giornata ${gsGiornataNum} è già stata importata: non salvo di nuovo`, "error");
+      return;
+    }
+  } catch (e) { showToast("❌ Errore controllo giornata: " + e.message, "error"); return; }
   const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
   let stagEventi = [];
   try { stagEventi = await gsCalcolaStagionali(gsGiornataNum, gsPartiteLette); }
