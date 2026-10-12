@@ -77,6 +77,15 @@ const GS_SPONSOR = {
   capitano_sufficienza:  { nome: "Capitano — voto 6 o più",        soldi: 150000,  tifosi: 10 },
   vittoria_allenatore:   { nome: "Vittoria allenatore",            soldi: 1000000, tifosi: 40 },
   sconfitta_allenatore:  { nome: "Sconfitta allenatore",           soldi: -500000, tifosi: -10 },
+  // --- Stagionali (si sbloccano quando i totali di stagione raggiungono la soglia) ---
+  gol30_1:               { nome: "30 gol dei calciatori — 1ª squadra",  soldi: 5000000, tifosi: 120 },
+  gol30_2:               { nome: "30 gol dei calciatori — 2ª squadra",  soldi: 3500000, tifosi: 80 },
+  gol30_3:               { nome: "30 gol dei calciatori — 3ª squadra",  soldi: 2000000, tifosi: 50 },
+  assist20_1:            { nome: "20 assist dei calciatori — 1ª squadra", soldi: 3500000, tifosi: 100 },
+  assist20_2:            { nome: "20 assist dei calciatori — 2ª squadra", soldi: 2000000, tifosi: 70 },
+  assist20_3:            { nome: "20 assist dei calciatori — 3ª squadra", soldi: 1000000, tifosi: 50 },
+  fantagol50:            { nome: "Prima squadra a 50 fantagol",    soldi: 5000000, tifosi: 130 },
+  fantagol20:            { nome: "Ogni 20 fantagol",               soldi: 1000000, tifosi: 35 },
 };
 // NOTA: vittoria/sconfitta allenatore scattano dalla tab "Allenatore": l'admin incolla i
 // risultati reali di Serie A (una partita per riga) e vengono abbinati alla squadra reale
@@ -234,6 +243,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
   const eventi = [];
   const totali = {}; // nomeSquadraVero -> {soldi, tifosi}
   const incerti = [];
+  const maglieAvvisate = new Set(); // una sola segnalazione per squadra
   const daRisolvere = []; // maglie 7/9/10 senza corrispondenza esatta, in attesa di scelta manuale
   const squadreTotali = [];
   const tuttiGiocatori = [];
@@ -282,6 +292,13 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
       // --- Maglia 7/9/10: bonus se chi la indossa ha fatto gol o assist ---
       const sqReale = (typeof squadreDB !== "undefined") ? gsTrovaSquadra(nomeSq) : null;
       const maglie = sqReale && sqReale.maglie ? sqReale.maglie : null;
+      if (!sqReale) {
+        if (!maglieAvvisate.has("?" + nomeSq)) { maglieAvvisate.add("?" + nomeSq); incerti.push(`[${nomeSq}] squadra non trovata nell'app: bonus maglia 7/9/10 non calcolato`); }
+      } else if (!maglie || !(maglie.n7 || maglie.n9 || maglie.n10)) {
+        if (!maglieAvvisate.has(nomeSq)) { maglieAvvisate.add(nomeSq); incerti.push(`[${nomeSq}] numeri di maglia 7/9/10 non ancora impostati: nessun bonus maglia calcolato`); }
+      } else if (typeof giocatoriDB === "undefined" || !giocatoriDB || !giocatoriDB.length) {
+        if (!maglieAvvisate.has("g" + nomeSq)) { maglieAvvisate.add("g" + nomeSq); incerti.push(`[${nomeSq}] elenco giocatori non caricato: bonus maglia 7/9/10 non calcolato`); }
+      }
       if (maglie) {
         for (const [key, numero] of [["n7", "7"], ["n9", "9"], ["n10", "10"]]) {
           const giocatoreId = maglie[key];
@@ -603,6 +620,7 @@ function gsEnsureOverlay() {
       <button class="gs-tab" data-tab="log" onclick="gsMostraTab('log')">Sponsor sbloccati</button>
       <button class="gs-tab" data-tab="tabella" onclick="gsMostraTab('tabella')">Tabella sponsor</button>
       <button class="gs-tab" data-tab="tabella5" onclick="gsMostraTab('tabella5')">Tabella 5 giornate</button>
+      <button class="gs-tab" data-tab="obiettivi" onclick="gsMostraTab('obiettivi')">Obiettivi stagione</button>
       <button class="gs-tab" data-tab="allenatore" onclick="gsMostraTab('allenatore')">Allenatore</button>
     </div>
     <div class="gs-body" id="gs-body"></div>`;
@@ -627,6 +645,7 @@ function gsMostraTab(tab) {
   else if (tab === "tabella") gsRenderTabellaStatica(body);
   else if (tab === "tabella5") gsRenderTabella5(body);
   else if (tab === "allenatore") gsRenderAllenatore(body);
+  else if (tab === "obiettivi") gsRenderObiettivi(body);
 }
 
 // Se l'elenco squadre dell'app e' vuoto (non ancora caricato in questa schermata), lo carico dal database.
@@ -640,8 +659,8 @@ async function gsAssicuraSquadre() {
 
 function gsRenderAllenatoriAdmin(body) {
   body.innerHTML = `
-    <p>Nome della squadra reale di Serie A (es. "Juventus", "Inter") e stipendio dell'allenatore, per ogni squadra. Salva una squadra alla volta.</p>
-    <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Allenatore (squadra reale)</th><th>Stipendio</th><th></th></tr>
+    <p>Nome della squadra reale di Serie A (es. "Juventus", "Inter") e stipendio dell'allenatore in milioni (minimo 1M), per ogni squadra. Salva una squadra alla volta.</p>
+    <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Allenatore (squadra reale)</th><th>Stipendio (M)</th><th></th></tr>
     ${squadreDB.map(sq => `
       <tr>
         <td><input type="text" id="gs-sq-nome-${sq.id}" value="${(sq.nome_squadra || sq.nome || "").replace(/"/g, "&quot;")}"
@@ -651,8 +670,10 @@ function gsRenderAllenatoriAdmin(body) {
             <option value="">— nessuna —</option>
             ${GS_SQUADRE_SERIE_A.map(t => `<option value="${t}" ${sq.allenatore === t ? "selected" : ""}>${t}</option>`).join("")}
           </select></td>
-        <td><input type="number" id="gs-all-stip-${sq.id}" value="${sq.stip_all || ""}" placeholder="0"
-            style="width:100px;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee"></td>
+        <td><div style="display:flex;align-items:center;gap:4px">
+          <input type="number" min="1" step="0.1" id="gs-all-stip-${sq.id}" value="${sq.stip_all || ""}" placeholder="1"
+            style="width:70px;padding:5px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee">
+          <b>M</b></div></td>
         <td><button class="gs-btn" style="padding:5px 10px;font-size:12px" onclick="gsSalvaAllenatoreAdmin('${sq.id}')">💾</button></td>
       </tr>`).join("")}
     </table></div>`;
@@ -665,6 +686,7 @@ async function gsSalvaAllenatoreAdmin(sqId) {
   const stipRaw = document.getElementById(`gs-all-stip-${sqId}`).value;
   const stip = stipRaw === "" ? null : parseFloat(stipRaw);
   if (!nomeSquadra) { showToast("❌ Il nome squadra non può essere vuoto", "error"); return; }
+  if (stip !== null && !(stip >= 1)) { showToast("❌ Lo stipendio minimo di un allenatore è 1M", "error"); return; }
   try {
     await sb.from("squadre").update({
       nome: nomeSquadra, nome_squadra: nomeSquadra,
@@ -694,7 +716,7 @@ async function gsRenderAllenatore(body) {
     <input type="number" id="gs-all-giornata" placeholder="N. giornata" style="width:200px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
     <textarea id="gs-all-testo" rows="11" placeholder="Inter 4-1 Monza&#10;Udinese 1-1 Como&#10;Genoa 0-2 Napoli&#10;..." style="display:block;width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px"></textarea>
     <button class="gs-btn" onclick="gsCaricaAllenatore()">⚽ Controlla risultati</button>
-    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.3</div>
+    <div style="opacity:.5;font-size:12px;margin-top:6px">lettore risultati v4.4</div>
     <div id="gs-all-risultato" style="margin-top:14px"></div>
     ${adminBlock}`;
   if (typeof adminLoggato !== "undefined" && adminLoggato) {
@@ -890,9 +912,12 @@ async function gsLeggiFile() {
   gsGiornataNum = giornataNum;
   gsRisoluzioniMaglie = {}; // nuovo file = si riparte da zero con gli abbinamenti
   try {
+    await gsAssicuraSquadre(); // l'elenco squadre serve per le maglie 7/9/10
     const buf = await gsFileCorrente.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array", cellStyles: true });
     gsPartiteLette = gsParsaGiornata(wb);
+    try { gsStagionali = { eventi: await gsCalcolaStagionali(giornataNum, gsPartiteLette), errore: null }; }
+    catch (e) { gsStagionali = { eventi: [], errore: e.message }; }
     gsRenderAnteprima();
   } catch (e) {
     showToast("❌ Errore lettura file: " + e.message, "error");
@@ -906,7 +931,11 @@ function gsRisolviMaglia(chiave, valore) {
 
 function gsRenderAnteprima() {
   const div = document.getElementById("gs-anteprima");
-  const { eventi, totali, incerti, daRisolvere } = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  const { incerti, daRisolvere } = calc;
+  const stag = gsStagionali || { eventi: [], errore: null };
+  if (stag.errore) incerti.push("Sponsor stagionali (30 gol, 20 assist, fantagol) non calcolati: " + stag.errore);
+  const { eventi, totali } = gsUnisciStagionali(calc, stag.eventi);
   let html = `<h3>Giornata ${gsGiornataNum} — ${gsPartiteLette.length} partite lette</h3>`;
   html += `<p>Controlla sotto cosa ha letto l'app. Se qualcosa non torna (un voto, un giocatore che non doveva/doveva contare, un cartellino), <b>correggilo prima di confermare</b> — dopo la conferma i soldi vengono assegnati.</p>`;
   if (daRisolvere.length) {
@@ -941,7 +970,11 @@ function gsRenderAnteprima() {
 
 async function gsConfermaESalva() {
   if (!gsPartiteLette) return;
-  const { eventi, totali } = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  let stagEventi = [];
+  try { stagEventi = await gsCalcolaStagionali(gsGiornataNum, gsPartiteLette); }
+  catch (e) { showToast("❌ Errore sponsor stagionali: " + e.message, "error"); return; }
+  const { eventi, totali } = gsUnisciStagionali(calc, stagEventi);
   try {
     // 1) salva i dati grezzi della giornata
     for (const p of gsPartiteLette) {
@@ -985,6 +1018,181 @@ async function gsConfermaESalva() {
     gsMostraTab("log");
   } catch (e) {
     showToast("❌ Errore salvataggio: " + e.message, "error");
+  }
+}
+
+// ============================================================
+// 2quinquies) SPONSOR STAGIONALI: 30 gol, 20 assist, 50 fantagol, ogni 20 fantagol
+// Si calcolano sui totali di tutta la stagione: giornate gia' salvate (giornate_import) + quella che stai importando.
+// Contano solo i calciatori che hanno contato (come per gli altri sponsor). Fantagol = gol segnati nella partita di lega.
+// ============================================================
+let gsStagionali = null;
+
+function gsTotaliGiornataSquadra(giocatori, risultato, lato) {
+  let gol = 0, assist = 0;
+  for (const gi of giocatori || []) {
+    if (!gi.haContato) continue;
+    gol += gsConta(gi.gol, GS_PESO.gol);
+    assist += gsConta(gi.assist, GS_PESO.assistStd)
+      + gsConta(gi.assistSoft, GS_PESO.assistSoft)
+      + gsConta(gi.assistGold, GS_PESO.assistGold);
+  }
+  const m = /^(\d+)-(\d+)$/.exec(String(risultato || "").trim());
+  const fantagol = m ? parseInt(lato === "casa" ? m[1] : m[2]) : 0;
+  return { gol, assist, fantagol };
+}
+
+async function gsCalcolaStagionali(giornataNum, partite) {
+  const { data: righe, error } = await sb.from("giornate_import")
+    .select("giornata,squadra_id,risultato,casa_o_trasferta,giocatori").lt("giornata", giornataNum);
+  if (error) throw error;
+  const vuoto = () => ({ gol: 0, assist: 0, fantagol: 0 });
+  const somma = (o, id, t) => { if (!o[id]) o[id] = vuoto(); o[id].gol += t.gol; o[id].assist += t.assist; o[id].fantagol += t.fantagol; };
+  const prima = {}, dopo = {}, nomi = {};
+  for (const r of righe || []) somma(prima, r.squadra_id, gsTotaliGiornataSquadra(r.giocatori, r.risultato, r.casa_o_trasferta));
+  for (const id of Object.keys(prima)) dopo[id] = { ...prima[id] };
+  for (const p of partite) {
+    for (const [lato, nomeFile, blocco] of [["casa", p.casa, p.squadraCasa], ["trasferta", p.trasferta, p.squadraTrasferta]]) {
+      const sq = squadreDB.find(s => s.nome === gsNomeVero(nomeFile));
+      if (!sq) continue;
+      nomi[sq.id] = sq.nome;
+      if (!prima[sq.id]) prima[sq.id] = vuoto();
+      if (!dopo[sq.id]) dopo[sq.id] = { ...prima[sq.id] };
+      somma(dopo, sq.id, gsTotaliGiornataSquadra(blocco.giocatori, p.risultato, lato));
+    }
+  }
+
+  const tipi = ["gol30_1", "gol30_2", "gol30_3", "assist20_1", "assist20_2", "assist20_3", "fantagol50", "fantagol20"];
+  const { data: gia, error: e2 } = await sb.from("sponsor_eventi").select("squadra_id,tipo_sponsor,dettaglio").in("tipo_sponsor", tipi);
+  if (e2) throw e2;
+  const eventi = [];
+  const aggiungi = (id, tipo, dettaglio) => {
+    const sp = GS_SPONSOR[tipo];
+    eventi.push({ squadra: nomi[id], tipo, nome: sp.nome, soldi: sp.soldi, tifosi: sp.tifosi, dettaglio });
+  };
+  const ids = Object.keys(nomi);
+
+  // Podio 1a/2a/3a squadra che raggiunge la soglia. A parita' nella stessa giornata: ex aequo, stessa posizione.
+  function podio(prefisso, campo, soglia, etichetta) {
+    const premiate = new Set((gia || []).filter(g => g.tipo_sponsor.startsWith(prefisso)).map(g => String(g.squadra_id)));
+    const giaOltre = Object.keys(prima).filter(id => prima[id][campo] >= soglia).length;
+    let pos = Math.max(premiate.size, giaOltre) + 1;
+    const arrivate = ids.filter(id => !premiate.has(String(id)) && prima[id][campo] < soglia && dopo[id][campo] >= soglia)
+      .sort((a, b) => dopo[b][campo] - dopo[a][campo]);
+    let i = 0;
+    while (i < arrivate.length && pos <= 3) {
+      const tot = dopo[arrivate[i]][campo];
+      const gruppo = arrivate.filter(id => dopo[id][campo] === tot);
+      for (const id of gruppo) {
+        aggiungi(id, prefisso + pos, `${tot} ${etichetta}${gruppo.length > 1 ? " (ex aequo)" : ""}: ${pos}ª squadra a quota ${soglia}`);
+      }
+      pos += gruppo.length; i += gruppo.length;
+    }
+  }
+  podio("gol30_", "gol", 30, "gol");
+  podio("assist20_", "assist", 20, "assist");
+
+  // Prima squadra a 50 fantagol (una sola, salvo ex aequo nella stessa giornata)
+  const gia50 = (gia || []).some(g => g.tipo_sponsor === "fantagol50");
+  const qualcunoOltre50 = Object.keys(prima).some(id => prima[id].fantagol >= 50);
+  if (!gia50 && !qualcunoOltre50) {
+    const arr = ids.filter(id => prima[id].fantagol < 50 && dopo[id].fantagol >= 50);
+    if (arr.length) {
+      const max = Math.max(...arr.map(id => dopo[id].fantagol));
+      const gruppo = arr.filter(id => dopo[id].fantagol === max);
+      for (const id of gruppo) aggiungi(id, "fantagol50", `${max} fantagol${gruppo.length > 1 ? " (ex aequo)" : ""}: prima squadra a quota 50`);
+    }
+  }
+
+  // Ogni 20 fantagol: ogni squadra, a ogni multiplo di 20 raggiunto (20, 40, 60...)
+  const premi20 = new Set((gia || []).filter(g => g.tipo_sponsor === "fantagol20").map(g => `${g.squadra_id}|${g.dettaglio}`));
+  for (const id of ids) {
+    for (let k = Math.floor(prima[id].fantagol / 20) + 1; k <= Math.floor(dopo[id].fantagol / 20); k++) {
+      const det = `${k * 20} fantagol raggiunti`;
+      if (!premi20.has(`${id}|${det}`)) aggiungi(id, "fantagol20", det);
+    }
+  }
+  return eventi;
+}
+
+function gsUnisciStagionali(calc, stag) {
+  const eventi = [...calc.eventi, ...stag];
+  const totali = {};
+  for (const [k, v] of Object.entries(calc.totali)) totali[k] = { ...v };
+  for (const e of stag) {
+    if (!totali[e.squadra]) totali[e.squadra] = { soldi: 0, tifosi: 0 };
+    totali[e.squadra].soldi += e.soldi;
+    totali[e.squadra].tifosi += e.tifosi;
+  }
+  return { eventi, totali };
+}
+
+// ============================================================
+// 2sexies) OBIETTIVI STAGIONE: quanto manca a ogni squadra per sbloccare gli sponsor stagionali
+// ============================================================
+async function gsRenderObiettivi(body) {
+  body.innerHTML = "Carico i totali di stagione...";
+  try {
+    await gsAssicuraSquadre();
+    const { data: righe, error } = await sb.from("giornate_import")
+      .select("giornata,squadra_id,risultato,casa_o_trasferta,giocatori");
+    if (error) throw error;
+    const tot = {}, giornate = new Set();
+    for (const r of righe || []) {
+      giornate.add(r.giornata);
+      const t = gsTotaliGiornataSquadra(r.giocatori, r.risultato, r.casa_o_trasferta);
+      if (!tot[r.squadra_id]) tot[r.squadra_id] = { gol: 0, assist: 0, fantagol: 0 };
+      tot[r.squadra_id].gol += t.gol; tot[r.squadra_id].assist += t.assist; tot[r.squadra_id].fantagol += t.fantagol;
+    }
+    const elenco = squadreDB.map(sq => ({ id: sq.id, nome: sq.nome_squadra || sq.nome, ...(tot[sq.id] || { gol: 0, assist: 0, fantagol: 0 }) }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "it"));
+    const oltre = (campo, soglia) => elenco.filter(e => e[campo] >= soglia);
+    const liberiGol = Math.max(0, 3 - oltre("gol", 30).length);
+    const liberiAssist = Math.max(0, 3 - oltre("assist", 20).length);
+    const primoFg50 = elenco.filter(e => e.fantagol >= 50).sort((a, b) => b.fantagol - a.fantagol)[0];
+
+    const cella = (v, soglia, liberi) => {
+      if (v >= soglia) return `<b class="gs-pos">✅ ${v}</b>`;
+      if (!liberi) return `${v}<br><small>(posti esauriti)</small>`;
+      return `<b>${v}</b> / ${soglia}<br><small>mancano ${soglia - v}</small>`;
+    };
+    let html = `<h3>Totali dopo ${giornate.size} giornat${giornate.size === 1 ? "a" : "e"}</h3>
+      <p style="line-height:1.6">
+      <b>30 gol</b> dei calciatori: posti liberi ${liberiGol} su 3<br>
+      <b>20 assist</b> dei calciatori: posti liberi ${liberiAssist} su 3<br>
+      <b>50 fantagol</b>: ${primoFg50 ? "già conquistato da " + gsEsc(primoFg50.nome) : "ancora libero"}<br>
+      <b>Ogni 20 fantagol</b>: bonus per tutti, a ogni traguardo (20, 40, 60...)</p>
+      <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Gol</th><th>Assist</th><th>Fantagol</th></tr>`;
+    for (const e of elenco) {
+      const prossimo = (Math.floor(e.fantagol / 20) + 1) * 20;
+      let fg = `<b>${e.fantagol}</b>`;
+      if (!primoFg50 && e.fantagol < 50) fg += `<br><small>prima a 50: mancano ${50 - e.fantagol}</small>`;
+      fg += `<br><small>bonus a ${prossimo}: mancano ${prossimo - e.fantagol}</small>`;
+      html += `<tr><td>${gsEsc(e.nome)}</td><td>${cella(e.gol, 30, liberiGol)}</td><td>${cella(e.assist, 20, liberiAssist)}</td><td>${fg}</td></tr>`;
+    }
+    html += `</table></div>`;
+
+    // --- Serie in corso (vittorie/sconfitte di fila, senza sconfitta, senza vittoria) ---
+    const { data: serie, error: e2 } = await sb.from("serie_squadre").select("*");
+    if (e2) throw e2;
+    const perId = Object.fromEntries((serie || []).map(r => [String(r.squadra_id), r]));
+    const cellaSerie = (v) => {
+      const prossima = [5, 10, 15].find(x => x > v);
+      if (!prossima) return `<b class="gs-pos">✅ ${v}</b><br><small>massimo raggiunto</small>`;
+      return `<b>${v}</b><br><small>mancano ${prossima - v} per ${prossima}</small>`;
+    };
+    html += `<h3 style="margin-top:22px">Serie in corso</h3>
+      <p style="line-height:1.5"><small>Ogni serie riparte da 0 quando si interrompe. Un pareggio azzera vittorie e sconfitte di fila, ma non "senza sconfitta" né "senza vittoria".</small></p>
+      <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Vittorie di fila</th><th>Sconfitte di fila</th><th>Senza sconfitta</th><th>Senza vittoria</th></tr>`;
+    for (const e of elenco) {
+      const r = perId[String(e.id)] || {};
+      html += `<tr><td>${gsEsc(e.nome)}</td><td>${cellaSerie(r.vittorie_fila || 0)}</td><td>${cellaSerie(r.sconfitte_fila || 0)}</td>
+        <td>${cellaSerie(r.senza_sconfitta_fila || 0)}</td><td>${cellaSerie(r.senza_vittoria_fila || 0)}</td></tr>`;
+    }
+    html += `</table></div>`;
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = "Errore nel caricare i totali: " + gsEsc(e.message);
   }
 }
 
