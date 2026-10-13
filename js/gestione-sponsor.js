@@ -230,6 +230,107 @@ function gsTrovaSquadra(nomeFantasy) {
   return squadreDB.find(s => (s.nome_squadra || s.nome) === nomeFantasy);
 }
 
+// --- Abbinamento nomi giocatore: nome in rosa (app) <-> nome nel file voti ---
+// Esempi reali: "McTominay" <-> "McTominay Ⓒ", "Davis" <-> "Davis K.", "P.Esposito" <-> "Esposito F.P."
+function gsPulisciNome(nome) {
+  return String(nome || "")
+    .replace(/[\u24B8\u24CB]/g, " ") // simboli capitano / vice capitano
+    .replace(/\u00F8/gi, "o").replace(/\u0111/gi, "d").replace(/\u0142/gi, "l").replace(/\u00E6/gi, "ae").replace(/\u00DF/g, "ss")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/['\u2019`]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+function gsSpezzaNome(nome) {
+  const tok = gsPulisciNome(nome).split(" ").filter(Boolean);
+  return { lunghi: tok.filter(t => t.length > 1), iniziali: tok.filter(t => t.length === 1) };
+}
+// Vero se due nomi possono essere lo stesso giocatore: stesso cognome (anche se uno dei due ha parole in piu')
+// e iniziali non in contrasto.
+function gsNomiCompatibili(a, b) {
+  const A = gsSpezzaNome(a), B = gsSpezzaNome(b);
+  if (!A.lunghi.length || !B.lunghi.length) return false;
+  const aInB = A.lunghi.every(t => B.lunghi.includes(t));
+  const bInA = B.lunghi.every(t => A.lunghi.includes(t));
+  if (!aInB && !bInA) return false;
+  const restoA = A.lunghi.filter(t => !B.lunghi.includes(t));
+  const restoB = B.lunghi.filter(t => !A.lunghi.includes(t));
+  const inizialiOk = (iniziali, altre, restoAltro) => {
+    if (!iniziali.length) return true;
+    const candidate = [...altre, ...restoAltro.map(t => t[0])];
+    if (!candidate.length) return true; // l'altro nome non da' informazioni sull'iniziale
+    return iniziali.some(i => candidate.includes(i));
+  };
+  return inizialiOk(A.iniziali, B.iniziali, restoB) && inizialiOk(B.iniziali, A.iniziali, restoA);
+}
+// Cerca nel blocco squadra del file voti il giocatore della rosa. Se i candidati sono piu' di uno
+// NON sceglie: lascia la scelta all'admin (ambiguo: true).
+function gsTrovaGiocatoreFile(giocatoriFile, nomeRosa) {
+  const esatto = giocatoriFile.find(gi => gi.nome === nomeRosa);
+  if (esatto) return { gi: esatto, fonte: "nome esatto", ambiguo: false };
+  const simili = giocatoriFile.filter(gi => gsNomiCompatibili(gi.nome, nomeRosa));
+  if (simili.length === 1) return { gi: simili[0], fonte: "nome simile", ambiguo: false };
+  return { gi: null, fonte: "", ambiguo: simili.length > 1 };
+}
+
+// --- Maglie 7/9/10: lettura sicura dei dati dell'app ---
+let gsGiocatoriCache = {}; // id -> nome, usata se giocatoriDB non e' (ancora) caricato
+let gsErroreGiocatori = null;
+function gsMaglieSquadra(sq) {
+  let m = sq && sq.maglie;
+  if (typeof m === "string") { try { m = JSON.parse(m); } catch (e) { m = null; } }
+  return m && typeof m === "object" ? m : null;
+}
+function gsNomeGiocatoreById(id) {
+  const k = String(id);
+  if (typeof giocatoriDB !== "undefined" && giocatoriDB) {
+    const g = giocatoriDB.find(x => String(x.id) === k);
+    if (g) return g.nome;
+  }
+  return gsGiocatoriCache[k] || null;
+}
+// Se l'elenco giocatori dell'app non e' caricato, scarico dal database solo i giocatori con la maglia 7/9/10.
+async function gsAssicuraGiocatoriMaglie() {
+  gsErroreGiocatori = null;
+  const ids = new Set();
+  for (const sq of squadreDB) {
+    const m = gsMaglieSquadra(sq);
+    if (m) for (const k of ["n7", "n9", "n10"]) if (m[k]) ids.add(String(m[k]));
+  }
+  const mancanti = [...ids].filter(id => !gsNomeGiocatoreById(id));
+  if (!mancanti.length) return;
+  try {
+    const { data, error } = await sb.from("giocatori").select("id,nome").in("id", mancanti);
+    if (error) throw error;
+    for (const g of data || []) gsGiocatoriCache[String(g.id)] = g.nome;
+  } catch (e) { gsErroreGiocatori = e.message; }
+}
+
+// --- Abbinamenti salvati: giocatore (id) -> nome come e' scritto nel file voti (tabella mappa_nomi_voti) ---
+let gsMappaNomi = {}; // String(giocatore_id) -> nome_voti
+let gsMappaErrore = null;
+async function gsCaricaMappaNomi() {
+  gsMappaErrore = null;
+  try {
+    const { data, error } = await sb.from("mappa_nomi_voti").select("giocatore_id,nome_voti");
+    if (error) throw error;
+    gsMappaNomi = {};
+    for (const r of data || []) gsMappaNomi[String(r.giocatore_id)] = r.nome_voti;
+  } catch (e) { gsMappaErrore = e.message; }
+}
+// Salva (o aggiorna) gli abbinamenti scelti a mano. Si chiama solo alla conferma della giornata.
+async function gsSalvaMappaNomi(lista) {
+  const perId = {};
+  for (const x of lista) perId[String(x.giocatoreId)] = x.nomeVoti; // se ripetuto vince l'ultimo
+  const righe = Object.entries(perId).map(([id, nome]) => ({ giocatore_id: id, nome_voti: nome, aggiornato_il: new Date().toISOString() }));
+  if (!righe.length) return 0;
+  const { error } = await sb.from("mappa_nomi_voti").upsert(righe, { onConflict: "giocatore_id" });
+  if (error) throw error;
+  for (const r of righe) gsMappaNomi[r.giocatore_id] = r.nome_voti;
+  return righe.length;
+}
+
 // ============================================================
 // 2) CALCOLO SPONSOR SETTIMANALI
 // ============================================================
@@ -245,6 +346,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
   const incerti = [];
   const maglieAvvisate = new Set(); // una sola segnalazione per squadra
   const daRisolvere = []; // maglie 7/9/10 senza corrispondenza esatta, in attesa di scelta manuale
+  const maglieStato = []; // una riga per ogni squadra x numero (7/9/10): cosa e' successo, sempre visibile in anteprima
   const squadreTotali = [];
   const tuttiGiocatori = [];
 
@@ -290,54 +392,70 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
       }
 
       // --- Maglia 7/9/10: bonus se chi la indossa ha fatto gol o assist ---
+      // Ogni squadra x numero produce SEMPRE una riga in maglieStato (ok / da scegliere / problema): niente piu' salti silenziosi.
       const sqReale = (typeof squadreDB !== "undefined") ? gsTrovaSquadra(nomeSq) : null;
-      const maglie = sqReale && sqReale.maglie ? sqReale.maglie : null;
+      const maglie = gsMaglieSquadra(sqReale);
+      const statoMaglia = (numero, esito, testo, extra) => maglieStato.push({ squadra: nomeSq, numero, esito, testo, ...(extra || {}) });
       if (!sqReale) {
         if (!maglieAvvisate.has("?" + nomeSq)) { maglieAvvisate.add("?" + nomeSq); incerti.push(`[${nomeSq}] squadra non trovata nell'app: bonus maglia 7/9/10 non calcolato`); }
       } else if (!maglie || !(maglie.n7 || maglie.n9 || maglie.n10)) {
         if (!maglieAvvisate.has(nomeSq)) { maglieAvvisate.add(nomeSq); incerti.push(`[${nomeSq}] numeri di maglia 7/9/10 non ancora impostati: nessun bonus maglia calcolato`); }
-      } else if (typeof giocatoriDB === "undefined" || !giocatoriDB || !giocatoriDB.length) {
-        if (!maglieAvvisate.has("g" + nomeSq)) { maglieAvvisate.add("g" + nomeSq); incerti.push(`[${nomeSq}] elenco giocatori non caricato: bonus maglia 7/9/10 non calcolato`); }
       }
-      if (maglie) {
-        for (const [key, numero] of [["n7", "7"], ["n9", "9"], ["n10", "10"]]) {
-          const giocatoreId = maglie[key];
-          if (!giocatoreId) continue;
-          const giocatoreVero = (typeof giocatoriDB !== "undefined") ? giocatoriDB.find(g => String(g.id) === String(giocatoreId)) : null;
-          if (!giocatoreVero) continue;
+      for (const [key, numero] of [["n7", "7"], ["n9", "9"], ["n10", "10"]]) {
+        const chiaveRisoluzione = `${pIdx}_${lato}_${numero}`;
+        const opzioni = blocco.giocatori.map((gi, idx) => ({ idx, nome: gi.nome }));
+        const giocatoreId = maglie ? maglie[key] : null;
+        const nomeRosa = giocatoreId ? gsNomeGiocatoreById(giocatoreId) : null;
+        const problema = !sqReale ? "squadra non trovata nell'app"
+          : !giocatoreId ? "maglia non impostata (sezione Stadio)"
+          : !nomeRosa ? `giocatore (id ${giocatoreId}) non trovato nell'elenco giocatori` + (gsErroreGiocatori ? ": " + gsErroreGiocatori : "")
+          : null;
+        const extra = { nomeRosa: nomeRosa || "-", chiave: chiaveRisoluzione, opzioni };
 
-          const chiaveRisoluzione = `${pIdx}_${lato}_${numero}`;
-          let nelFile = blocco.giocatori.find(gi => gi.nome === giocatoreVero.nome);
-          let fonte = "nome esatto";
-
-          if (!nelFile && Object.prototype.hasOwnProperty.call(risoluzioniMaglie, chiaveRisoluzione)) {
-            const scelta = risoluzioniMaglie[chiaveRisoluzione];
-            if (scelta !== "nessuno") {
-              nelFile = blocco.giocatori[parseInt(scelta)];
-              fonte = "scelto a mano";
-            } else {
-              fonte = "confermato: non ha giocato";
-            }
-          }
-
-          if (!nelFile) {
-            if (fonte !== "confermato: non ha giocato") {
-              daRisolvere.push({
-                chiave: chiaveRisoluzione, squadra: nomeSq, numero,
-                giocatoreVeroNome: giocatoreVero.nome,
-                opzioni: blocco.giocatori.map((gi, idx) => ({ idx, nome: gi.nome })),
-              });
-            }
-            continue;
-          }
-          if (!nelFile.haContato) continue;
-          const nGolM = gsConta(nelFile.gol, GS_PESO.gol);
-          const nAssistM = gsConta(nelFile.assist, GS_PESO.assistStd) + gsConta(nelFile.assistSoft, GS_PESO.assistSoft) + gsConta(nelFile.assistGold, GS_PESO.assistGold);
-          if (nGolM > 0 || nAssistM > 0) {
-            const nota = fonte === "scelto a mano" ? ` [abbinato a mano a "${nelFile.nome}"]` : "";
-            aggiungi(nomeSq, "maglia_gol_assist", `Maglia ${numero} — ${giocatoreVero.nome} (${nGolM} gol, ${nAssistM} assist)${nota}`);
+        // Ordine: 1) scelta fatta ora a mano  2) abbinamento salvato  3) nome uguale/simile  4) chiedo all'admin
+        let nelFile = null, fonte = "", nonSchierato = null;
+        if (Object.prototype.hasOwnProperty.call(risoluzioniMaglie, chiaveRisoluzione)) {
+          const scelta = risoluzioniMaglie[chiaveRisoluzione];
+          if (scelta === "nessuno") fonte = "confermato: non ha giocato";
+          else { nelFile = blocco.giocatori[parseInt(scelta)] || null; fonte = "scelto a mano"; }
+        } else if (!problema) {
+          const salvato = gsMappaNomi[String(giocatoreId)];
+          if (salvato) {
+            const pulitoSalvato = gsPulisciNome(salvato);
+            nelFile = blocco.giocatori.find(gi => gsPulisciNome(gi.nome) === pulitoSalvato) || null;
+            if (nelFile) fonte = "abbinamento salvato";
+            else nonSchierato = salvato; // abbinamento gia' fatto: se questa settimana non c'e' nel file, non e' stato schierato (infortunio ecc.)
+          } else {
+            const trovato = gsTrovaGiocatoreFile(blocco.giocatori, nomeRosa);
+            nelFile = trovato.gi; fonte = trovato.fonte;
           }
         }
+
+        if (!nelFile) {
+          if (nonSchierato) { statoMaglia(numero, "ok", `non schierato in questa giornata (abbinamento salvato: "${nonSchierato}"), nessun bonus`, extra); continue; }
+          if (fonte === "confermato: non ha giocato") { statoMaglia(numero, "ok", "confermato: non ha giocato (solo per questa giornata)", extra); continue; }
+          if (problema) { statoMaglia(numero, "errore", problema + ": puoi sceglierlo a mano per questa giornata", extra); continue; }
+          daRisolvere.push({ chiave: chiaveRisoluzione, squadra: nomeSq, numero, giocatoreVeroNome: nomeRosa, opzioni });
+          statoMaglia(numero, "da_scegliere", "nessun nome combacia: scegli chi e' nel file voti", extra);
+          continue;
+        }
+
+        const nGolM = gsConta(nelFile.gol, GS_PESO.gol);
+        const nAssistM = gsConta(nelFile.assist, GS_PESO.assistStd) + gsConta(nelFile.assistSoft, GS_PESO.assistSoft) + gsConta(nelFile.assistGold, GS_PESO.assistGold);
+        const nomeFilePulito = String(nelFile.nome).replace(/[ⒸⓋ]/g, "").trim();
+        if (fonte === "scelto a mano" && giocatoreId) extra.daSalvare = { giocatoreId, nomeVoti: nomeFilePulito };
+        const comeAbbinato = fonte === "scelto a mano" ? (giocatoreId ? " (scelto a mano: si salva alla conferma)" : " (scelto a mano, solo per questa giornata)")
+          : fonte === "nome simile" ? " (automatico)" : fonte === "abbinamento salvato" ? " (salvato)" : "";
+        if (!nelFile.haContato) {
+          statoMaglia(numero, "ok", `"${nomeFilePulito}"${comeAbbinato}: non ha contato nel punteggio, nessun bonus`, extra);
+          continue;
+        }
+        if (nGolM > 0 || nAssistM > 0) {
+          const nota = fonte === "scelto a mano" ? ` [abbinato a mano a "${nelFile.nome}"]`
+            : fonte === "nome simile" ? ` [abbinato automaticamente a "${nelFile.nome}"]` : "";
+          aggiungi(nomeSq, "maglia_gol_assist", `Maglia ${numero} — ${nomeRosa || nomeFilePulito} (${nGolM} gol, ${nAssistM} assist)${nota}`);
+        }
+        statoMaglia(numero, "ok", `"${nomeFilePulito}"${comeAbbinato}: ${nGolM} gol, ${nAssistM} assist`, extra);
       }
 
       // --- Capitano/vice capitano della giornata (simbolo Ⓒ/Ⓥ nel file voti) ---
@@ -404,7 +522,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
     }
   }
 
-  return { eventi, totali, incerti, daRisolvere };
+  return { eventi, totali, incerti, daRisolvere, maglieStato };
 }
 
 // ============================================================
@@ -942,6 +1060,8 @@ async function gsLeggiFile() {
       return;
     }
     await gsAssicuraSquadre(); // l'elenco squadre serve per le maglie 7/9/10
+    await gsAssicuraGiocatoriMaglie(); // e anche i giocatori con la maglia 7/9/10 (se l'elenco giocatori non e' caricato)
+    await gsCaricaMappaNomi(); // abbinamenti nome-rosa/nome-file gia' scelti a mano nelle giornate precedenti
     const buf = await gsFileCorrente.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array", cellStyles: true });
     gsPartiteLette = gsParsaGiornata(wb);
@@ -954,6 +1074,7 @@ async function gsLeggiFile() {
 }
 
 function gsRisolviMaglia(chiave, valore) {
+  if (valore === "") return; // "— scegli —": nessuna scelta
   gsRisoluzioniMaglie[chiave] = valore;
   gsRenderAnteprima();
 }
@@ -963,22 +1084,31 @@ function gsRenderAnteprima() {
   const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
   const { incerti, daRisolvere } = calc;
   const stag = gsStagionali || { eventi: [], errore: null };
+  if (gsMappaErrore) incerti.push("Abbinamenti maglia salvati non disponibili (le scelte manuali NON verranno salvate): " + gsMappaErrore + " — crea la tabella mappa_nomi_voti con l'SQL.");
   if (stag.errore) incerti.push("Sponsor stagionali (30 gol, 20 assist, fantagol) non calcolati: " + stag.errore);
   const { eventi, totali } = gsUnisciStagionali(calc, stag.eventi);
   let html = `<h3>Giornata ${gsGiornataNum} — ${gsPartiteLette.length} partite lette</h3>`;
   html += `<p>Controlla sotto cosa ha letto l'app. Se qualcosa non torna (un voto, un giocatore che non doveva/doveva contare, un cartellino), <b>correggilo prima di confermare</b> — dopo la conferma i soldi vengono assegnati.</p>`;
-  if (daRisolvere.length) {
-    html += `<div class="gs-warn"><b>👕 Maglie da confermare:</b> il nome in rosa non combacia esatto con quello nel file voti — cerca e scegli tu chi è.<br>`;
-    for (const d of daRisolvere) {
-      html += `<div style="margin-top:8px">[${d.squadra}] Maglia ${d.numero} — in rosa è "<b>${d.giocatoreVeroNome}</b>", nel file è:
-        <select onchange="gsRisolviMaglia('${d.chiave}', this.value)">
-          <option value="">— scegli —</option>
-          ${d.opzioni.map(o => `<option value="${o.idx}">${o.nome}</option>`).join("")}
-          <option value="nessuno">— non ha giocato / nessuna corrispondenza —</option>
-        </select></div>`;
-    }
-    html += `</div>`;
+  // --- Maglie 7/9/10: sezione sempre visibile, una riga per squadra x numero ---
+  const mS = calc.maglieStato || [];
+  const nDaScegliere = mS.filter(m => m.esito === "da_scegliere").length;
+  const nProblemi = mS.filter(m => m.esito === "errore").length;
+  if (nDaScegliere) html += `<div class="gs-warn"><b>👕 ${nDaScegliere} maglie da confermare:</b> scegli il giocatore nella tabella "Maglie 7/9/10" qui sotto prima di salvare.</div>`;
+  if (nProblemi) html += `<div class="gs-warn"><b>❌ ${nProblemi} maglie con un problema</b> (vedi tabella "Maglie 7/9/10"): il bonus maglia per quelle non e' calcolato.</div>`;
+  html += `<details ${nDaScegliere || nProblemi ? "open" : ""}><summary><b>👕 Maglie 7/9/10</b> (${mS.length} controllate)</summary>
+    <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>N°</th><th>In rosa</th><th>Esito</th></tr>`;
+  for (const m of mS) {
+    const sel = (grande) => m.chiave ? `<select onchange="gsRisolviMaglia('${m.chiave}', this.value)" ${grande ? "" : 'style="margin-top:4px;font-size:11px;opacity:.85"'}>
+        <option value="">${grande ? "— scegli —" : "✏️ cambia…"}</option>
+        ${m.opzioni.map(o => `<option value="${o.idx}">${gsEsc(o.nome)}</option>`).join("")}
+        <option value="nessuno">— non ha giocato / nessuna corrispondenza —</option></select>` : "";
+    let esito;
+    if (m.esito === "da_scegliere") esito = `🟡 ${gsEsc(m.testo)}<br>${sel(true)}`;
+    else if (m.esito === "errore") esito = `❌ ${gsEsc(m.testo)}<br>${sel(true)}`;
+    else esito = `✅ ${gsEsc(m.testo)}<br>${sel(false)}`;
+    html += `<tr><td>${gsEsc(m.squadra)}</td><td>${m.numero}</td><td>${gsEsc(m.nomeRosa || "-")}</td><td>${esito}</td></tr>`;
   }
+  html += `</table></div></details>`;
   if (incerti.length) {
     html += `<div class="gs-warn"><b>⚠️ Da controllare a mano (non ancora calcolato):</b><br>${incerti.map(i => i.replace(/</g, "&lt;")).join("<br>")}</div>`;
   }
@@ -994,7 +1124,10 @@ function gsRenderAnteprima() {
       <td class="${v.tifosi >= 0 ? "gs-pos" : "gs-neg"}">${v.tifosi}</td></tr>`;
   }
   html += `</table></div><button class="gs-btn" onclick="gsConfermaESalva()">✅ Confermo, salva e assegna</button>`;
+  const body = document.getElementById("gs-body");
+  const scrollPrima = body ? body.scrollTop : 0;
   div.innerHTML = html;
+  if (body) body.scrollTop = scrollPrima; // dopo una scelta non torna in cima
 }
 
 async function gsConfermaESalva() {
@@ -1006,6 +1139,7 @@ async function gsConfermaESalva() {
     }
   } catch (e) { showToast("❌ Errore controllo giornata: " + e.message, "error"); return; }
   const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  if (calc.daRisolvere.length && !confirm(`Ci sono ${calc.daRisolvere.length} maglie 7/9/10 non confermate: i loro bonus NON verranno assegnati. Salvo lo stesso?`)) return;
   let stagEventi = [];
   try { stagEventi = await gsCalcolaStagionali(gsGiornataNum, gsPartiteLette); }
   catch (e) { showToast("❌ Errore sponsor stagionali: " + e.message, "error"); return; }
@@ -1049,7 +1183,12 @@ async function gsConfermaESalva() {
     // 3) aggiorna le serie (vittorie/sconfitte di fila ecc.) e premia le soglie 5/10/15
     const bonusSerie = await gsAggiornaSerie(gsPartiteLette);
 
-    showToast(`✅ Giornata ${gsGiornataNum} salvata: ${eventi.length + bonusSerie} sponsor assegnati`);
+    // 4) salva gli abbinamenti maglia scelti a mano: dalla prossima giornata non vengono chiesti di nuovo
+    let avvisoMappa = "";
+    try { await gsSalvaMappaNomi(calc.maglieStato.filter(m => m.daSalvare).map(m => m.daSalvare)); }
+    catch (e) { avvisoMappa = " — ATTENZIONE: abbinamenti maglia NON salvati (" + e.message + ")"; }
+
+    showToast(`✅ Giornata ${gsGiornataNum} salvata: ${eventi.length + bonusSerie} sponsor assegnati${avvisoMappa}`, avvisoMappa ? "error" : undefined);
     gsMostraTab("log");
   } catch (e) {
     showToast("❌ Errore salvataggio: " + e.message, "error");
