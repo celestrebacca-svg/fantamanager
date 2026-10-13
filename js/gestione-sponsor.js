@@ -1094,11 +1094,15 @@ function gsRenderAnteprima() {
   const nDaScegliere = mS.filter(m => m.esito === "da_scegliere").length;
   const nProblemi = mS.filter(m => m.esito === "errore").length;
   if (nDaScegliere) html += `<div class="gs-warn"><b>👕 ${nDaScegliere} maglie da confermare:</b> scegli il giocatore nella tabella "Maglie 7/9/10" qui sotto prima di salvare.</div>`;
-  if (nProblemi) html += `<div class="gs-warn"><b>❌ ${nProblemi} maglie con un problema</b> (vedi tabella "Maglie 7/9/10"): il bonus maglia per quelle non e' calcolato.</div>`;
-  html += `<details ${nDaScegliere || nProblemi ? "open" : ""}><summary><b>👕 Maglie 7/9/10</b> (${mS.length} controllate)</summary>
+  if (nProblemi) html += `<div class="gs-warn"><b>❌ ${nProblemi} maglie senza giocatore in rosa o con un problema:</b> apri la tabella "Maglie 7/9/10" per sceglierle a mano. Se non le scegli, per quelle il bonus maglia non e' calcolato.</div>`;
+  const bonusMaglia = eventi.filter(e => e.tipo === "maglia_gol_assist");
+  const totMaglia = bonusMaglia.reduce((t, e) => t + e.soldi, 0);
+  html += `<button class="gs-btn" onclick="document.getElementById('gs-bonus').scrollIntoView({behavior:'smooth'})">⬇️ Vai ai bonus e conferma</button>`;
+  html += `<p>💰 <b>Bonus maglia 7/9/10:</b> ${bonusMaglia.length ? bonusMaglia.length + " (+" + totMaglia.toLocaleString("it-IT") + " FM), elencati nella tabella dei bonus qui sotto" : "nessuno: nessun 7/9/10 abbinato ha fatto gol o assist (o non e' stato abbinato)"}.</p>`;
+  html += `<details ${nDaScegliere ? "open" : ""}><summary><b>👕 Maglie 7/9/10</b> (${mS.length} controllate, tocca per aprire)</summary>
     <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>N°</th><th>In rosa</th><th>Esito</th></tr>`;
   for (const m of mS) {
-    const sel = (grande) => m.chiave ? `<select onchange="gsRisolviMaglia('${m.chiave}', this.value)" ${grande ? "" : 'style="margin-top:4px;font-size:11px;opacity:.85"'}>
+    const sel = (grande) => m.chiave ? `<select onchange="gsRisolviMaglia('${m.chiave}', this.value)" style="max-width:210px;${grande ? "" : "margin-top:4px;font-size:11px;opacity:.85"}">
         <option value="">${grande ? "— scegli —" : "✏️ cambia…"}</option>
         ${m.opzioni.map(o => `<option value="${o.idx}">${gsEsc(o.nome)}</option>`).join("")}
         <option value="nessuno">— non ha giocato / nessuna corrispondenza —</option></select>` : "";
@@ -1112,7 +1116,7 @@ function gsRenderAnteprima() {
   if (incerti.length) {
     html += `<div class="gs-warn"><b>⚠️ Da controllare a mano (non ancora calcolato):</b><br>${incerti.map(i => i.replace(/</g, "&lt;")).join("<br>")}</div>`;
   }
-  html += `<div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
+  html += `<h3 id="gs-bonus">Bonus da assegnare (${eventi.length})</h3><div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Sponsor</th><th>Dettaglio</th><th>FM</th><th>Tifosi</th></tr>`;
   for (const e of eventi) {
     html += `<tr><td>${e.squadra}</td><td>${e.nome}</td><td>${e.dettaglio}</td>
       <td class="${e.soldi >= 0 ? "gs-pos" : "gs-neg"}">${e.soldi.toLocaleString("it-IT")}</td>
