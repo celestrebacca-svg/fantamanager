@@ -226,9 +226,26 @@ function gsNomeVero(nomeFile) {
 // Il nome fantasy (es. "Hood FC") puo' stare in squadre.nome_squadra oppure in
 // squadre.nome a seconda di come e' popolato il record: controllo entrambi,
 // stessa precedenza gia' usata in squadra.js (nome_squadra || nome).
+// Nome squadra "normalizzato": senza maiuscole, spazi, punteggiatura e senza "FC" (cosi' "HOOD FC", "Hood" e "Hood F.C." coincidono;
+// "Venom Strike" e "Venomstrike FC" idem).
+function gsNomeSquadraNorm(n) {
+  return gsPulisciNome(n).replace(/\bf c\b|\bfc\b/g, " ").replace(/\s+/g, "");
+}
 function gsTrovaSquadra(nomeFantasy) {
-  return squadreDB.find(s => (s.nome_squadra || s.nome) === nomeFantasy)
-    || squadreDB.find(s => s.nome === nomeFantasy); // il salvataggio giornata cerca per "nome": qui stesso criterio come ripiego
+  if (typeof squadreDB === "undefined" || !squadreDB) return undefined;
+  const esatta = squadreDB.find(s => (s.nome_squadra || s.nome) === nomeFantasy)
+    || squadreDB.find(s => s.nome === nomeFantasy)
+    || squadreDB.find(s => s.nome_squadra === nomeFantasy);
+  if (esatta) return esatta;
+  const n = gsNomeSquadraNorm(nomeFantasy);
+  if (!n) return undefined;
+  const simili = squadreDB.filter(s => gsNomeSquadraNorm(s.nome_squadra) === n || gsNomeSquadraNorm(s.nome) === n);
+  return simili.length === 1 ? simili[0] : undefined; // se e' ambiguo non indovino
+}
+// Elenco dei nomi squadra presenti nell'app, per i messaggi di errore.
+function gsNomiSquadreApp() {
+  if (typeof squadreDB === "undefined" || !squadreDB) return "(elenco squadre vuoto)";
+  return squadreDB.map(s => `"${s.nome || ""}"` + (s.nome_squadra && s.nome_squadra !== s.nome ? ` / "${s.nome_squadra}"` : "")).join(", ");
 }
 
 // --- Abbinamento nomi giocatore: nome in rosa (app) <-> nome nel file voti ---
@@ -415,7 +432,11 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
       const maglie = gsMaglieSquadra(sqReale);
       const statoMaglia = (numero, esito, testo, extra) => maglieStato.push({ squadra: nomeSq, numero, esito, testo, ...(extra || {}) });
       if (!sqReale) {
-        if (!maglieAvvisate.has("?" + nomeSq)) { maglieAvvisate.add("?" + nomeSq); incerti.push(`[${nomeSq}] squadra non trovata nell'app: bonus maglia 7/9/10 non calcolato`); }
+        if (!maglieAvvisate.has("?" + nomeSq)) {
+          maglieAvvisate.add("?" + nomeSq);
+          incerti.push(`[${nomeSq}] squadra non trovata nell'app: bonus maglia 7/9/10 non calcolato`);
+          if (!maglieAvvisate.has("?elenco")) { maglieAvvisate.add("?elenco"); incerti.push(`Nomi squadra presenti nell'app (nome / nome_squadra): ${gsNomiSquadreApp()}`); }
+        }
       } else if (!maglie || !(maglie.n7 || maglie.n9 || maglie.n10)) {
         if (!maglieAvvisate.has(nomeSq)) { maglieAvvisate.add(nomeSq); incerti.push(`[${nomeSq}] numeri di maglia 7/9/10 non ancora impostati: nessun bonus maglia calcolato`); }
       }
@@ -1167,6 +1188,13 @@ async function gsConfermaESalva() {
   } catch (e) { showToast("❌ Errore controllo giornata: " + e.message, "error"); return; }
   const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
   if (calc.daRisolvere.length && !confirm(`Ci sono ${calc.daRisolvere.length} maglie 7/9/10 non confermate: i loro bonus NON verranno assegnati. Salvo lo stesso?`)) return;
+  // Sicurezza: se anche UNA squadra del file non si trova nell'app, non salvo niente (altrimenti i soldi non arriverebbero al budget in silenzio).
+  const nomiNelFile = [...new Set(gsPartiteLette.flatMap(p => [gsNomeVero(p.casa), gsNomeVero(p.trasferta)]))];
+  const nonTrovate = nomiNelFile.filter(n => !gsTrovaSquadra(n));
+  if (nonTrovate.length) {
+    showToast(`❌ Non salvo: squadre non trovate nell'app: ${nonTrovate.join(", ")}. Nomi nell'app: ${gsNomiSquadreApp()}`, "error");
+    return;
+  }
   let stagEventi = [];
   try { stagEventi = await gsCalcolaStagionali(gsGiornataNum, gsPartiteLette); }
   catch (e) { showToast("❌ Errore sponsor stagionali: " + e.message, "error"); return; }
@@ -1179,8 +1207,8 @@ async function gsConfermaESalva() {
         ["trasferta", p.trasferta, p.squadraTrasferta, p.casa],
       ]) {
         const nomeVero = gsNomeVero(nomeFile);
-        const sq = squadreDB.find(s => s.nome === nomeVero);
-        const avv = squadreDB.find(s => s.nome === gsNomeVero(avvFile));
+        const sq = gsTrovaSquadra(nomeVero);
+        const avv = gsTrovaSquadra(gsNomeVero(avvFile));
         if (!sq) { console.warn("Squadra non trovata:", nomeVero); continue; }
         await sb.from("giornate_import").upsert({
           giornata: gsGiornataNum, squadra_id: sq.id, totale: blocco.totale, modulo: blocco.modulo,
@@ -1191,7 +1219,7 @@ async function gsConfermaESalva() {
     }
     // 2) salva il log sponsor + aggiorna bilancio di ogni squadra
     for (const e of eventi) {
-      const sq = squadreDB.find(s => s.nome === e.squadra);
+      const sq = gsTrovaSquadra(e.squadra);
       if (!sq) continue;
       await sb.from("sponsor_eventi").insert({
         giornata: gsGiornataNum, squadra_id: sq.id, tipo_sponsor: e.tipo,
@@ -1199,7 +1227,7 @@ async function gsConfermaESalva() {
       });
     }
     for (const [nomeSq, v] of Object.entries(totali)) {
-      const sq = squadreDB.find(s => s.nome === nomeSq);
+      const sq = gsTrovaSquadra(nomeSq);
       if (!sq) continue;
       const { data } = await sb.from("squadre").select("budget,tifosi").eq("id", sq.id).single();
       await sb.from("squadre").update({
@@ -1254,7 +1282,7 @@ async function gsCalcolaStagionali(giornataNum, partite) {
   for (const id of Object.keys(prima)) dopo[id] = { ...prima[id] };
   for (const p of partite) {
     for (const [lato, nomeFile, blocco] of [["casa", p.casa, p.squadraCasa], ["trasferta", p.trasferta, p.squadraTrasferta]]) {
-      const sq = squadreDB.find(s => s.nome === gsNomeVero(nomeFile));
+      const sq = gsTrovaSquadra(gsNomeVero(nomeFile));
       if (!sq) continue;
       nomi[sq.id] = sq.nome;
       if (!prima[sq.id]) prima[sq.id] = vuoto();
@@ -1416,7 +1444,7 @@ async function gsAggiornaSerie(partite) {
   for (const p of partite) {
     for (const [lato, nomeFile] of [["casa", p.casa], ["trasferta", p.trasferta]]) {
       const nomeVero = gsNomeVero(nomeFile);
-      const sq = squadreDB.find(s => s.nome === nomeVero);
+      const sq = gsTrovaSquadra(nomeVero);
       if (!sq) continue;
       const esito = gsEsitoSquadra(p.risultato, lato);
       if (!esito) continue;
