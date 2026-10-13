@@ -229,7 +229,8 @@ function gsNomeVero(nomeFile) {
 // Nome squadra "normalizzato": senza maiuscole, spazi, punteggiatura e senza "FC" (cosi' "HOOD FC", "Hood" e "Hood F.C." coincidono;
 // "Venom Strike" e "Venomstrike FC" idem).
 function gsNomeSquadraNorm(n) {
-  return gsPulisciNome(n).replace(/\bf c\b|\bfc\b/g, " ").replace(/\s+/g, "");
+  // le lettere doppie si ignorano ("Helborn" = "HELLBORN FC"); se due squadre diventassero uguali non indovino (vedi gsTrovaSquadra)
+  return gsPulisciNome(n).replace(/\bf c\b|\bfc\b/g, " ").replace(/\s+/g, "").replace(/(.)\1+/g, "$1");
 }
 function gsTrovaSquadra(nomeFantasy) {
   if (typeof squadreDB === "undefined" || !squadreDB) return undefined;
@@ -1344,7 +1345,25 @@ async function gsCalcolaStagionali(giornataNum, partite) {
   return eventi;
 }
 
-function gsUnisciStagionali(calc, stag) {
+// id squadra -> nome con cui compare negli sponsor settimanali (nome del file voti mappato), per non avere la stessa
+// squadra in due righe dei totali ("Helborn" e "HELLBORN FC").
+function gsNomiCanonici() {
+  const m = {};
+  for (const p of (typeof gsPartiteLette !== "undefined" && gsPartiteLette ? gsPartiteLette : [])) {
+    for (const n of [gsNomeVero(p.casa), gsNomeVero(p.trasferta)]) {
+      const sq = gsTrovaSquadra(n);
+      if (sq) m[String(sq.id)] = n;
+    }
+  }
+  return m;
+}
+function gsUnisciStagionali(calc, stagGrezzi) {
+  const canon = gsNomiCanonici();
+  const stag = stagGrezzi.map(e => {
+    const sq = gsTrovaSquadra(e.squadra);
+    const n = sq && canon[String(sq.id)];
+    return n && n !== e.squadra ? { ...e, squadra: n } : e;
+  });
   const eventi = [...calc.eventi, ...stag];
   const totali = {};
   for (const [k, v] of Object.entries(calc.totali)) totali[k] = { ...v };
