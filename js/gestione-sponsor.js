@@ -227,7 +227,8 @@ function gsNomeVero(nomeFile) {
 // squadre.nome a seconda di come e' popolato il record: controllo entrambi,
 // stessa precedenza gia' usata in squadra.js (nome_squadra || nome).
 function gsTrovaSquadra(nomeFantasy) {
-  return squadreDB.find(s => (s.nome_squadra || s.nome) === nomeFantasy);
+  return squadreDB.find(s => (s.nome_squadra || s.nome) === nomeFantasy)
+    || squadreDB.find(s => s.nome === nomeFantasy); // il salvataggio giornata cerca per "nome": qui stesso criterio come ripiego
 }
 
 // --- Abbinamento nomi giocatore: nome in rosa (app) <-> nome nel file voti ---
@@ -307,6 +308,21 @@ async function gsAssicuraGiocatoriMaglie() {
   } catch (e) { gsErroreGiocatori = e.message; }
 }
 
+// Rilegge dal database la colonna "maglie" (7/9/10, portiere, capitano) di tutte le squadre, cosi' i numeri
+// sono sempre quelli salvati in Stadio > Magliette (anche se l'elenco squadre in memoria e' vecchio o senza la colonna).
+let gsErroreMaglie = null;
+async function gsAggiornaMaglieSquadre() {
+  gsErroreMaglie = null;
+  try {
+    const { data, error } = await sb.from("squadre").select("id,maglie");
+    if (error) throw error;
+    for (const r of data || []) {
+      const sq = squadreDB.find(x => String(x.id) === String(r.id));
+      if (sq) sq.maglie = r.maglie;
+    }
+  } catch (e) { gsErroreMaglie = e.message; }
+}
+
 // --- Abbinamenti salvati: giocatore (id) -> nome come e' scritto nel file voti (tabella mappa_nomi_voti) ---
 let gsMappaNomi = {}; // String(giocatore_id) -> nome_voti
 let gsMappaErrore = null;
@@ -350,12 +366,14 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
   const squadreTotali = [];
   const tuttiGiocatori = [];
 
-  function aggiungi(squadra, chiave, dettaglio) {
+  // volte: quante volte vale il premio (es. maglia 7/9/10: 100 mila + 10 tifosi per OGNI gol o assist)
+  function aggiungi(squadra, chiave, dettaglio, volte = 1) {
     const s = GS_SPONSOR[chiave];
+    const soldi = s.soldi * volte, tifosi = s.tifosi * volte;
     if (!totali[squadra]) totali[squadra] = { soldi: 0, tifosi: 0 };
-    totali[squadra].soldi += s.soldi;
-    totali[squadra].tifosi += s.tifosi;
-    eventi.push({ squadra, tipo: chiave, nome: s.nome, soldi: s.soldi, tifosi: s.tifosi, dettaglio });
+    totali[squadra].soldi += soldi;
+    totali[squadra].tifosi += tifosi;
+    eventi.push({ squadra, tipo: chiave, nome: volte > 1 ? `${s.nome} ×${volte}` : s.nome, soldi, tifosi, dettaglio });
   }
 
   for (let pIdx = 0; pIdx < partite.length; pIdx++) {
@@ -444,7 +462,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
         const nAssistM = gsConta(nelFile.assist, GS_PESO.assistStd) + gsConta(nelFile.assistSoft, GS_PESO.assistSoft) + gsConta(nelFile.assistGold, GS_PESO.assistGold);
         const nomeFilePulito = String(nelFile.nome).replace(/[ⒸⓋ]/g, "").trim();
         if (fonte === "scelto a mano" && giocatoreId) extra.daSalvare = { giocatoreId, nomeVoti: nomeFilePulito };
-        const comeAbbinato = fonte === "scelto a mano" ? (giocatoreId ? " (scelto a mano: si salva alla conferma)" : " (scelto a mano, solo per questa giornata)")
+        const comeAbbinato = fonte === "scelto a mano" ? (giocatoreId ? " (scelto a mano: si salva alla conferma)" : " (scelto a mano, solo per questa giornata" + (problema ? ": " + problema : "") + ")")
           : fonte === "nome simile" ? " (automatico)" : fonte === "abbinamento salvato" ? " (salvato)" : "";
         if (!nelFile.haContato) {
           statoMaglia(numero, "ok", `"${nomeFilePulito}"${comeAbbinato}: non ha contato nel punteggio, nessun bonus`, extra);
@@ -453,7 +471,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
         if (nGolM > 0 || nAssistM > 0) {
           const nota = fonte === "scelto a mano" ? ` [abbinato a mano a "${nelFile.nome}"]`
             : fonte === "nome simile" ? ` [abbinato automaticamente a "${nelFile.nome}"]` : "";
-          aggiungi(nomeSq, "maglia_gol_assist", `Maglia ${numero} — ${nomeRosa || nomeFilePulito} (${nGolM} gol, ${nAssistM} assist)${nota}`);
+          aggiungi(nomeSq, "maglia_gol_assist", `Maglia ${numero} — ${nomeRosa || nomeFilePulito} (${nGolM} gol, ${nAssistM} assist)${nota}`, nGolM + nAssistM);
         }
         statoMaglia(numero, "ok", `"${nomeFilePulito}"${comeAbbinato}: ${nGolM} gol, ${nAssistM} assist`, extra);
       }
@@ -696,6 +714,7 @@ let gsFileCorrente = null;
 let gsPartiteLette = null;
 let gsGiornataNum = null;
 let gsRisoluzioniMaglie = {}; // si azzera a ogni nuovo file caricato
+let gsMaglieAperte = null; // null = automatico (si apre solo se c'e' da scegliere); true/false = come l'ha lasciato l'admin
 
 function gsInjectStyle() {
   if (document.getElementById("gs-style")) return;
@@ -1050,6 +1069,7 @@ async function gsLeggiFile() {
   gsFileCorrente = input.files[0];
   gsGiornataNum = giornataNum;
   gsRisoluzioniMaglie = {}; // nuovo file = si riparte da zero con gli abbinamenti
+  gsMaglieAperte = null;
   try {
     if (await gsGiornataGiaImportata(giornataNum)) {
       gsPartiteLette = null;
@@ -1060,6 +1080,7 @@ async function gsLeggiFile() {
       return;
     }
     await gsAssicuraSquadre(); // l'elenco squadre serve per le maglie 7/9/10
+    await gsAggiornaMaglieSquadre(); // numeri di maglia sempre aggiornati dal database (Stadio > Magliette)
     await gsAssicuraGiocatoriMaglie(); // e anche i giocatori con la maglia 7/9/10 (se l'elenco giocatori non e' caricato)
     await gsCaricaMappaNomi(); // abbinamenti nome-rosa/nome-file gia' scelti a mano nelle giornate precedenti
     const buf = await gsFileCorrente.arrayBuffer();
@@ -1084,6 +1105,7 @@ function gsRenderAnteprima() {
   const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
   const { incerti, daRisolvere } = calc;
   const stag = gsStagionali || { eventi: [], errore: null };
+  if (gsErroreMaglie) incerti.push("Impossibile rileggere i numeri di maglia dal database: " + gsErroreMaglie);
   if (gsMappaErrore) incerti.push("Abbinamenti maglia salvati non disponibili (le scelte manuali NON verranno salvate): " + gsMappaErrore + " — crea la tabella mappa_nomi_voti con l'SQL.");
   if (stag.errore) incerti.push("Sponsor stagionali (30 gol, 20 assist, fantagol) non calcolati: " + stag.errore);
   const { eventi, totali } = gsUnisciStagionali(calc, stag.eventi);
@@ -1099,7 +1121,8 @@ function gsRenderAnteprima() {
   const totMaglia = bonusMaglia.reduce((t, e) => t + e.soldi, 0);
   html += `<button class="gs-btn" onclick="document.getElementById('gs-bonus').scrollIntoView({behavior:'smooth'})">⬇️ Vai ai bonus e conferma</button>`;
   html += `<p>💰 <b>Bonus maglia 7/9/10:</b> ${bonusMaglia.length ? bonusMaglia.length + " (+" + totMaglia.toLocaleString("it-IT") + " FM), elencati nella tabella dei bonus qui sotto" : "nessuno: nessun 7/9/10 abbinato ha fatto gol o assist (o non e' stato abbinato)"}.</p>`;
-  html += `<details ${nDaScegliere ? "open" : ""}><summary><b>👕 Maglie 7/9/10</b> (${mS.length} controllate, tocca per aprire)</summary>
+  const maglieAperte = gsMaglieAperte === null ? nDaScegliere > 0 : gsMaglieAperte;
+  html += `<details ${maglieAperte ? "open" : ""} ontoggle="gsMaglieAperte = this.open"><summary><b>👕 Maglie 7/9/10</b> (${mS.length} controllate, tocca per aprire)</summary>
     <div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>N°</th><th>In rosa</th><th>Esito</th></tr>`;
   for (const m of mS) {
     const sel = (grande) => m.chiave ? `<select onchange="gsRisolviMaglia('${m.chiave}', this.value)" style="max-width:210px;${grande ? "" : "margin-top:4px;font-size:11px;opacity:.85"}">
