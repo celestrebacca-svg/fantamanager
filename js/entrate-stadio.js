@@ -196,7 +196,7 @@ function esEventiDaRegistrare(res) {
   for (const r of res.righe) {
     const s = r.stadio, m = r.magliette;
     if (s && s.biglietteria > 0) ev.push({ id: r.id, squadra: r.squadra, tipo: "stadio_biglietteria", nome: "Stadio — Biglietteria", soldi: s.biglietteria,
-      dettaglio: `${s.paganti} paganti × ${PREZZO_BIGLIETTO} FM (${s.posizione}° in classifica)` });
+      dettaglio: `${s.paganti} paganti × ${ES_PREZZO_BIGLIETTO} FM (${s.posizione}° in classifica)` });
     if (s && s.fastFood > 0) ev.push({ id: r.id, squadra: r.squadra, tipo: "stadio_fastfood", nome: "Stadio — Fast food", soldi: s.fastFood,
       dettaglio: `${s.paganti} paganti, fast food incasso partita` });
     if (m.incasso > 0) ev.push({ id: r.id, squadra: r.squadra, tipo: "stadio_magliette", nome: "Stadio — Magliette", soldi: m.incasso,

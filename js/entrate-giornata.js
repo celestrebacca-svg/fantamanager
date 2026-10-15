@@ -1,24 +1,24 @@
 // ===== ENTRATE DI GIORNATA (solo calcoli, nessun accesso al database) =====
 // Usa le funzioni già esistenti: getPercentualeRiempimento (stadio.js) e FF_LIVELLI (fastfood.js).
 
-const PREZZO_BIGLIETTO = 80;
-const PREZZO_MAGLIA = 100;       // singola maglia
-const PREZZO_MAGLIA_KIT = 150;   // kit completo
+const ES_PREZZO_BIGLIETTO = 80;
+const ES_PREZZO_MAGLIA = 100;       // singola maglia
+const ES_PREZZO_MAGLIA_KIT = 150;   // kit completo
 
 // % tifosi per evento: [base, kit]
-const MAGLIE_PCT_TIFOSI = {
+const ES_MAGLIE_PCT_TIFOSI = {
   n7:       { assist: [2.5, 2.8], gol: [1.5, 1.8] },
   n9:       { gol: [2.0, 2.2],    assist: [1.5, 1.8] },
   n10:      { assist: [2.5, 2.8], gol: [1.5, 1.8] },
   portiere: { cleansheet: [1.0, 1.2] }
 };
-const FOLLOWER_PCT_EVENTO = [0.15, 0.25]; // [base, kit]
-const CAPITANO = { baseTifosi: 5, baseFollower: 1, tifosiVoto: 1, followerVoto: 0.25, sogliaVoto: 6.5 };
+const ES_FOLLOWER_PCT_EVENTO = [0.15, 0.25]; // [base, kit]
+const ES_CAPITANO = { baseTifosi: 5, baseFollower: 1, tifosiVoto: 1, followerVoto: 0.25, sogliaVoto: 6.5 };
 
 // Biglietteria di UNA partita in casa. La classifica usata è quella PRIMA della giornata.
 function calcBiglietteriaPartita(tifosi, capienza, piazzamento) {
   const paganti = Math.floor(Math.min(tifosi || 0, capienza || 10000) * getPercentualeRiempimento(piazzamento || 12) / 100);
-  return { paganti, incasso: paganti * PREZZO_BIGLIETTO };
+  return { paganti, incasso: paganti * ES_PREZZO_BIGLIETTO };
 }
 
 // Fast food di UNA partita in casa (stessa formula di calcGuadagnoFF, senza il ×19).
@@ -36,21 +36,21 @@ function calcMaglieGiornata({ eventi = {}, capitanoVoto = null, kit = false, tif
   const k = kit ? 1 : 0;
   let pctT = 0, pctF = 0;
 
-  for (const [maglia, tabella] of Object.entries(MAGLIE_PCT_TIFOSI)) {
+  for (const [maglia, tabella] of Object.entries(ES_MAGLIE_PCT_TIFOSI)) {
     for (const [evento, pct] of Object.entries(tabella)) {
       const n = (eventi[maglia] && eventi[maglia][evento]) || 0;
       pctT += n * pct[k];
-      pctF += n * FOLLOWER_PCT_EVENTO[k];
+      pctF += n * ES_FOLLOWER_PCT_EVENTO[k];
     }
   }
 
-  if (primaGiornata) { pctT += CAPITANO.baseTifosi; pctF += CAPITANO.baseFollower; }
-  if (capitanoVoto !== null && capitanoVoto >= CAPITANO.sogliaVoto) {
-    pctT += CAPITANO.tifosiVoto;
-    pctF += CAPITANO.followerVoto;
+  if (primaGiornata) { pctT += ES_CAPITANO.baseTifosi; pctF += ES_CAPITANO.baseFollower; }
+  if (capitanoVoto !== null && capitanoVoto >= ES_CAPITANO.sogliaVoto) {
+    pctT += ES_CAPITANO.tifosiVoto;
+    pctF += ES_CAPITANO.followerVoto;
   }
 
-  const prezzo = kit ? PREZZO_MAGLIA_KIT : PREZZO_MAGLIA;
+  const prezzo = kit ? ES_PREZZO_MAGLIA_KIT : ES_PREZZO_MAGLIA;
   const venduteTifosi = Math.floor(tifosi * pctT / 100);
   const venduteFollower = Math.floor(follower * pctF / 100);
   return {
