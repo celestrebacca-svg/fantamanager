@@ -840,6 +840,7 @@ function gsEnsureOverlay() {
     <div class="gs-top"><h2>📜 Tabelle</h2><button class="gs-close" onclick="chiudiTabelle()">✕ Chiudi</button></div>
     <div class="gs-tabs">
       <button class="gs-tab active" data-tab="import" onclick="gsMostraTab('import')">Importa giornata</button>
+      <button class="gs-tab" data-tab="stadio" onclick="gsMostraTab('stadio')">🏟️ Entrate stadio</button>
       <button class="gs-tab" data-tab="log" onclick="gsMostraTab('log')">Sponsor sbloccati</button>
       <button class="gs-tab" data-tab="tabella" onclick="gsMostraTab('tabella')">Tabella sponsor</button>
       <button class="gs-tab" data-tab="tabella5" onclick="gsMostraTab('tabella5')">Tabella 5 giornate</button>
@@ -865,6 +866,10 @@ function gsMostraTab(tab) {
   document.querySelectorAll(".gs-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
   const body = document.getElementById("gs-body");
   if (tab === "import") gsRenderImport(body);
+  else if (tab === "stadio") {
+    if (typeof gsRenderStadio === "function") gsRenderStadio(body);
+    else body.innerHTML = "Mancano i file entrate-giornata.js e entrate-stadio.js: aggiungili al progetto e nell'index.html, dopo gestione-sponsor.js.";
+  }
   else if (tab === "log") gsRenderLog(body);
   else if (tab === "tabella") gsRenderTabellaStatica(body);
   else if (tab === "tabella5") gsRenderTabella5(body);
@@ -1360,6 +1365,7 @@ async function gsConfermaESalva() {
     }
     // 3) aggiorna le serie (vittorie/sconfitte di fila ecc.) e premia le soglie 5/10/15
     const bonusSerie = await gsAggiornaSerie(gsPartiteLette);
+    await gsRinfrescaSquadre();
 
     // 4) salva gli abbinamenti maglia scelti a mano: dalla prossima giornata non vengono chiesti di nuovo
     let avvisoMappa = "";
@@ -1695,6 +1701,21 @@ async function gsRicostruisciSerie() {
   if (e3) throw e3;
 }
 
+// Dopo import o annullamento tifosi e budget cambiano nel database: aggiorno anche la copia in memoria,
+// così Stadio e le altre schermate mostrano subito i valori nuovi (senza ricaricare la pagina).
+async function gsRinfrescaSquadre() {
+  try {
+    const { data } = await sb.from("squadre").select("id,budget,tifosi");
+    for (const d of data || []) {
+      const loc = (typeof squadreDB !== "undefined" ? squadreDB : []).find(s => String(s.id) === String(d.id));
+      if (loc) { loc.budget = d.budget; loc.tifosi = d.tifosi; }
+      if (typeof utenteLoggato !== "undefined" && utenteLoggato && String(utenteLoggato.id) === String(d.id)) {
+        utenteLoggato.budget = d.budget; utenteLoggato.tifosi = d.tifosi;
+      }
+    }
+  } catch (_) { /* non blocca: basta ricaricare la pagina */ }
+}
+
 async function gsAnnullaGiornata() {
   const esito = document.getElementById("gs-annulla-esito");
   const mostra = (html) => { if (esito) esito.innerHTML = html; };
@@ -1761,6 +1782,7 @@ async function gsAnnullaGiornata() {
     if (!cancImp || !cancImp.length) throw new Error("Dati giornata non cancellati: manca probabilmente la regola DELETE su giornate_import in Supabase.");
     // 4) ricostruisco le serie di vittorie/sconfitte dalle giornate rimaste
     await gsRicostruisciSerie();
+    await gsRinfrescaSquadre();
     gsPartiteLette = null;
     if (daFareAMano.length) {
       mostra(`<div class="gs-warn">⚠️ Giornata ${num} annullata, ma questi budget vanno corretti a mano:<br>${daFareAMano.map(gsEsc).join("<br>")}</div>`);

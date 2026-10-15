@@ -217,7 +217,7 @@ async function esScegli(N, sqId, ruolo, valore) {
     esScelte[key] = { tipo: "file", nome: g.nome };
   }
   try { esMostra(await esAnteprima(N, true)); }
-  catch (e) { showToast("❌ " + e.message, "error"); }
+  catch (e) { esAvviso("❌ " + e.message, "error"); }
 }
 
 // ACCREDITO AL BUDGET (dopo conferma). Ricalcola tutto al momento, non si fida della schermata.
@@ -226,10 +226,10 @@ async function esConferma(N) {
   esInCorso = true;
   try {
     const res = await esAnteprima(N);
-    if (res.gia > 0) { showToast(`❌ Giornata ${N}: incassi stadio già accreditati, non li ripeto`, "error"); return; }
-    if (res.daScegliere > 0) { showToast(`❌ Prima scegli i ${res.daScegliere} giocatori da confermare (menu in alto)`, "error"); esMostra(res); return; }
+    if (res.gia > 0) { esAvviso(`❌ Giornata ${N}: incassi stadio già accreditati, non li ripeto`, "error"); return; }
+    if (res.daScegliere > 0) { esAvviso(`❌ Prima scegli i ${res.daScegliere} giocatori da confermare (menu in alto)`, "error"); esMostra(res); return; }
     const eventi = esEventiDaRegistrare(res);
-    if (!eventi.length) { showToast("Niente da accreditare per questa giornata"); return; }
+    if (!eventi.length) { esAvviso("Niente da accreditare per questa giornata"); return; }
     const tot = eventi.reduce((s, e) => s + e.soldi, 0);
     if (!confirm(`Accredito gli incassi stadio della giornata ${N}?\n\n${eventi.length} voci, totale ${fmtM(tot)} sul budget delle squadre.`)) return;
 
@@ -268,19 +268,26 @@ async function esConferma(N) {
 
     if (falliti.length) {
       alert("Alcune voci NON sono state accreditate (e non hanno lasciato tracce):\n\n" + falliti.join("\n") + "\n\nNon rifare tutta la giornata: contattami con questo elenco.");
-      showToast("⚠️ Accredito parziale", "error");
+      esAvviso("⚠️ Accredito parziale", "error");
     } else {
-      showToast(`✅ Giornata ${N}: ${eventi.length} incassi stadio accreditati${avvisoMappa}`, avvisoMappa ? "error" : undefined);
+      esAvviso(`✅ Giornata ${N}: ${eventi.length} incassi stadio accreditati${avvisoMappa}`, avvisoMappa ? "error" : undefined);
     }
     esMostra(await esAnteprima(N));
   } catch (e) {
-    showToast("❌ " + e.message, "error");
+    esAvviso("❌ " + e.message, "error");
   } finally {
     esInCorso = false;
   }
 }
 
 // ---- Schermata ----
+// Messaggio scritto nel pannello (il toast da solo può restare nascosto dietro la finestra Tabelle)
+function esAvviso(msg, tipo) {
+  const e = document.getElementById("es-esito");
+  if (e) e.innerHTML = `<div class="gs-warn" style="margin:8px 0"><b>${esEsc(msg)}</b></div>`;
+  try { showToast(msg, tipo); } catch (_) {}
+}
+
 function esEsc(t) { return String(t).replace(/[<>&"]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;" }[c])); }
 
 function esMenuScelta(N, r, s) {
@@ -313,19 +320,7 @@ function esRiga(r, res) {
   </div>`;
 }
 
-function esMostra(res) {
-  let m = document.getElementById("modal-es-anteprima");
-  if (!m) {
-    m = document.createElement("div");
-    m.id = "modal-es-anteprima";
-    m.className = "modal-overlay";
-    m.innerHTML = `<div class="modal-content" style="max-width:420px">
-      <div class="modal-header"><h2 class="modal-title" id="es-titolo"></h2>
-      <button class="modal-close" onclick="document.getElementById('modal-es-anteprima').classList.remove('open')">✕</button></div>
-      <div class="modal-body" id="es-body"></div></div>`;
-    document.body.appendChild(m);
-  }
-  document.getElementById("es-titolo").textContent = `🏟️ STADIO — GIORNATA ${res.giornata}`;
+function esHtml(res) {
   // prima le squadre che richiedono una scelta, poi quelle in casa
   const peso = r => (r.sel.some(x => x.stato === "daScegliere" || x.stato === "errore") ? 2 : 0) + (r.casa ? 1 : 0);
   const righe = [...res.righe].sort((a, b) => peso(b) - peso(a));
@@ -340,16 +335,61 @@ function esMostra(res) {
     azione = `<button onclick="esConferma(${res.giornata})" style="width:100%;padding:12px;border-radius:8px;border:none;background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;cursor:pointer;margin-bottom:10px">✅ CONFERMA E ACCREDITA (${fmtM(tot)})</button>
        ${avvisi ? `<div style="font-size:11px;color:var(--rosso);margin-bottom:8px">Ci sono ${avvisi} avvisi: controllali prima di accreditare.</div>` : ""}`;
   }
-  document.getElementById("es-body").innerHTML =
-    azione +
+  return azione +
     (res.haStorico ? "" : `<div style="font-size:11px;color:var(--testo-dim);margin-bottom:8px">Nessuna giornata precedente: uso il piazzamento salvato.</div>`) +
     righe.map(r => esRiga(r, res)).join("");
+}
+
+function esMostra(res) {
+  const html = esHtml(res);
+  const pan = document.getElementById("es-pannello"); // scheda "Entrate stadio" dentro Tabelle
+  if (pan) {
+    pan.innerHTML = `<div style="font-weight:700;margin:6px 0 10px">🏟️ STADIO — GIORNATA ${res.giornata}</div>` + html;
+    return;
+  }
+  let m = document.getElementById("modal-es-anteprima");
+  if (!m) {
+    m = document.createElement("div");
+    m.id = "modal-es-anteprima";
+    m.className = "modal-overlay";
+    m.innerHTML = `<div class="modal-content" style="max-width:420px">
+      <div class="modal-header"><h2 class="modal-title" id="es-titolo"></h2>
+      <button class="modal-close" onclick="document.getElementById('modal-es-anteprima').classList.remove('open')">✕</button></div>
+      <div class="modal-body" id="es-body"></div></div>`;
+    document.body.appendChild(m);
+  }
+  document.getElementById("es-titolo").textContent = `🏟️ STADIO — GIORNATA ${res.giornata}`;
+  document.getElementById("es-body").innerHTML = html;
   m.classList.add("open");
 }
 
+// Scheda "🏟️ Entrate stadio" nella finestra Tabelle (la chiama gsMostraTab di gestione-sponsor.js)
+function gsRenderStadio(body) {
+  body.innerHTML = `
+    <div style="border:2px dashed var(--grigio-chiaro,#333);border-radius:14px;padding:16px;text-align:center">
+      <div style="margin-bottom:10px">Calcola e accredita gli incassi dello stadio di una giornata <b>già importata</b>: biglietteria e fast food (chi gioca in casa), magliette (tutte le squadre).</div>
+      <input type="number" id="es-num" placeholder="N. giornata" style="width:100px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
+      <br><button class="gs-btn" onclick="esCalcolaDaPannello()">🏟️ Calcola giornata</button>
+    </div>
+    <div id="es-esito"></div>
+    <div id="es-pannello" style="margin-top:12px"></div>`;
+}
+
+async function esCalcolaDaPannello() {
+  const N = parseInt((document.getElementById("es-num") || {}).value);
+  if (!N) { esAvviso("❌ Inserisci il numero della giornata", "error"); return; }
+  const e = document.getElementById("es-esito");
+  if (e) e.innerHTML = `<div class="gs-warn" style="margin:8px 0">⏳ Calcolo la giornata ${N}...</div>`;
+  try {
+    esMostra(await esAnteprima(N));
+    if (e) e.innerHTML = "";
+  } catch (err) { esAvviso("❌ " + err.message, "error"); }
+}
+
 async function apriAnteprimaStadio() {
+  if (typeof apriTabelle === "function" && typeof gsMostraTab === "function") { apriTabelle(); gsMostraTab("stadio"); return; }
   const N = parseInt(prompt("Numero giornata da calcolare:"));
   if (!N) return;
   try { esMostra(await esAnteprima(N)); }
-  catch (e) { showToast("❌ " + e.message, "error"); }
+  catch (e) { esAvviso("❌ " + e.message, "error"); }
 }
