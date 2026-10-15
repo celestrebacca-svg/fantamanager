@@ -104,6 +104,20 @@ const GS_SQUADRE_SERIE_A = [
 // Pesi confermati per leggere conteggi reali dalle colonne-punti del file voti
 const GS_PESO = { gol: 3, assistStd: 1, assistSoft: 0.5, assistGold: 1.5 };
 const GS_COLORE_AMMONIZIONE = "FFFACC15"; // confermato (giallo)
+const GS_COLORE_ESPULSIONE = "FFDC2626"; // confermato (rosso)
+// Tipo di cartellino dal colore della cella: "giallo", "rosso", "dubbio" (colore sconosciuto: lo decide l'admin) o null (nessun colore)
+function gsTipoCartellino(colore) {
+  if (!colore) return null;
+  const c = String(colore).toUpperCase();
+  if (c === GS_COLORE_AMMONIZIONE) return "giallo";
+  if (c === GS_COLORE_ESPULSIONE) return "rosso";
+  const m = /^FF([0-9A-F]{2})([0-9A-F]{2})([0-9A-F]{2})$/.exec(c);
+  if (!m) return "dubbio";
+  const r = parseInt(m[1], 16), g = parseInt(m[2], 16), b = parseInt(m[3], 16);
+  if (r >= 180 && g <= 90 && b <= 90) return "rosso";     // sfumature di rosso
+  if (r >= 200 && g >= 150 && b <= 90) return "giallo";   // sfumature di giallo
+  return "dubbio";
+}
 
 // --- Tabella 5 giornate: mini-classifica che si ripete ogni 5 giornate (1-5, 6-10, 11-15, ...) ---
 const GS_TABELLA5 = [
@@ -142,8 +156,40 @@ function gsFillColor(ws, r, c) {
     return rgb ? ("FF" + rgb.slice(-6)).toUpperCase() : null;
   } catch (e) { return null; }
 }
+// SheetJS (versione gratuita) NON espone il colore del testo in cell.s: lo leggo io dal file xlsx
+// (stili + foglio, con l'opzione bookFiles). Mappa { "B10": "A0A7B1", ... }; null se non riesco.
+let gsColoriTesto = null;
+function gsCostruisciColoriTesto(wb) {
+  try {
+    const files = wb.files;
+    if (!files || !wb.Styles) return null;
+    const nomeFoglio = Object.keys(files).filter(k => /^xl\/worksheets\/sheet\d+\.xml$/.test(k))
+      .sort((a, b) => parseInt(a.match(/\d+/)[0]) - parseInt(b.match(/\d+/)[0]))[0];
+    if (!nomeFoglio) return null;
+    let xml = files[nomeFoglio].content;
+    if (typeof xml !== "string") xml = new TextDecoder("utf-8").decode(xml);
+    const fonts = wb.Styles.Fonts || [], xfs = wb.Styles.CellXf || [];
+    const mappa = {};
+    const re = /<c\b([^>]*)>/g;
+    let m;
+    while ((m = re.exec(xml))) {
+      const rr = /\br="([A-Z]+\d+)"/.exec(m[1]), ss = /\bs="(\d+)"/.exec(m[1]);
+      if (!rr || !ss) continue;
+      const xf = xfs[parseInt(ss[1])];
+      if (!xf || xf.fontId == null) continue;
+      const f = fonts[xf.fontId];
+      const rgb = f && f.color && f.color.rgb;
+      if (rgb) mappa[rr[1]] = String(rgb).slice(-6).toUpperCase();
+    }
+    return Object.keys(mappa).length ? mappa : null;
+  } catch (e) { return null; }
+}
 function gsTestoGrigio(ws, r, c) {
   const addr = XLSX.utils.encode_cell({ r: r - 1, c: c - 1 });
+  if (gsColoriTesto) {
+    const col = gsColoriTesto[addr];
+    if (col) return col === "A0A7B1"; // grigio = fuori dal punteggio (non ha contato)
+  }
   const cell = ws[addr];
   try {
     const rgb = cell && cell.s && cell.s.color && cell.s.color.rgb;
@@ -174,7 +220,7 @@ function gsLeggiBloccoSquadra(ws, maxRow, r0, baseCol) {
     giocatori.push({
       ruolo: c0, nome, squadraReale: gsVal(ws, r, baseCol + 3),
       voto: gsVal(ws, r, baseCol + 4), fantavoto: gsVal(ws, r, baseCol + 5),
-      gol: gsVal(ws, r, baseCol + 6), assist: gsVal(ws, r, baseCol + 12),
+      gol: gsVal(ws, r, baseCol + 6), golSubiti: gsVal(ws, r, baseCol + 7), assist: gsVal(ws, r, baseCol + 12),
       assistSoft: gsVal(ws, r, baseCol + 13), assistGold: gsVal(ws, r, baseCol + 14),
       sezione, haContato: grigio === null ? true : !grigio,
       cartellinoColore: gsFillColor(ws, r, baseCol + 2),
@@ -373,13 +419,16 @@ function gsConta(valore, peso) {
   return v ? Math.round(v / peso) : 0;
 }
 
-function gsCalcolaSponsor(partite, risoluzioniMaglie) {
+function gsCalcolaSponsor(partite, risoluzioniMaglie, risoluzioniCartellini) {
+  risoluzioniCartellini = risoluzioniCartellini || {}; // chiave "pIdx_lato_indice" -> "rosso" | "giallo" | "nessuno"
   risoluzioniMaglie = risoluzioniMaglie || {}; // chiave "pIdx_lato_numero" -> indice in blocco.giocatori, o "nessuno"
   const eventi = [];
   const totali = {}; // nomeSquadraVero -> {soldi, tifosi}
   const incerti = [];
   const maglieAvvisate = new Set(); // una sola segnalazione per squadra
   const daRisolvere = []; // maglie 7/9/10 senza corrispondenza esatta, in attesa di scelta manuale
+  const cartellini = []; // cartellini rossi o dubbi, con la scelta dell'admin
+  let nGiocatoriLetti = 0, nFuoriPunteggio = 0; // controllo: il grigio (giocatori fuori dal punteggio) viene letto?
   const maglieStato = []; // una riga per ogni squadra x numero (7/9/10): cosa e' successo, sempre visibile in anteprima
   const squadreTotali = [];
   const tuttiGiocatori = [];
@@ -411,7 +460,9 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
         else if (totale >= 90) aggiungi(nomeSq, "punteggio_sopra90", `Punteggio ${totale}`);
         else if (totale > 80) aggiungi(nomeSq, "punteggio_sopra80", `Punteggio ${totale}`);
       }
-      for (const gi of blocco.giocatori) {
+      for (const [idxGi, gi] of blocco.giocatori.entries()) {
+        nGiocatoriLetti++;
+        if (!gi.haContato) nFuoriPunteggio++;
         if (!gi.haContato) continue;
         tuttiGiocatori.push({ ...gi, squadra: nomeSq });
         const nGol = gsConta(gi.gol, GS_PESO.gol);
@@ -422,8 +473,16 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
         else if (nGol === 2) aggiungi(nomeSq, "doppietta_gol", `${gi.nome} (${nGol} gol)`);
         if (nAssist >= 3) aggiungi(nomeSq, "tripletta_assist", `${gi.nome} (${nAssist} assist)`);
         else if (nAssist === 2) aggiungi(nomeSq, "doppietta_assist", `${gi.nome} (${nAssist} assist)`);
-        if (gi.cartellinoColore && gi.cartellinoColore !== GS_COLORE_AMMONIZIONE) {
-          incerti.push(`[${nomeSq}] ${gi.nome}: colore cartellino ${gi.cartellinoColore} non riconosciuto -> verificare se e' espulsione (rosso)`);
+        // Cartellini: giallo = nessun bonus; rosso = espulsione automatica (modificabile); colore sconosciuto = lo scegli tu
+        const tipo0 = gsTipoCartellino(gi.cartellinoColore);
+        if (tipo0 === "rosso" || tipo0 === "dubbio") {
+          const chiaveC = `${pIdx}_${lato}_${idxGi}`;
+          const sceltaC = risoluzioniCartellini[chiaveC];
+          const tipo = sceltaC !== undefined ? sceltaC : tipo0;
+          const nomePulito = String(gi.nome).replace(/[ⒸⓋ]/g, "").trim();
+          cartellini.push({ chiave: chiaveC, squadra: nomeSq, giocatore: nomePulito, colore: gi.cartellinoColore, tipo0, tipo, scelto: sceltaC !== undefined });
+          if (tipo === "rosso") aggiungi(nomeSq, "espulsione", `${nomePulito}${sceltaC !== undefined ? " [scelto a mano]" : ""}`);
+          else if (tipo === "dubbio") incerti.push(`[${nomeSq}] ${nomePulito}: colore cartellino ${gi.cartellinoColore} non riconosciuto -> scegli nella sezione "Cartellini" (rosso, giallo o nessuno)`);
         }
       }
 
@@ -483,6 +542,7 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
         const nGolM = gsConta(nelFile.gol, GS_PESO.gol);
         const nAssistM = gsConta(nelFile.assist, GS_PESO.assistStd) + gsConta(nelFile.assistSoft, GS_PESO.assistSoft) + gsConta(nelFile.assistGold, GS_PESO.assistGold);
         const nomeFilePulito = String(nelFile.nome).replace(/[ⒸⓋ]/g, "").trim();
+        extra.maglia = { pIdx, lato, fileIdx: blocco.giocatori.indexOf(nelFile), numero }; // per salvare il numero di maglia nella giornata
         if (fonte === "scelto a mano" && giocatoreId) extra.daSalvare = { giocatoreId, nomeVoti: nomeFilePulito };
         const comeAbbinato = fonte === "scelto a mano" ? (giocatoreId ? " (scelto a mano: si salva alla conferma)" : " (scelto a mano, solo per questa giornata" + (problema ? ": " + problema : "") + ")")
           : fonte === "nome simile" ? " (automatico)" : fonte === "abbinamento salvato" ? " (salvato)" : "";
@@ -562,7 +622,10 @@ function gsCalcolaSponsor(partite, risoluzioniMaglie) {
     }
   }
 
-  return { eventi, totali, incerti, daRisolvere, maglieStato };
+  if (nGiocatoriLetti > 0 && nFuoriPunteggio === 0) {
+    incerti.push(`Nessuno dei ${nGiocatoriLetti} giocatori letti risulta fuori dal punteggio: di solito in ogni giornata ce ne sono molti (panchina non entrata, in grigio nel file). Probabilmente il colore grigio dei nomi NON viene letto: controlla bene i bonus di gol/assist/MVP dati a giocatori che potrebbero non aver contato.`);
+  }
+  return { eventi, totali, incerti, daRisolvere, maglieStato, cartellini };
 }
 
 // ============================================================
@@ -736,6 +799,7 @@ let gsFileCorrente = null;
 let gsPartiteLette = null;
 let gsGiornataNum = null;
 let gsRisoluzioniMaglie = {}; // si azzera a ogni nuovo file caricato
+let gsRisoluzioniCartellini = {}; // si azzera a ogni nuovo file caricato
 let gsMaglieAperte = null; // null = automatico (si apre solo se c'e' da scegliere); true/false = come l'ha lasciato l'admin
 
 function gsInjectStyle() {
@@ -781,6 +845,7 @@ function gsEnsureOverlay() {
       <button class="gs-tab" data-tab="tabella5" onclick="gsMostraTab('tabella5')">Tabella 5 giornate</button>
       <button class="gs-tab" data-tab="obiettivi" onclick="gsMostraTab('obiettivi')">Obiettivi stagione</button>
       <button class="gs-tab" data-tab="allenatore" onclick="gsMostraTab('allenatore')">Allenatore</button>
+      <button class="gs-tab" data-tab="annuali" onclick="gsMostraTab('annuali')">Sponsor annuali</button>
     </div>
     <div class="gs-body" id="gs-body"></div>`;
   document.body.appendChild(o);
@@ -805,6 +870,10 @@ function gsMostraTab(tab) {
   else if (tab === "tabella5") gsRenderTabella5(body);
   else if (tab === "allenatore") gsRenderAllenatore(body);
   else if (tab === "obiettivi") gsRenderObiettivi(body);
+  else if (tab === "annuali") {
+    if (typeof gsRenderAnnuali === "function") gsRenderAnnuali(body);
+    else body.innerHTML = "Manca il file sponsor-annuali.js: aggiungilo al progetto e nell'index.html, dopo gestione-sponsor.js.";
+  }
 }
 
 // Se l'elenco squadre dell'app e' vuoto (non ancora caricato in questa schermata), lo carico dal database.
@@ -1073,7 +1142,14 @@ function gsRenderImport(body) {
       <br><br>
       <button class="gs-btn" onclick="gsLeggiFile()">📖 Leggi file</button>
     </div>
-    <div id="gs-anteprima"></div>`;
+    <div id="gs-anteprima"></div>
+    <div class="gs-upload" style="margin-top:20px">
+      <p>Annulla una giornata già importata (solo l'ultima): toglie i bonus, tranne quelli dell'allenatore, e i dati della giornata, così puoi ricaricare il file.</p>
+      <input type="number" id="gs-annulla-num" placeholder="N. giornata" style="width:100px;padding:6px;border-radius:6px;border:1px solid var(--grigio-chiaro,#333);background:var(--grigio-medio,#222);color:#eee;margin-bottom:10px">
+      <br>
+      <button class="gs-btn" onclick="gsAnnullaGiornata()">↩️ Annulla giornata</button>
+      <div id="gs-annulla-esito"></div>
+    </div>`;
 }
 
 // Una giornata gia' salvata non si puo' caricare di nuovo: eviterebbe di sommare due volte sponsor, budget e serie.
@@ -1091,6 +1167,7 @@ async function gsLeggiFile() {
   gsFileCorrente = input.files[0];
   gsGiornataNum = giornataNum;
   gsRisoluzioniMaglie = {}; // nuovo file = si riparte da zero con gli abbinamenti
+  gsRisoluzioniCartellini = {};
   gsMaglieAperte = null;
   try {
     if (await gsGiornataGiaImportata(giornataNum)) {
@@ -1106,7 +1183,8 @@ async function gsLeggiFile() {
     await gsAssicuraGiocatoriMaglie(); // e anche i giocatori con la maglia 7/9/10 (se l'elenco giocatori non e' caricato)
     await gsCaricaMappaNomi(); // abbinamenti nome-rosa/nome-file gia' scelti a mano nelle giornate precedenti
     const buf = await gsFileCorrente.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array", cellStyles: true });
+    const wb = XLSX.read(buf, { type: "array", cellStyles: true, bookFiles: true });
+    gsColoriTesto = gsCostruisciColoriTesto(wb); // colore del testo (grigio = non ha contato)
     gsPartiteLette = gsParsaGiornata(wb);
     try { gsStagionali = { eventi: await gsCalcolaStagionali(giornataNum, gsPartiteLette), errore: null }; }
     catch (e) { gsStagionali = { eventi: [], errore: e.message }; }
@@ -1114,6 +1192,12 @@ async function gsLeggiFile() {
   } catch (e) {
     showToast("❌ Errore lettura file: " + e.message, "error");
   }
+}
+
+function gsRisolviCartellino(chiave, valore) {
+  if (valore === "") return;
+  gsRisoluzioniCartellini[chiave] = valore;
+  gsRenderAnteprima();
 }
 
 function gsRisolviMaglia(chiave, valore) {
@@ -1124,7 +1208,7 @@ function gsRisolviMaglia(chiave, valore) {
 
 function gsRenderAnteprima() {
   const div = document.getElementById("gs-anteprima");
-  const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie, gsRisoluzioniCartellini);
   const { incerti, daRisolvere } = calc;
   const stag = gsStagionali || { eventi: [], errore: null };
   if (gsErroreMaglie) incerti.push("Impossibile rileggere i numeri di maglia dal database: " + gsErroreMaglie);
@@ -1158,6 +1242,27 @@ function gsRenderAnteprima() {
     html += `<tr><td>${gsEsc(m.squadra)}</td><td>${m.numero}</td><td>${gsEsc(m.nomeRosa || "-")}</td><td>${esito}</td></tr>`;
   }
   html += `</table></div></details>`;
+
+  // --- Cartellini rossi o dubbi: sempre visibili, con scelta manuale ---
+  const cS = calc.cartellini || [];
+  if (cS.length) {
+    const nDubbi = cS.filter(c => c.tipo === "dubbio").length;
+    if (nDubbi) html += `<div class="gs-warn"><b>🟥 ${nDubbi} cartellini con colore non riconosciuto:</b> scegli nella tabella "Cartellini" qui sotto (rosso, giallo o nessuno).</div>`;
+    html += `<h3>🟥 Cartellini da controllare (${cS.length})</h3><div class="gs-scroll-tbl"><table class="gs-tbl"><tr><th>Squadra</th><th>Giocatore</th><th>Esito</th></tr>`;
+    for (const c of cS) {
+      const testo = c.tipo === "rosso" ? `🟥 Espulsione: −300.000 FM, −30 tifosi${c.scelto ? " (scelto a mano)" : " (riconosciuto dal colore)"}`
+        : c.tipo === "giallo" ? "🟨 Ammonizione: nessun bonus (scelto a mano)"
+        : c.tipo === "nessuno" ? "Nessun cartellino (scelto a mano)"
+        : `🟡 colore ${gsEsc(c.colore)} non riconosciuto: scegli`;
+      html += `<tr><td>${gsEsc(c.squadra)}</td><td>${gsEsc(c.giocatore)}</td><td>${testo}<br>
+        <select onchange="gsRisolviCartellino('${c.chiave}', this.value)" style="max-width:210px">
+          <option value="">${c.tipo === "dubbio" ? "— scegli —" : "✏️ cambia…"}</option>
+          <option value="rosso">🟥 Espulsione (rosso)</option>
+          <option value="giallo">🟨 Ammonizione (giallo)</option>
+          <option value="nessuno">Nessun cartellino</option></select></td></tr>`;
+    }
+    html += `</table></div>`;
+  }
   if (incerti.length) {
     html += `<div class="gs-warn"><b>⚠️ Da controllare a mano (non ancora calcolato):</b><br>${incerti.map(i => i.replace(/</g, "&lt;")).join("<br>")}</div>`;
   }
@@ -1187,7 +1292,9 @@ async function gsConfermaESalva() {
       return;
     }
   } catch (e) { showToast("❌ Errore controllo giornata: " + e.message, "error"); return; }
-  const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie);
+  const calc = gsCalcolaSponsor(gsPartiteLette, gsRisoluzioniMaglie, gsRisoluzioniCartellini);
+  const nCartDubbi = (calc.cartellini || []).filter(c => c.tipo === "dubbio").length;
+  if (nCartDubbi && !confirm(`Ci sono ${nCartDubbi} cartellini con colore non riconosciuto: non verranno contati come espulsioni. Salvo lo stesso?`)) return;
   if (calc.daRisolvere.length && !confirm(`Ci sono ${calc.daRisolvere.length} maglie 7/9/10 non confermate: i loro bonus NON verranno assegnati. Salvo lo stesso?`)) return;
   // Sicurezza: se anche UNA squadra del file non si trova nell'app, non salvo niente (altrimenti i soldi non arriverebbero al budget in silenzio).
   const nomiNelFile = [...new Set(gsPartiteLette.flatMap(p => [gsNomeVero(p.casa), gsNomeVero(p.trasferta)]))];
@@ -1202,7 +1309,13 @@ async function gsConfermaESalva() {
   const { eventi, totali } = gsUnisciStagionali(calc, stagEventi);
   try {
     // 1) salva i dati grezzi della giornata
-    for (const p of gsPartiteLette) {
+    // numero di maglia (7/9/10) di ogni giocatore in QUESTA giornata: serve agli sponsor annuali, anche se poi cambi la maglia in Stadio
+    const magliaDi = {};
+    const cartelliniDi = {};
+    for (const c of calc.cartellini || []) cartelliniDi[c.chiave] = c.tipo;
+    for (const m of calc.maglieStato) if (m.maglia && m.maglia.fileIdx >= 0) magliaDi[`${m.maglia.pIdx}_${m.maglia.lato}_${m.maglia.fileIdx}`] = m.maglia.numero;
+    for (let pIdx = 0; pIdx < gsPartiteLette.length; pIdx++) {
+      const p = gsPartiteLette[pIdx];
       for (const [lato, nomeFile, blocco, avvFile] of [
         ["casa", p.casa, p.squadraCasa, p.trasferta],
         ["trasferta", p.trasferta, p.squadraTrasferta, p.casa],
@@ -1214,7 +1327,16 @@ async function gsConfermaESalva() {
         await sb.from("giornate_import").upsert({
           giornata: gsGiornataNum, squadra_id: sq.id, totale: blocco.totale, modulo: blocco.modulo,
           risultato: p.risultato, casa_o_trasferta: lato, avversario_id: avv ? avv.id : null,
-          giocatori: blocco.giocatori, confermato_il: new Date().toISOString(),
+          giocatori: blocco.giocatori.map((g, i) => {
+            const k = `${pIdx}_${lato}_${i}`;
+            const extra = {};
+            if (magliaDi[k]) extra.maglia = magliaDi[k];
+            const t0 = gsTipoCartellino(g.cartellinoColore);
+            const t = cartelliniDi[k] || (t0 === "giallo" || t0 === "rosso" ? t0 : null); // cartellino normalizzato, per i premi di fine anno (fair play)
+            if (t && t !== "nessuno" && t !== "dubbio") extra.cartellino = t;
+            return Object.keys(extra).length ? { ...g, ...extra } : g;
+          }),
+          confermato_il: new Date().toISOString(),
         }, { onConflict: "giornata,squadra_id" });
       }
     }
@@ -1526,6 +1648,122 @@ async function gsAggiornaSerieSquadra(sq, esito) {
 
   await sb.from("serie_squadre").upsert(stato, { onConflict: "squadra_id" });
   return bonusAssegnati;
+}
+
+// ============================================================
+// ANNULLA GIORNATA
+// Toglie una giornata importata: bonus (allenatore ESCLUSO) e dati grezzi, stornando soldi e tifosi dal budget.
+// Solo l'ULTIMA giornata importata: le serie di vittorie/sconfitte di fila si ricostruiscono dalle giornate rimaste.
+// Per annullare la 1 con la 2 gia' importata: prima la 2, poi la 1.
+// ============================================================
+const GS_TIPI_ALLENATORE = ["vittoria_allenatore", "sconfitta_allenatore"];
+
+async function gsRicostruisciSerie() {
+  await gsAssicuraSquadre();
+  const { data: righe, error } = await sb.from("giornate_import")
+    .select("giornata,squadra_id,risultato,casa_o_trasferta").order("giornata", { ascending: true });
+  if (error) throw error;
+  const { data: premi, error: e2 } = await sb.from("sponsor_eventi").select("squadra_id,tipo_sponsor").like("tipo_sponsor", "serie_%");
+  if (e2) throw e2;
+  const premiSet = new Set((premi || []).map(r => `${r.squadra_id}|${r.tipo_sponsor}`));
+  const stati = {};
+  for (const sq of squadreDB) {
+    stati[String(sq.id)] = {
+      squadra_id: sq.id, vittorie_fila: 0, sconfitte_fila: 0, senza_sconfitta_fila: 0, senza_vittoria_fila: 0,
+      soglie_premiate_vittorie: [], soglie_premiate_sconfitte: [], soglie_premiate_senza_sconfitta: [], soglie_premiate_senza_vittoria: [],
+    };
+  }
+  for (const r of (righe || [])) {
+    const st = stati[String(r.squadra_id)];
+    const esito = gsEsitoSquadra(r.risultato, r.casa_o_trasferta);
+    if (!st || !esito) continue;
+    if (esito === "vittoria") {
+      st.vittorie_fila++; st.sconfitte_fila = 0; st.senza_sconfitta_fila++; st.senza_vittoria_fila = 0;
+    } else if (esito === "sconfitta") {
+      st.sconfitte_fila++; st.vittorie_fila = 0; st.senza_vittoria_fila++; st.senza_sconfitta_fila = 0;
+    } else {
+      st.vittorie_fila = 0; st.sconfitte_fila = 0; st.senza_sconfitta_fila++; st.senza_vittoria_fila++;
+    }
+  }
+  // soglie gia' pagate (ancora presenti nel log) e ancora valide per il contatore attuale
+  for (const st of Object.values(stati)) {
+    for (const [tipo, cfg] of Object.entries(GS_SOGLIE_SERIE)) {
+      st[cfg.soglie_campo] = [5, 10, 15].filter(sg => st[cfg.campo] >= sg && premiSet.has(`${st.squadra_id}|serie_${tipo}_${sg}`));
+    }
+  }
+  const { error: e3 } = await sb.from("serie_squadre").upsert(Object.values(stati), { onConflict: "squadra_id" });
+  if (e3) throw e3;
+}
+
+async function gsAnnullaGiornata() {
+  const esito = document.getElementById("gs-annulla-esito");
+  const mostra = (html) => { if (esito) esito.innerHTML = html; };
+  const num = parseInt(document.getElementById("gs-annulla-num").value);
+  if (!num) { showToast("❌ Inserisci il numero della giornata da annullare", "error"); return; }
+  try {
+    await gsAssicuraSquadre();
+    const { data: imp, error: e0 } = await sb.from("giornate_import").select("giornata");
+    if (e0) throw new Error("Lettura giornate: " + e0.message);
+    const lista = [...new Set((imp || []).map(r => r.giornata))];
+    if (!lista.includes(num)) { showToast(`❌ La giornata ${num} non risulta importata`, "error"); return; }
+    const ultima = Math.max(...lista);
+    if (num !== ultima) {
+      showToast(`❌ Si annulla solo l'ultima giornata importata (la ${ultima}). Annulla prima quella.`, "error");
+      return;
+    }
+    const { data: ev, error: e1 } = await sb.from("sponsor_eventi").select("tipo_sponsor").eq("giornata", num);
+    if (e1) throw new Error("Lettura bonus: " + e1.message);
+    const nTogliere = (ev || []).filter(x => !GS_TIPI_ALLENATORE.includes(x.tipo_sponsor)).length;
+    const nAllenatore = (ev || []).length - nTogliere;
+    if (!confirm(`Annullo la giornata ${num}?\n\n- ${nTogliere} bonus verranno tolti e stornati dal budget\n- ${nAllenatore} bonus allenatore restano\n- i dati della giornata vengono cancellati (poi ricarichi il file)`)) return;
+
+    // 1) cancello i bonus (allenatore escluso) e mi faccio restituire le righe cancellate
+    const { data: canc, error: eD } = await sb.from("sponsor_eventi").delete()
+      .eq("giornata", num).not("tipo_sponsor", "in", `(${GS_TIPI_ALLENATORE.join(",")})`).select("squadra_id,soldi,tifosi");
+    if (eD) throw new Error("Cancellazione bonus: " + eD.message);
+    if ((canc || []).length !== nTogliere) {
+      throw new Error(`Cancellati ${(canc || []).length} bonus su ${nTogliere}: manca probabilmente la regola DELETE su sponsor_eventi in Supabase. Budget non toccato per i bonus non cancellati.`);
+    }
+    // 2) storno soldi e tifosi di quello che ho davvero cancellato
+    const perSquadra = {};
+    for (const r of canc) {
+      const k = String(r.squadra_id);
+      if (!perSquadra[k]) perSquadra[k] = { id: r.squadra_id, soldi: 0, tifosi: 0 };
+      perSquadra[k].soldi += Number(r.soldi) || 0;
+      perSquadra[k].tifosi += Number(r.tifosi) || 0;
+    }
+    const nomePerId = Object.fromEntries(squadreDB.map(sq => [String(sq.id), sq.nome]));
+    const daFareAMano = [];
+    for (const t of Object.values(perSquadra)) {
+      const { data: sqd, error: eS } = await sb.from("squadre").select("budget,tifosi").eq("id", t.id).single();
+      let ok = !eS;
+      if (ok) {
+        const { data: agg, error: eU } = await sb.from("squadre").update({
+          budget: gsSommaBudget(sqd?.budget, -t.soldi),
+          tifosi: (sqd?.tifosi || 0) - t.tifosi,
+        }).eq("id", t.id).select("id");
+        ok = !eU && agg && agg.length === 1;
+      }
+      if (!ok) daFareAMano.push(`${nomePerId[String(t.id)] || t.id}: budget ${(-t.soldi).toLocaleString("it-IT")}, tifosi ${-t.tifosi}`);
+    }
+    // 3) cancello i dati grezzi della giornata
+    const { data: cancImp, error: eI } = await sb.from("giornate_import").delete().eq("giornata", num).select("squadra_id");
+    if (eI) throw new Error("Cancellazione dati giornata: " + eI.message);
+    if (!cancImp || !cancImp.length) throw new Error("Dati giornata non cancellati: manca probabilmente la regola DELETE su giornate_import in Supabase.");
+    // 4) ricostruisco le serie di vittorie/sconfitte dalle giornate rimaste
+    await gsRicostruisciSerie();
+    gsPartiteLette = null;
+    if (daFareAMano.length) {
+      mostra(`<div class="gs-warn">⚠️ Giornata ${num} annullata, ma questi budget vanno corretti a mano:<br>${daFareAMano.map(gsEsc).join("<br>")}</div>`);
+      showToast("⚠️ Annullata, ma alcuni budget vanno corretti a mano", "error");
+    } else {
+      mostra(`<div class="gs-warn">✅ Giornata ${num} annullata: ${nTogliere} bonus stornati (allenatore invariato). Ora puoi ricaricare il file.</div>`);
+      showToast(`✅ Giornata ${num} annullata`);
+    }
+  } catch (e) {
+    mostra(`<div class="gs-warn"><b>${gsEsc("❌ " + e.message)}</b></div>`);
+    showToast("❌ " + e.message, "error");
+  }
 }
 
 async function gsRenderLog(body) {
