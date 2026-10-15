@@ -1698,24 +1698,33 @@ async function gsRicostruisciSerie() {
 async function gsAnnullaGiornata() {
   const esito = document.getElementById("gs-annulla-esito");
   const mostra = (html) => { if (esito) esito.innerHTML = html; };
+  // il messaggio resta scritto nella pagina (il toast da solo può restare nascosto dietro la finestra Tabelle)
+  const errore = (msg) => { mostra(`<div class="gs-warn"><b>${gsEsc(msg)}</b></div>`); showToast(msg, "error"); };
   const num = parseInt(document.getElementById("gs-annulla-num").value);
-  if (!num) { showToast("❌ Inserisci il numero della giornata da annullare", "error"); return; }
+  if (!num) { errore("❌ Inserisci il numero della giornata da annullare"); return; }
+  mostra(`<div class="gs-warn">⏳ Controllo la giornata ${num}...</div>`);
   try {
     await gsAssicuraSquadre();
     const { data: imp, error: e0 } = await sb.from("giornate_import").select("giornata");
     if (e0) throw new Error("Lettura giornate: " + e0.message);
     const lista = [...new Set((imp || []).map(r => r.giornata))];
-    if (!lista.includes(num)) { showToast(`❌ La giornata ${num} non risulta importata`, "error"); return; }
+    if (!lista.includes(num)) {
+      errore(`❌ La giornata ${num} non risulta importata. Giornate importate: ${[...lista].sort((a, b) => a - b).join(", ") || "nessuna"}`);
+      return;
+    }
     const ultima = Math.max(...lista);
     if (num !== ultima) {
-      showToast(`❌ Si annulla solo l'ultima giornata importata (la ${ultima}). Annulla prima quella.`, "error");
+      errore(`❌ Si annulla solo l'ultima giornata importata (la ${ultima}). Annulla prima quella.`);
       return;
     }
     const { data: ev, error: e1 } = await sb.from("sponsor_eventi").select("tipo_sponsor").eq("giornata", num);
     if (e1) throw new Error("Lettura bonus: " + e1.message);
     const nTogliere = (ev || []).filter(x => !GS_TIPI_ALLENATORE.includes(x.tipo_sponsor)).length;
     const nAllenatore = (ev || []).length - nTogliere;
-    if (!confirm(`Annullo la giornata ${num}?\n\n- ${nTogliere} bonus verranno tolti e stornati dal budget\n- ${nAllenatore} bonus allenatore restano\n- i dati della giornata vengono cancellati (poi ricarichi il file)`)) return;
+    if (!confirm(`Annullo la giornata ${num}?\n\n- ${nTogliere} bonus verranno tolti e stornati dal budget\n- ${nAllenatore} bonus allenatore restano\n- i dati della giornata vengono cancellati (poi ricarichi il file)`)) {
+      mostra(`<div class="gs-warn">Annullamento non confermato: nessuna modifica.</div>`);
+      return;
+    }
 
     // 1) cancello i bonus (allenatore escluso) e mi faccio restituire le righe cancellate
     const { data: canc, error: eD } = await sb.from("sponsor_eventi").delete()
