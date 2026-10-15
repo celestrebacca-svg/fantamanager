@@ -979,27 +979,68 @@ function renderTabPDF(container) {
     </div>`;
 }
 
+// Carica PDF.js una sola volta, quando serve (non occorre toccare l'index.html)
+function caricaPdfJs() {
+  if (typeof pdfjsLib !== 'undefined') return Promise.resolve();
+  if (window._pdfjsPromise) return window._pdfjsPromise;
+  window._pdfjsPromise = new Promise((ok, ko) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+    s.onload = () => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+      ok();
+    };
+    s.onerror = () => { window._pdfjsPromise = null; ko(new Error('Non riesco a caricare il lettore PDF (controlla la connessione)')); };
+    document.head.appendChild(s);
+  });
+  return window._pdfjsPromise;
+}
+
+// I pezzi di testo del PDF vengono raggruppati per altezza (y) e ordinati da sinistra a destra:
+// così ogni riga della pagina resta una riga, come serve a elaboraTesto()
+function pdfItemsInRighe(items) {
+  const righe = [];
+  for (const it of items) {
+    if (!it.str || !it.str.trim()) continue;
+    const x = it.transform[4], y = it.transform[5];
+    let r = righe.find(r => Math.abs(r.y - y) < 3);
+    if (!r) { r = { y, pezzi: [] }; righe.push(r); }
+    r.pezzi.push({ x, s: it.str });
+  }
+  righe.sort((a, b) => b.y - a.y);
+  return righe
+    .map(r => r.pezzi.sort((a, b) => a.x - b.x).map(p => p.s.trim()).join(' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 async function elaboraPDF(input) {
   const file = input.files[0];
   if (!file) return;
+  const box = document.getElementById('pdf-risultato');
+  const msg = (html) => { if (box) { box.style.display = 'block'; box.innerHTML = html; } };
   showToast('⏳ Lettura PDF in corso...', 'info');
+  msg('<div style="padding:10px;font-size:12px">⏳ Lettura PDF in corso...</div>');
   try {
+    await caricaPdfJs();
     const arrayBuffer = await file.arrayBuffer();
-    // Usa PDF.js se disponibile, altrimenti istruzioni manuali
-    if (typeof pdfjsLib !== 'undefined') {
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let testo = '';
-      for (let i=1; i<=pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        testo += content.items.map(item => item.str).join(' ') + '\n';
-      }
-      document.getElementById('pdf-testo-manuale').value = testo;
-      showToast('✅ PDF letto! Controlla il testo e clicca ANALIZZA');
-    } else {
-      showToast('⚠️ Copia il testo dal PDF e incollalo nella casella sotto', 'info');
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let testo = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      testo += pdfItemsInRighe(content.items).join('\n') + '\n';
     }
-  } catch(e) {
+    document.getElementById('pdf-testo-manuale').value = testo;
+    if (!testo.trim()) {
+      msg('<div style="padding:10px;font-size:12px;color:var(--rosso)">❌ Il PDF non contiene testo selezionabile (forse è una scansione o un\'immagine). Incolla il testo a mano qui sotto.</div>');
+      showToast('❌ PDF senza testo leggibile', 'error');
+      return;
+    }
+    msg(`<div style="padding:10px;font-size:12px;color:var(--verde)">✅ PDF letto (${pdf.numPages} pagine, ${testo.split('\n').filter(r => r.trim()).length} righe). Controlla il testo qui sotto e premi ANALIZZA.</div>`);
+    showToast('✅ PDF letto! Controlla il testo e clicca ANALIZZA');
+  } catch (e) {
+    console.error('Errore lettura PDF:', e);
+    msg(`<div style="padding:10px;font-size:12px;color:var(--rosso)">❌ Errore lettura PDF: ${String(e.message || e).replace(/[<>&]/g, '')}<br>Puoi incollare il testo a mano nella casella qui sotto.</div>`);
     showToast('❌ Errore lettura PDF — incolla manualmente il testo', 'error');
   }
 }
@@ -1015,13 +1056,22 @@ function elaboraTesto() {
   const risultati = [];
 
   righe.forEach(riga => {
-    // Pattern flessibile: parole con numero — parole con numero
-    const match = riga.match(/(.+?)\s+(\d+[\.,]?\d*)\s*[-—–]\s*(.+?)\s+(\d+[\.,]?\d*)\s*$/);
+    riga = riga.replace(/[−‒―]/g, '-').replace(/\s+/g, ' ').trim();
+    // Formato 1: "Casa 72.5 - Ospite 68.0"
+    let match = riga.match(/(.+?)\s+(\d+[\.,]?\d*)\s*[-—–]\s*(.+?)\s+(\d+[\.,]?\d*)\s*$/);
+    let nomeCasa, ptCasa, nomeOsp, ptOsp;
     if (match) {
-      const nomeCasa = match[1].trim();
-      const ptCasa = parseFloat(match[2].replace(',','.'));
-      const nomeOsp = match[3].trim();
-      const ptOsp = parseFloat(match[4].replace(',','.'));
+      nomeCasa = match[1]; ptCasa = match[2]; nomeOsp = match[3]; ptOsp = match[4];
+    } else {
+      // Formato 2: "Casa - Ospite 72.5 - 68.0"
+      match = riga.match(/(.+?)\s+[-—–]\s+(.+?)\s+(\d+[\.,]?\d*)\s*[-—–:]\s*(\d+[\.,]?\d*)\s*$/);
+      if (match) { nomeCasa = match[1]; nomeOsp = match[2]; ptCasa = match[3]; ptOsp = match[4]; }
+    }
+    if (match) {
+      nomeCasa = nomeCasa.trim();
+      ptCasa = parseFloat(String(ptCasa).replace(',','.'));
+      nomeOsp = nomeOsp.trim();
+      ptOsp = parseFloat(String(ptOsp).replace(',','.'));
 
       // Cerca squadra per nome (fuzzy)
       const trovaCasa = trovaSq(nomeCasa);
@@ -1033,6 +1083,11 @@ function elaboraTesto() {
 
   if (risultati.length===0) {
     showToast('❌ Nessun risultato trovato. Controlla il formato','error');
+    const box = document.getElementById('pdf-risultato');
+    if (box) {
+      box.style.display = 'block';
+      box.innerHTML = `<div style="padding:10px;font-size:12px;color:var(--rosso)">❌ Nessun risultato riconosciuto. Il formato atteso è una riga per partita, per esempio <b>Squadra A 72.5 - Squadra B 68.0</b>.<br><br>Prime righe che ho letto:<br><span style="font-family:'Space Mono',monospace;color:var(--testo-dim)">${righe.slice(0,6).map(r => r.replace(/[<>&]/g,'')).join('<br>') || '(vuoto)'}</span></div>`;
+    }
     return;
   }
 
