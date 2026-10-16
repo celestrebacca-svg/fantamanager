@@ -90,6 +90,20 @@ async function salvaFormazione(sqId){
 // Stessa meccanica della formazione principale, ma il pool giocatori include
 // Principale + Marginale + Primavera, filtrato per età massima 23 anni
 // (calcolata al 1° settembre della stagione corrente, vedi eleggibileU23 in utils.js).
+// Moduli Under 23: quelli della formazione principale + moduli con più difensori/centrocampisti (e un solo attaccante)
+const MODULI_U23={...MODULI,
+  '5-4-1':{P:[[50,90]],D:[[10,70],[28,70],[50,70],[72,70],[90,70]],C:[[15,48],[38,48],[62,48],[85,48]],A:[[50,22]]},
+  '6-3-1':{P:[[50,90]],D:[[8,70],[24,70],[40,70],[60,70],[76,70],[92,70]],C:[[25,48],[50,48],[75,48]],A:[[50,22]]},
+  '3-6-1':{P:[[50,90]],D:[[25,72],[50,72],[75,72]],C:[[8,50],[24,50],[40,50],[60,50],[76,50],[92,50]],A:[[50,22]]},
+  '4-5-1':{P:[[50,90]],D:[[15,70],[37,70],[63,70],[85,70]],C:[[10,48],[30,48],[50,48],[70,48],[90,48]],A:[[50,22]]}
+};
+// Slot esistenti per un modulo (es. D_0..D_4): serve a non portarsi dietro slot di un altro modulo
+function slotValidiU23(modulo){
+  const set=new Set(),M=MODULI_U23[modulo]||{};
+  ['P','D','C','A'].forEach(r=>(M[r]||[]).forEach((_,i)=>set.add(`${r}_${i}`)));
+  return set;
+}
+
 let formazioniU23DB={},formazioneU23SqIdAttiva=null,formazioneU23Slots={},formazioneU23ModuloCorrente='4-3-3',formazioneU23ContainerAttivo='formazione-u23-content',formazioneU23Panchina=[],formazioneU23Giornata=null;
 const GIORNATA_INIZIO_U23=7; // la Coppa Under 23 parte dalla 7ª giornata
 
@@ -146,17 +160,17 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
   formazioneU23ContainerAttivo=containerId;
   const c=document.getElementById(containerId);
   if(!c) return;
-  c.innerHTML='<div class="loading"><div class="loading-spinner"></div></div>';
+  if(!editMode) c.innerHTML='<div class="loading"><div class="loading-spinner"></div></div>';
   const giornataU23=formazioneU23GiornataCorrente();
   const f=await caricaFormazioneU23(sqId,giornataU23);
   const giocatori=poolU23(sqId);
   const modulo=editMode?formazioneU23ModuloCorrente:(f?.modulo||'4-3-3');
   formazioneU23ModuloCorrente=modulo;
   const mapT={};
-  (f?.titolari||[]).forEach(t=>mapT[t.slot]=t.gid);
-  if(editMode) Object.entries(formazioneU23Slots).forEach(([s,g])=>mapT[s]=g);
+  if(editMode) Object.entries(formazioneU23Slots).forEach(([s,g])=>{if(g) mapT[s]=g;});
+  else (f?.titolari||[]).forEach(t=>mapT[t.slot]=t.gid);
   const slots=[];
-  ['P','D','C','A'].forEach(r=>(MODULI[modulo][r]||[]).forEach(([x,y],i)=>slots.push({slot:`${r}_${i}`,ruolo:r,x,y})));
+  ['P','D','C','A'].forEach(r=>(MODULI_U23[modulo][r]||[]).forEach(([x,y],i)=>slots.push({slot:`${r}_${i}`,ruolo:r,x,y})));
   const btn=document.getElementById('btn-edit-formazione-u23');
   if(btn){btn.textContent=editMode?'✕ Annulla':'✏️ MODIFICA';btn.onclick=editMode?()=>renderFormazioneU23(sqId,false):()=>attivaEditFormazioneU23();}
   const rc={'P':'#FFD700','D':'#4d9fff','C':'#00e68a','A':'#ff5c5c'};
@@ -172,7 +186,7 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
     <div style="font-size:11px;color:var(--testo-dim);margin-bottom:10px">
       🌱 Solo giocatori Principale/Marginale/Primavera con massimo 23 anni al 1° settembre ${STAGIONE_CORRENTE?.split('/')[0]||''} (${giocatori.length} eleggibili).
     </div>
-    ${editMode?`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><span style="font-size:12px;color:var(--testo-dim);align-self:center">Modulo:</span>${Object.keys(MODULI).map(m=>`<button onclick="cambiaModuloFormazioneU23('${m}')" style="font-size:12px;font-family:'Bebas Neue',sans-serif;padding:5px 11px;border-radius:6px;cursor:pointer;border:1px solid ${m===modulo?'var(--verde)':'var(--grigio-chiaro)'};background:${m===modulo?'rgba(0,255,135,0.15)':'var(--grigio)'};color:${m===modulo?'var(--verde)':'var(--testo)'}">${m}</button>`).join('')}</div>`:''}
+    ${editMode?`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap"><span style="font-size:12px;color:var(--testo-dim);align-self:center">Modulo:</span>${Object.keys(MODULI_U23).map(m=>`<button onclick="cambiaModuloFormazioneU23('${m}')" style="font-size:12px;font-family:'Bebas Neue',sans-serif;padding:5px 11px;border-radius:6px;cursor:pointer;border:1px solid ${m===modulo?'var(--verde)':'var(--grigio-chiaro)'};background:${m===modulo?'rgba(0,255,135,0.15)':'var(--grigio)'};color:${m===modulo?'var(--verde)':'var(--testo)'}">${m}</button>`).join('')}</div>`:''}
     <div style="position:relative;width:100%;max-width:360px;margin:0 auto 14px">
       <svg viewBox="0 0 100 105" style="width:100%;border-radius:10px;display:block" xmlns="http://www.w3.org/2000/svg">
         <rect width="100" height="105" fill="#2a5e2a"/>${[0,1,2,3,4].map(i=>`<rect x="0" y="${i*21}" width="100" height="10.5" fill="${i%2?'#2d652d':'#2a5e2a'}"/>`).join('')}
@@ -184,7 +198,7 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
       </svg>
       ${slots.map(s=>{
         const g=mapT[s.slot]?giocatoriDB.find(x=>x.id===mapT[s.slot]):null;
-        if(editMode){const cand=giocatori.filter(gg=>gg.ruolo===s.ruolo);return `<div style="position:absolute;left:${s.x}%;top:${s.y}%;transform:translate(-50%,-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:1px"><div style="width:26px;height:26px;border-radius:50%;background:${rc[s.ruolo]};border:2px solid white;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000">${g?.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:g?iniziali(g.nome):'?'}</div><select onchange="assegnaSlotU23('${s.slot}',this.value)" style="font-size:6px;background:rgba(0,0,0,0.85);color:white;border:1px solid ${rc[s.ruolo]};border-radius:3px;padding:1px;max-width:44px"><option value="">—</option>${cand.map(gg=>`<option value="${gg.id}" ${mapT[s.slot]===gg.id?'selected':''}>${gg.nome.split(' ').pop()}</option>`).join('')}</select></div>`;}
+        if(editMode){const usatiAltrove=new Set([...slots.filter(x=>x.slot!==s.slot).map(x=>mapT[x.slot]).filter(Boolean),...formazioneU23Panchina]);const cand=giocatori.filter(gg=>gg.ruolo===s.ruolo&&(!usatiAltrove.has(gg.id)||gg.id===mapT[s.slot]));return `<div style="position:absolute;left:${s.x}%;top:${s.y}%;transform:translate(-50%,-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:1px"><div style="width:26px;height:26px;border-radius:50%;background:${rc[s.ruolo]};border:2px solid white;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000">${g?.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:g?iniziali(g.nome):'?'}</div><select onchange="assegnaSlotU23('${s.slot}',this.value)" style="font-size:6px;background:rgba(0,0,0,0.85);color:white;border:1px solid ${rc[s.ruolo]};border-radius:3px;padding:1px;max-width:44px"><option value="">—</option>${cand.map(gg=>`<option value="${gg.id}" ${mapT[s.slot]===gg.id?'selected':''}>${gg.nome.split(' ').pop()}</option>`).join('')}</select></div>`;}
         return `<div style="position:absolute;left:${s.x}%;top:${s.y}%;transform:translate(-50%,-50%);z-index:2;text-align:center" ${g?`onclick="apriGiocatore(${g.id})" style="cursor:pointer"`:''}><div style="width:${g?'28':'20'}px;height:${g?'28':'20'}px;border-radius:50%;background:${g?rc[s.ruolo]:'rgba(255,255,255,0.1)'};border:2px solid ${g?'rgba(255,255,255,0.9)':'rgba(255,255,255,0.2)'};overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#000;margin:0 auto">${g?.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:g?iniziali(g.nome):''}</div>${g?`<div style="font-size:6px;color:white;text-shadow:0 1px 3px rgba(0,0,0,1);max-width:36px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${g.nome.split(' ').pop()}</div>`:''}</div>`;
       }).join('')}
     </div>
@@ -195,7 +209,7 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
     </div>
     ${(()=>{
       const panch=editMode?formazioneU23Panchina:(f?.panchina||[]);
-      const usatiTitolari=Object.values(mapT).filter(Boolean);
+      const usatiTitolari=slots.map(s=>mapT[s.slot]).filter(Boolean);
       const disponibiliPanchina=giocatori.filter(g=>!usatiTitolari.includes(g.id)&&!panch.includes(g.id));
       return `<div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:10px;overflow:hidden;margin-bottom:12px">
         <div style="background:var(--grigio-scuro);padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;border-bottom:1px solid var(--grigio-chiaro);display:flex;justify-content:space-between">
@@ -246,13 +260,21 @@ function rimuoviPanchinaU23(gId){
 }
 function cambiaModuloFormazioneU23(m){
   document.querySelectorAll('[onchange^="assegnaSlotU23"]').forEach(sel=>{const match=sel.getAttribute('onchange').match(/'([^']+)'/);if(match)formazioneU23Slots[match[1]]=parseInt(sel.value)||null;});
-  formazioneU23ModuloCorrente=m;renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo);
+  formazioneU23ModuloCorrente=m;
+  const ok=slotValidiU23(m);Object.keys(formazioneU23Slots).forEach(k=>{if(!ok.has(k)) delete formazioneU23Slots[k];});
+  renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo);
 }
-function assegnaSlotU23(slot,gIdStr){formazioneU23Slots[slot]=parseInt(gIdStr)||null;}
+function assegnaSlotU23(slot,gIdStr){
+  formazioneU23Slots[slot]=parseInt(gIdStr)||null;
+  renderFormazioneU23(formazioneU23SqIdAttiva,true,formazioneU23ContainerAttivo); // ridisegna: il giocatore scelto sparisce dagli altri menu
+}
 
 async function salvaFormazioneU23(sqId){
   document.querySelectorAll('[onchange^="assegnaSlotU23"]').forEach(sel=>{const match=sel.getAttribute('onchange').match(/'([^']+)'/);if(match)formazioneU23Slots[match[1]]=parseInt(sel.value)||null;});
-  const titolari=Object.entries(formazioneU23Slots).filter(([,g])=>g).map(([slot,gid])=>({slot,gid}));
+  const okSlot=slotValidiU23(formazioneU23ModuloCorrente);
+  const titolari=Object.entries(formazioneU23Slots).filter(([s,g])=>g&&okSlot.has(s)).map(([slot,gid])=>({slot,gid}));
+  const tuttiId=[...titolari.map(t=>t.gid),...formazioneU23Panchina];
+  if(new Set(tuttiId).size!==tuttiId.length){showToast('❌ Un giocatore è inserito più di una volta','error');return;}
   // Verifica che tutti i titolari/panchinari assegnati siano ancora eleggibili (età)
   const pool=poolU23(sqId).map(g=>g.id);
   const nonEleggibili=titolari.filter(t=>!pool.includes(t.gid));
