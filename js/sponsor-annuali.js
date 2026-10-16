@@ -7,6 +7,12 @@
 // Pari merito: tutti i pari merito prendono lo STESSO premio e la posizione dopo continua senza buchi
 // (1°, 1°, poi 2°, poi 3°: non esiste un "3°" saltato).
 // Richiede: gestione-sponsor.js (gsAssicuraSquadre, gsConta, GS_PESO, gsPulisciNome), sb, squadreDB.
+//
+// COPPA UNDER 23 (Talent Boy): 3 premi a parte, calcolati dalla tabella talentboy_voti (una riga per ogni
+// giocatore SCHIERATO in una giornata: stagione, giornata, squadra_id, giocatore_id, nome, ruolo,
+// fantavoto (null se senza voto "6*"), gol, assist). La tabella la riempie la lettura voti U23 (pezzo successivo):
+// finché non esiste o è vuota, i 3 premi risultano "Nessuno qualificato" e il resto funziona come prima.
+const SA_MIN_PRESENZE_U23 = 6; // minimo presenze (giornate schierato E con voto) per l'MVP Under 23
 
 const SA_MIN_PRESENZE = 20;
 const SA_GIORNATE_STAGIONE = 38;
@@ -43,6 +49,10 @@ const SA_PREMI = [
   { id: "n7_mv", gruppo: "Maglie", titolo: "Miglior numero 7 per media voto (min. 20 presenze)", ent: "maglia", num: 7, filtro: p => p.presenze >= SA_MIN_PRESENZE, val: p => p.media, ordine: "desc", zero: false, dec: 2, podio: [[7000000, 350], [5000000, 200], [3500000, 80]] },
   { id: "n9_mv", gruppo: "Maglie", titolo: "Miglior numero 9 per media voto (min. 20 presenze)", ent: "maglia", num: 9, filtro: p => p.presenze >= SA_MIN_PRESENZE, val: p => p.media, ordine: "desc", zero: false, dec: 2, podio: [[7000000, 350], [5000000, 200], [3500000, 80]] },
   { id: "n10_mv", gruppo: "Maglie", titolo: "Miglior numero 10 per media voto (min. 20 presenze)", ent: "maglia", num: 10, filtro: p => p.presenze >= SA_MIN_PRESENZE, val: p => p.media, ordine: "desc", zero: false, dec: 2, podio: [[7000000, 350], [5000000, 200], [3500000, 80]] },
+  // ---- Coppa Under 23 (Talent Boy): contano solo i giocatori schierati; pari merito = premio a tutti ----
+  { id: "u23_capocannoniere", gruppo: "Under 23 (Talent Boy)", titolo: "Capocannoniere Under 23", ent: "u23", val: p => p.gol, ordine: "desc", zero: false, podio: [[3000000, 30]] },
+  { id: "u23_assist", gruppo: "Under 23 (Talent Boy)", titolo: "Miglior assist man Under 23", ent: "u23", val: p => p.assist, ordine: "desc", zero: false, podio: [[2000000, 25]] },
+  { id: "u23_mvp", gruppo: "Under 23 (Talent Boy)", titolo: "MVP Under 23 (media fantavoto, min. 6 presenze)", ent: "u23", filtro: p => p.presenze >= SA_MIN_PRESENZE_U23, val: p => p.media, ordine: "desc", zero: false, dec: 2, podio: [[5000000, 60]] },
 ];
 
 function saPulisciNomeVisibile(n) { return String(n || "").replace(/[ⒸⓋ]/g, "").replace(/\s+/g, " ").trim(); }
@@ -102,6 +112,23 @@ function saAggrega(righe, squadre) {
   return { sq: Object.values(sq), gioc: Object.values(gioc), maglia };
 }
 
+// Somma per giocatore le righe della Coppa Under 23 (solo giocatori schierati).
+// Presenza = schierato E con voto (fantavoto numerico): il "6*" (senza voto) non conta.
+function saAggregaU23(righeU23, squadre) {
+  const nomeSq = id => { const s = squadre.find(x => String(x.id) === String(id)); return s ? (s.nome_squadra || s.nome) : String(id); };
+  const gioc = {};
+  for (const r of righeU23 || []) {
+    const key = `${r.squadra_id}|${r.giocatore_id}`;
+    if (!gioc[key]) gioc[key] = { key, nome: saPulisciNomeVisibile(r.nome), squadraId: r.squadra_id, squadra: nomeSq(r.squadra_id), ruolo: String(r.ruolo || "").trim().toUpperCase().charAt(0), gol: 0, assist: 0, presenze: 0, sommaVoti: 0 };
+    const p = gioc[key];
+    p.gol += Number(r.gol) || 0;
+    p.assist += Number(r.assist) || 0;
+    if (typeof r.fantavoto === "number") { p.presenze++; p.sommaVoti += r.fantavoto; }
+  }
+  Object.values(gioc).forEach(p => { p.media = p.presenze ? p.sommaVoti / p.presenze : 0; });
+  return Object.values(gioc);
+}
+
 // Classifica con pari merito alla pari e posizioni senza buchi (1,1,2,3...).
 function saClassifica(entita, premio) {
   const arrot = v => Math.round(v * 1e6) / 1e6;
@@ -117,10 +144,11 @@ function saClassifica(entita, premio) {
 
 function p_nome(premio, v) { return premio.ent === "squadra" ? "" : ` (${v.ent.nome})`; }
 
-function saCalcola(righe, squadre) {
+function saCalcola(righe, squadre, righeU23) {
   const agg = saAggrega(righe, squadre);
+  agg.u23 = saAggregaU23(righeU23, squadre);
   const risultati = SA_PREMI.map(p => {
-    const entita = p.ent === "squadra" ? agg.sq : p.ent === "giocatore" ? agg.gioc : Object.values(agg.maglia[p.num]);
+    const entita = p.ent === "squadra" ? agg.sq : p.ent === "giocatore" ? agg.gioc : p.ent === "u23" ? agg.u23 : Object.values(agg.maglia[p.num]);
     return { premio: p, vincitori: saClassifica(entita, p) };
   });
   const perSquadra = {}, vociSquadra = {};
@@ -195,7 +223,7 @@ async function saCalcolaOra(mantieniEsito) {
     await gsAssicuraSquadre();
     const data = await saCaricaGiornate();
     if (!data.length) { msg("Nessuna giornata importata: non c'è ancora niente da calcolare."); return; }
-    const res = saCalcola(data, squadreDB);
+    const res = saCalcola(data, squadreDB, await saCaricaU23());
     res.gia = await saLeggiAccrediti();
     if (esito && !mantieniEsito) esito.innerHTML = "";
     if (pan) pan.innerHTML = saHtml(res);
@@ -219,6 +247,15 @@ async function saCaricaGiornate() {
   return data || [];
 }
 
+// Dati Coppa Under 23: se la tabella non esiste o è vuota NON deve rompere i premi normali
+async function saCaricaU23() {
+  try {
+    const { data, error } = await sb.from("talentboy_voti").select("squadra_id,giocatore_id,nome,ruolo,fantavoto,gol,assist").eq("stagione", saStagione());
+    if (error) return [];
+    return data || [];
+  } catch (_) { return []; }
+}
+
 // Movimenti "Sponsor annuali" già presenti in bilancio_pending per la stagione corrente
 async function saLeggiAccrediti() {
   const { data, error } = await sb.from("bilancio_pending").select("id,squadra_id,importo,erogato")
@@ -232,7 +269,7 @@ async function saAccredita() {
   saInCorso = true;
   try {
     await gsAssicuraSquadre();
-    const res = saCalcola(await saCaricaGiornate(), squadreDB); // ricalcolo al momento, non mi fido della schermata
+    const res = saCalcola(await saCaricaGiornate(), squadreDB, await saCaricaU23()); // ricalcolo al momento, non mi fido della schermata
     const st = saStagione();
     if (res.giornate < SA_GIORNATE_STAGIONE) { saMsg(`❌ L'accredito si sblocca dopo la giornata ${SA_GIORNATE_STAGIONE} (ora ${res.giornate} importate)`, true); return; }
     const fatte = new Set((await saLeggiAccrediti()).map(p => String(p.squadra_id)));

@@ -90,12 +90,51 @@ async function salvaFormazione(sqId){
 // Stessa meccanica della formazione principale, ma il pool giocatori include
 // Principale + Marginale + Primavera, filtrato per età massima 23 anni
 // (calcolata al 1° settembre della stagione corrente, vedi eleggibileU23 in utils.js).
-let formazioniU23DB={},formazioneU23SqIdAttiva=null,formazioneU23Slots={},formazioneU23ModuloCorrente='4-3-3',formazioneU23ContainerAttivo='formazione-u23-content',formazioneU23Panchina=[];
+let formazioniU23DB={},formazioneU23SqIdAttiva=null,formazioneU23Slots={},formazioneU23ModuloCorrente='4-3-3',formazioneU23ContainerAttivo='formazione-u23-content',formazioneU23Panchina=[],formazioneU23Giornata=null;
+const GIORNATA_INIZIO_U23=7; // la Coppa Under 23 parte dalla 7ª giornata
 
-async function caricaFormazioneU23(sqId){
-  if(formazioniU23DB[sqId]!==undefined) return formazioniU23DB[sqId];
-  try{const{data}=await sb.from('formazioni_u23').select('*').eq('squadra_id',sqId).single();formazioniU23DB[sqId]=data||null;}catch(e){formazioniU23DB[sqId]=null;}
-  return formazioniU23DB[sqId];
+// Giornata selezionata: di default la prima non ancora giocata (dalla 7ª in poi)
+function formazioneU23GiornataCorrente(){
+  if(formazioneU23Giornata) return formazioneU23Giornata;
+  let g=GIORNATA_INIZIO_U23;
+  try{
+    if(typeof talentboyCalendario!=='undefined'&&talentboyCalendario.length){
+      const prossime=talentboyCalendario.filter(m=>!m.giocata&&m.giornata>=GIORNATA_INIZIO_U23).map(m=>m.giornata);
+      if(prossime.length) g=Math.min(...prossime);
+    }
+  }catch(e){}
+  formazioneU23Giornata=g;
+  return g;
+}
+
+// Formazione di UNA squadra per UNA giornata (tabella formazioni_u23_giornata)
+async function caricaFormazioneU23(sqId,giornata){
+  const g=giornata||formazioneU23GiornataCorrente();
+  const key=sqId+'_'+g;
+  if(formazioniU23DB[key]!==undefined) return formazioniU23DB[key];
+  try{
+    const{data}=await sb.from('formazioni_u23_giornata').select('*').eq('squadra_id',sqId).eq('giornata',g).limit(1);
+    formazioniU23DB[key]=(data&&data[0])||null;
+  }catch(e){formazioniU23DB[key]=null;}
+  return formazioniU23DB[key];
+}
+
+// Punto di partenza per una giornata ancora vuota: ultima formazione salvata
+// prima di quella giornata, altrimenti la vecchia formazione unica (formazioni_u23)
+async function formazionePrecedenteU23(sqId,g){
+  try{
+    const{data}=await sb.from('formazioni_u23_giornata').select('*').eq('squadra_id',sqId).lt('giornata',g).order('giornata',{ascending:false}).limit(1);
+    if(data&&data[0]) return data[0];
+  }catch(e){}
+  try{
+    const{data}=await sb.from('formazioni_u23').select('*').eq('squadra_id',sqId).limit(1);
+    return (data&&data[0])||null;
+  }catch(e){return null;}
+}
+
+function cambiaGiornataFormazioneU23(g){
+  formazioneU23Giornata=parseInt(g)||GIORNATA_INIZIO_U23;
+  renderFormazioneU23(formazioneU23SqIdAttiva,false,formazioneU23ContainerAttivo);
 }
 
 function poolU23(sqId){
@@ -108,7 +147,8 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
   const c=document.getElementById(containerId);
   if(!c) return;
   c.innerHTML='<div class="loading"><div class="loading-spinner"></div></div>';
-  const f=await caricaFormazioneU23(sqId);
+  const giornataU23=formazioneU23GiornataCorrente();
+  const f=await caricaFormazioneU23(sqId,giornataU23);
   const giocatori=poolU23(sqId);
   const modulo=editMode?formazioneU23ModuloCorrente:(f?.modulo||'4-3-3');
   formazioneU23ModuloCorrente=modulo;
@@ -122,6 +162,13 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
   const rc={'P':'#FFD700','D':'#4d9fff','C':'#00e68a','A':'#ff5c5c'};
   const rcCss={'P':'var(--oro)','D':'var(--blu)','C':'var(--verde)','A':'var(--rosso)'};
   c.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--testo-dim)">Giornata:</span>
+      <select onchange="cambiaGiornataFormazioneU23(this.value)" ${editMode?'disabled':''} style="background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);border-radius:6px;padding:6px 10px;font-size:12px">
+        ${Array.from({length:38-GIORNATA_INIZIO_U23+1},(_,i)=>GIORNATA_INIZIO_U23+i).map(n=>`<option value="${n}" ${n===giornataU23?'selected':''}>${n}ª giornata</option>`).join('')}
+      </select>
+      ${!f&&!editMode?`<span style="font-size:11px;color:var(--testo-dim);font-style:italic">Formazione non ancora inserita per la ${giornataU23}ª giornata</span>`:''}
+    </div>
     <div style="font-size:11px;color:var(--testo-dim);margin-bottom:10px">
       🌱 Solo giocatori Principale/Marginale/Primavera con massimo 23 anni al 1° settembre ${STAGIONE_CORRENTE?.split('/')[0]||''} (${giocatori.length} eleggibili).
     </div>
@@ -143,7 +190,7 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
     </div>
     <div style="text-align:center;font-family:'Bebas Neue',sans-serif;font-size:16px;color:var(--verde);letter-spacing:3px;margin-bottom:12px">${modulo}</div>
     <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:10px;overflow:hidden;margin-bottom:12px">
-      <div style="background:var(--grigio-scuro);padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;border-bottom:1px solid var(--grigio-chiaro)">📋 11 TITOLARI U23</div>
+      <div style="background:var(--grigio-scuro);padding:8px 14px;font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;border-bottom:1px solid var(--grigio-chiaro)">📋 TITOLARI U23 (${slots.filter(s=>mapT[s.slot]).length}/11)</div>
       ${slots.map((s,i)=>{const g=mapT[s.slot]?giocatoriDB.find(x=>x.id===mapT[s.slot]):null;return `<div style="display:flex;align-items:center;gap:8px;padding:5px 14px;border-bottom:1px solid var(--grigio-chiaro);font-size:12px"><span style="font-size:9px;color:var(--testo-dim);width:14px">${i+1}</span><span style="font-size:9px;color:${rcCss[s.ruolo]};background:${rcCss[s.ruolo]}22;padding:2px 5px;border-radius:3px;flex-shrink:0;font-weight:700">${s.ruolo}</span>${g?`<div style="width:20px;height:20px;border-radius:50%;overflow:hidden;background:var(--grigio-chiaro);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700">${g.foto_url?`<img src="${g.foto_url}" style="width:100%;height:100%;object-fit:cover">`:iniziali(g.nome)}</div><span style="font-weight:600;flex:1">${g.nome}</span>${g.eta?`<span style="font-size:10px;color:var(--testo-dim)">${g.eta}a</span>`:''}`:`<span style="color:var(--testo-dim);font-style:italic;font-size:11px">— non assegnato —</span>`}</div>`;}).join('')}
     </div>
     ${(()=>{
@@ -177,8 +224,10 @@ async function renderFormazioneU23(sqId,editMode=false,containerId='formazione-u
   `;
 }
 
-function attivaEditFormazioneU23(){
-  const f=formazioniU23DB[formazioneU23SqIdAttiva];
+async function attivaEditFormazioneU23(){
+  const g=formazioneU23GiornataCorrente();
+  let f=await caricaFormazioneU23(formazioneU23SqIdAttiva,g);
+  if(!f) f=await formazionePrecedenteU23(formazioneU23SqIdAttiva,g); // parte dall'ultima formazione, poi la modifichi
   formazioneU23ModuloCorrente=f?.modulo||'4-3-3';
   formazioneU23Slots={};
   formazioneU23Panchina=[...(f?.panchina||[])];
@@ -210,12 +259,13 @@ async function salvaFormazioneU23(sqId){
   if(nonEleggibili.length){showToast('❌ Uno o più giocatori schierati non sono più eleggibili U23','error');return;}
   const panchinaNonEleggibile=formazioneU23Panchina.filter(gid=>!pool.includes(gid));
   if(panchinaNonEleggibile.length){showToast('❌ Uno o più giocatori in panchina non sono più eleggibili U23','error');return;}
-  const payload={squadra_id:sqId,modulo:formazioneU23ModuloCorrente,titolari,panchina:formazioneU23Panchina};
+  const giornataU23=formazioneU23GiornataCorrente();
+  const payload={squadra_id:sqId,giornata:giornataU23,modulo:formazioneU23ModuloCorrente,titolari,panchina:formazioneU23Panchina};
   try{
-    const{error}=await sb.from('formazioni_u23').upsert(payload,{onConflict:'squadra_id'});
+    const{error}=await sb.from('formazioni_u23_giornata').upsert(payload,{onConflict:'squadra_id,giornata'});
     if(error) throw error;
-    formazioniU23DB[sqId]=payload;
-    showToast('✅ Formazione Under 23 salvata!');
+    formazioniU23DB[sqId+'_'+giornataU23]=payload;
+    showToast(`✅ Formazione Under 23 salvata per la ${giornataU23}ª giornata!`);
     renderFormazioneU23(sqId,false,formazioneU23ContainerAttivo);
   }catch(e){showToast('❌ '+e.message,'error');}
 }
