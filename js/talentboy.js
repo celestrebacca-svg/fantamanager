@@ -58,6 +58,9 @@ async function renderTalentBoy(){
       </div>
       <div id="talentboy-calendario"></div>
     </div>
+
+    <!-- LETTORE VOTI (solo admin) -->
+    ${adminLoggato?'<div id="talentboy-voti-wrap" style="margin-top:24px"></div>':''}
   `;
 
   renderFormazioneU23(talentboySquadraVista,false,'talentboy-formazione-content');
@@ -66,6 +69,7 @@ async function renderTalentBoy(){
 
   renderClassificaTalentboy();
   renderCalendarioTalentboy();
+  if(adminLoggato&&typeof renderImportVotiTalentboy==='function') renderImportVotiTalentboy('talentboy-voti-wrap');
 }
 
 function cambiaSquadraVistaTalentboy(sqId){
@@ -126,7 +130,8 @@ function renderCalendarioTalentboy(){
     cont.innerHTML='<div style="text-align:center;padding:24px;color:var(--testo-dim);font-size:12px">Nessun calendario ancora sorteggiato'+(adminLoggato?' — usa il bottone qui sopra':'')+'</div>';
     return;
   }
-  const giornate=[...new Set(talentboyCalendario.map(m=>m.giornata))].sort((a,b)=>a-b);
+  const inizioU23=(typeof GIORNATA_INIZIO_U23!=='undefined')?GIORNATA_INIZIO_U23:7; // le prime 6 giornate non si giocano
+  const giornate=[...new Set(talentboyCalendario.map(m=>m.giornata))].filter(g=>g>=inizioU23).sort((a,b)=>a-b);
   cont.innerHTML=giornate.map(g=>{
     const partite=talentboyCalendario.filter(m=>m.giornata===g);
     return `<div style="margin-bottom:12px">
