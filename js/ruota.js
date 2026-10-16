@@ -91,6 +91,7 @@ async function apriRuota() {
     m = document.createElement("div");
     m.id = "modal-ruota";
     m.className = "modal-overlay";
+    m.style.zIndex = "700"; // sopra la home (z-index 500), altrimenti si apre dietro
     m.innerHTML = `<div class="modal-content" style="max-width:380px">
       <div class="modal-header"><h2 class="modal-title">🎡 RUOTA DELLA FORTUNA</h2><button class="modal-close" onclick="chiudiRuota()">✕</button></div>
       <div class="modal-body" style="text-align:center">

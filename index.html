@@ -393,6 +393,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
             <div class="home-card home-card-special" onclick="apriTabelle()"><div class="home-card-badge-new">NEW</div><div class="home-card-icon">📜</div><div class="home-card-title">Tabelle</div><div class="home-card-sub">Sponsor e classifiche</div></div>
       <div class="home-card home-card-special" onclick="entraApp('talentboy')"><div class="home-card-badge-new">NEW</div><div class="home-card-icon" id="home-icon-talentboy">🌱</div><div class="home-card-title">Talent Boy</div><div class="home-card-sub">Torneo Under 23</div></div>
       <div class="home-card home-card-special" onclick="entraApp('listamercato');caricaListaMercato()"><div class="home-card-badge-new">NEW</div><div class="home-card-icon" id="home-icon-listamercato">✉️</div><div class="home-card-title">Lista Mercato</div><div class="home-card-sub">Buste segrete obiettivi</div></div>
+      <div class="home-card home-card-special" onclick="apriRuota()"><div class="home-card-badge-new">NEW</div><div class="home-card-icon">🎡</div><div class="home-card-title">Ruota</div><div class="home-card-sub">Un giro a settimana</div></div>
     </div>
     <button class="home-enter" onclick="entraApp('rose')">ENTRA NELLA LEGA →</button>
     <div class="home-stats">
@@ -480,6 +481,7 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
     <button onclick="chiudiMenuRapido();showSection('bilancio',document.querySelector('.nav-btn[onclick*=\'bilancio\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">💰 Bilancio</button>
     <button onclick="chiudiMenuRapido();showSection('talentboy',document.querySelector('.nav-btn[onclick*=\'talentboy\']'))" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🌱 Talent Boy U23</button>
     <button onclick="chiudiMenuRapido();showSection('listamercato',document.querySelector('.nav-btn[onclick*=\'listamercato\']'));caricaListaMercato()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">✉️ Lista Mercato</button>
+    <button onclick="chiudiMenuRapido();apriRuota()" style="display:flex;align-items:center;gap:10px;width:100%;padding:10px 14px;background:none;border:none;color:var(--testo);font-size:14px;cursor:pointer;border-radius:8px">🎡 Ruota</button>
   </div>
   <button onclick="toggleMenuRapido()" style="display:none;position:fixed;bottom:16px;left:16px;width:52px;height:52px;border-radius:50%;background:var(--verde);color:var(--nero);font-size:22px;border:none;cursor:pointer;z-index:202;box-shadow:0 4px 16px rgba(0,255,135,0.4)" id="quick-menu-btn">☰</button>
   <div class="main">
@@ -1465,6 +1467,9 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/gestione-rosa.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/gestione-sponsor.js"></script>
+<script src="js/entrate-giornata.js"></script>
+<script src="js/entrate-stadio.js"></script>
+<script src="js/sponsor-annuali.js"></script>
 <script src="js/svincolati.js"></script>
 <script src="js/formazione.js"></script>
 <script src="js/talentboy.js"></script>
@@ -1481,5 +1486,6 @@ body{background:var(--nero);color:var(--testo);font-family:'DM Sans',sans-serif;
 <script src="js/bilancio.js"></script>
 <script src="js/admin-trattativa.js"></script>
 <script src="js/lista-mercato.js"></script>
+<script src="js/ruota.js"></script>
 </body>
 </html>
