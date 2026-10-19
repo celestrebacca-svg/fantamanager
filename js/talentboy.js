@@ -32,6 +32,9 @@ async function renderTalentBoy(){
       <div style="font-size:11px;color:var(--testo-dim);margin-top:8px">Stagione ${STAGIONE_CORRENTE}</div>
     </div>
 
+    <!-- LETTORE VOTI (solo admin) -->
+    ${adminLoggato?'<div id="talentboy-voti-wrap" style="margin-bottom:20px"></div>':''}
+
     <!-- FORMAZIONE -->
     <div style="margin-bottom:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -54,13 +57,12 @@ async function renderTalentBoy(){
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--blu);letter-spacing:1px">📅 CALENDARIO</div>
-        ${adminLoggato?`<button onclick="sorteggiaCalendarioTalentboy()" style="background:rgba(77,159,255,0.12);border:1px solid rgba(77,159,255,0.4);color:var(--blu);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:8px;cursor:pointer">🎲 ${talentboyCalendario.length?'RI-SORTEGGIA':'SORTEGGIA CALENDARIO'}</button>`:''}
       </div>
       <div id="talentboy-calendario"></div>
     </div>
 
-    <!-- LETTORE VOTI (solo admin) -->
-    ${adminLoggato?'<div id="talentboy-voti-wrap" style="margin-top:24px"></div>':''}
+    <!-- STRUMENTI ADMIN -->
+    ${adminLoggato?`<div style="margin-top:28px;padding-top:14px;border-top:1px solid var(--grigio-chiaro);text-align:center"><div style="font-size:10px;color:var(--testo-dim);margin-bottom:8px">⚙️ Strumenti admin</div><button onclick="sorteggiaCalendarioTalentboy()" style="background:rgba(77,159,255,0.12);border:1px solid rgba(77,159,255,0.4);color:var(--blu);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:7px 14px;border-radius:8px;cursor:pointer">🎲 ${talentboyCalendario.length?'RI-SORTEGGIA':'SORTEGGIA CALENDARIO'}</button></div>`:''}
   `;
 
   renderFormazioneU23(talentboySquadraVista,false,'talentboy-formazione-content');
@@ -69,7 +71,10 @@ async function renderTalentBoy(){
 
   renderClassificaTalentboy();
   renderCalendarioTalentboy();
-  if(adminLoggato&&typeof renderImportVotiTalentboy==='function') renderImportVotiTalentboy('talentboy-voti-wrap');
+  if(adminLoggato){
+    if(typeof renderImportVotiTalentboy==='function') renderImportVotiTalentboy('talentboy-voti-wrap');
+    else{const w=document.getElementById('talentboy-voti-wrap');if(w) w.innerHTML='<div style="background:rgba(255,92,92,0.12);border:1px solid var(--rosso);border-radius:10px;padding:12px;font-size:12px">⚠️ Lettore voti non caricato: manca <b>talentboy-voti.js</b> in index.html (da aggiungere dopo talentboy.js)</div>';}
+  }
 }
 
 function cambiaSquadraVistaTalentboy(sqId){
@@ -127,7 +132,7 @@ function renderCalendarioTalentboy(){
   const cont=document.getElementById('talentboy-calendario');
   if(!cont) return;
   if(!talentboyCalendario.length){
-    cont.innerHTML='<div style="text-align:center;padding:24px;color:var(--testo-dim);font-size:12px">Nessun calendario ancora sorteggiato'+(adminLoggato?' — usa il bottone qui sopra':'')+'</div>';
+    cont.innerHTML='<div style="text-align:center;padding:24px;color:var(--testo-dim);font-size:12px">Nessun calendario ancora sorteggiato'+(adminLoggato?' — usa il bottone in fondo alla pagina':'')+'</div>';
     return;
   }
   const inizioU23=(typeof GIORNATA_INIZIO_U23!=='undefined')?GIORNATA_INIZIO_U23:7; // le prime 6 giornate non si giocano
