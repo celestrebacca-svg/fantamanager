@@ -2,7 +2,7 @@
 // Dipende da: sb, squadreDB, utenteLoggato, adminLoggato, showToast (già nell'app)
 // Soldi in FM "interi" (come budget e costi: 1M = 1000000). Nessun accredito al budget in questo pezzo.
 
-const SP_DIM = ['visibilita','crescita','vittorie','solidita','commerciale','vivaio'];
+const SP_DIM = ['visibilita','crescita','vittorie','solidita','commerciale','vivaio','collaborazione','costi'];
 
 const SP_SLOT = {
   principale: {label:'Principale',     emoji:'🏆', mediana:30e6, sigma:0.7, n:[90,120], boost:{}},
@@ -35,12 +35,18 @@ const SP_NOMI = {
 };
 
 // ---------- utilità ----------
-const spRnd = (a,b) => a + Math.random()*(b-a);
+let SP_R = Math.random; // durante la generazione del pool diventa un generatore con seme (pool uguale a ogni apertura, senza salvarlo)
+function spHash(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+function spMulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const spRnd = (a,b) => a + SP_R()*(b-a);
 const spInt = (a,b) => Math.floor(spRnd(a,b+1));
-const spPick = arr => arr[Math.floor(Math.random()*arr.length)];
+const spPick = arr => arr[Math.floor(SP_R()*arr.length)];
 const spClamp = (x,a=0,b=1) => Math.max(a,Math.min(b,x));
-function spRandn(){ let u=0,v=0; while(!u) u=Math.random(); while(!v) v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+const spEsc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function spRandn(){ let u=0,v=0; while(!u) u=SP_R(); while(!v) v=SP_R(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 const spFmt = n => (n/1e6).toLocaleString('it-IT',{maximumFractionDigits:2})+'M';
+// clima del mercato sponsor: cambia ogni stagione, uguale per tutte le squadre (±12% sui budget)
+function spClima(stagione){ return 0.88 + 0.24*spMulberry(spHash('clima|'+stagione))(); }
 function spStagione(){ return (typeof STAGIONE_CORRENTE!=='undefined' && STAGIONE_CORRENTE) ? STAGIONE_CORRENTE : '2026/27'; }
 
 // ---------- 1) valutazione del progetto ----------
@@ -79,7 +85,8 @@ function spValutaObiettivo(o, base, d){
     const perAnno = o.target/d;
     realismo = spClamp(1-(perAnno-0.4)/0.6); ambizione = spClamp(perAnno/0.8);
   } else if(o.tipo==='budget_min'){
-    realismo = o.target<=base.budget ? 1 : spClamp(1-(o.target-base.budget)/Math.max(base.budget,1e6));
+    const tgt = o.target*1e6; // il budget minimo è espresso in milioni
+    realismo = tgt<=base.budget ? 1 : spClamp(1-(tgt-base.budget)/Math.max(base.budget,1e6));
     ambizione = 0.3;
   }
   return {realismo, ambizione};
@@ -100,13 +107,19 @@ function spValutaProgetto(p, sq){
     vittorie:   spClamp(di(['trofei']).length ? 0.5+0.5*media(di(['trofei'])) : 0),
     solidita:   spClamp(cred*0.7 + (di(['budget_min']).length?0.3:0)),
     commerciale:spClamp((di(['fastfood']).length?0.5:0)+(di(['stadio']).length?0.3:0)+(canali.includes('maglia')?0.2:0)),
-    vivaio:     spClamp((p.strategia==='futuro'?0.7:p.strategia==='equilibrata'?0.35:0)+(canali.includes('under23')?0.3:0))
+    vivaio:     spClamp((p.strategia==='futuro'?0.7:p.strategia==='equilibrata'?0.35:0)+(canali.includes('under23')?0.3:0)),
+    collaborazione: 0.4,  // il modulo non può misurarlo: solo la presentazione scritta
+    costi: 0.4
   };
   return {v, cred, dettaglio:val};
 }
 
 // ---------- 2) generazione pool ----------
-function spGeneraPool(sq, slot, progettoVal, stagione){
+function spGeneraPool(sq, slot, progettoVal, stagione, seedStr){
+  SP_R = spMulberry(spHash(String(seedStr||Math.random())+'|'+slot));
+  try { return spGeneraPoolInterno(sq, slot, progettoVal, stagione); } finally { SP_R = Math.random; }
+}
+function spGeneraPoolInterno(sq, slot, progettoVal, stagione){
   const S = SP_SLOT[slot];
   const n = spInt(S.n[0], S.n[1]);
   const nomiUsati = new Set();
@@ -117,11 +130,12 @@ function spGeneraPool(sq, slot, progettoVal, stagione){
     nomiUsati.add(nome);
     const carattere = spPick(Object.keys(SP_CARATTERI));
     const C = SP_CARATTERI[carattere];
-    const budget_totale = Math.round(S.mediana*Math.exp(S.sigma*spRandn()));
+    const budget_totale = Math.round(S.mediana*Math.exp(S.sigma*spRandn())*spClima(stagione));
     let pesi = {}, tot=0;
-    SP_DIM.forEach(d => { pesi[d] = (Math.random()**2+0.05)*(S.boost[d]||1); tot+=pesi[d]; });
+    SP_DIM.forEach(d => { pesi[d] = (SP_R()**2+0.05)*(S.boost[d]||1); tot+=pesi[d]; });
     SP_DIM.forEach(d => pesi[d] = +(pesi[d]/tot).toFixed(4));
-    righe.push({squadra_id:sq.id, stagione, slot, nome, carattere, budget_totale, pesi, rumore:spRnd(-0.06,0.06),
+    const sens = {tono:SP_R(), orig:SP_R(), ego:SP_R()}; // quanto badano a stile, originalità, egocentrismo
+    righe.push({id:slot+'-'+i, squadra_id:sq.id, stagione, slot, nome, carattere, budget_totale, pesi, sens, rumore:spRnd(-0.06,0.06),
                 pazienza: spInt(C.paz[0],C.paz[1])});
   }
   // tier = posizione del budget nel pool (0 = povero, 1 = ricchissimo)
@@ -129,8 +143,10 @@ function spGeneraPool(sq, slot, progettoVal, stagione){
   ordinati.forEach((r,i)=>{ r.tier = i/Math.max(ordinati.length-1,1); });
   righe.forEach(r => {
     r.soglia = +(0.12 + 0.85*Math.pow(r.tier,1.1) + r.rumore).toFixed(4);
-    const mix = SP_DIM.reduce((s,d)=>s+r.pesi[d]*progettoVal.v[d],0);
-    r.score = +(mix*(0.25+0.75*Math.pow(progettoVal.cred,1.5))).toFixed(4);
+    const mix = SP_DIM.reduce((s,d)=>s+r.pesi[d]*(progettoVal.v[d]||0),0);
+    const tr = progettoVal.tratti || {tono:0.5, altruismo:0.5, orig:0.5};
+    const stile = 0.25*(r.sens.tono*(tr.tono-0.5) + r.sens.orig*(tr.orig-0.5) + r.sens.ego*(tr.altruismo-0.5));
+    r.score = +Math.max(0, mix*(0.25+0.75*Math.pow(progettoVal.cred,1.5)) + stile).toFixed(4);
   });
   // almeno 1 sponsor per slot si fa sempre avanti: il più "facile"
   const facile = righe.reduce((m,r)=> (r.soglia-r.score < m.soglia-m.score)? r : m, righe[0]);
@@ -257,20 +273,36 @@ function spControllaContratto(sq, c){
 }
 
 // ---------- 5) schermata di prova ----------
-const SP = {sqId:null, tab:'principale', sponsorId:null, sponsors:[], progetto:null, contratti:[], log:{}};
+const SP = {modo:'testo', sqId:null, tab:'principale', sponsorId:null, sponsors:[], progetto:null, contratti:[], log:{}};
 
 function spSq(){ return squadreDB.find(s=>s.id===SP.sqId); }
 
 async function spCarica(){
-  const st = spStagione();
+  const st = spStagione(), sq = spSq();
   const [a,b,c] = await Promise.all([
     sb.from('sp_progetti').select('*').eq('squadra_id',SP.sqId).eq('stagione',st).maybeSingle(),
-    sb.from('sp_sponsor').select('*').eq('squadra_id',SP.sqId).eq('stagione',st),
+    sb.from('sp_trattative').select('*').eq('squadra_id',SP.sqId).eq('stagione',st),
     sb.from('sp_contratti').select('*').eq('squadra_id',SP.sqId).order('created_at',{ascending:false})
   ]);
   SP.progetto = a.data || null;
-  SP.sponsors = b.data || [];
   SP.contratti = c.data || [];
+  SP.sponsors = [];
+  if(SP.progetto){
+    // il pool NON è salvato: si rigenera identico dal seme e dai valori congelati alla presentazione
+    const pr = SP.progetto.progetto, val = pr.val;
+    Object.keys(SP_SLOT).forEach(slot => {
+      SP.sponsors = SP.sponsors.concat(spGeneraPool(sq, slot, {v:val.v, cred:val.cred, tratti:val.tratti, durata:pr.durata}, st, pr.seed));
+    });
+    (b.data||[]).forEach(o => {
+      const s = SP.sponsors.find(x=>x.id===o.key);
+      if(s) Object.assign(s, {stato:o.stato, offerta_annua:o.offerta_annua, pazienza:o.pazienza, round:o.round});
+    });
+  }
+}
+async function spSalvaTrattativa(sp){
+  const r = await sb.from('sp_trattative').upsert({squadra_id:SP.sqId, stagione:spStagione(), key:sp.id,
+    stato:sp.stato, offerta_annua:sp.offerta_annua, pazienza:sp.pazienza, round:sp.round||0});
+  if(r.error) showToast('❌ Errore: '+r.error.message,'error');
 }
 
 function spModal(){
@@ -278,10 +310,11 @@ function spModal(){
   if(!m){
     m = document.createElement('div');
     m.id = 'modal-sp'; m.className = 'modal-overlay';
-    m.innerHTML = `<div class="modal-content" style="max-width:560px">
+    m.onclick = e => { if(e.target===m) m.classList.remove('open'); };
+    m.innerHTML = `<div class="modal" style="max-width:520px">
       <div class="modal-header"><h2 class="modal-title">🤝 SPONSOR PRINCIPALI</h2>
       <button class="modal-close" onclick="document.getElementById('modal-sp').classList.remove('open')">✕</button></div>
-      <div class="modal-body" id="sp-body"></div></div>`;
+      <div id="sp-body" style="padding:14px 16px 20px"></div></div>`;
     document.body.appendChild(m);
   }
   m.classList.add('open');
@@ -289,6 +322,7 @@ function spModal(){
 
 async function apriSponsorPrincipali(){
   spModal();
+  document.getElementById('sp-body').innerHTML = '<div style="padding:30px;text-align:center;color:var(--testo-dim)">Caricamento…</div>';
   if(adminLoggato){
     if(!SP.sqId) SP.sqId = squadreDB[0].id;
   } else {
@@ -314,6 +348,71 @@ function spRender(){
 }
 
 function spHtmlForm(sq){
+  if(SP.modo==='modulo') return spHtmlModulo(sq);
+  const b = spBase(sq);
+  return `<div style="font-size:13px;margin-bottom:8px">Presentati agli sponsor <b>con parole tue</b>, come in un vero incontro. Hai <b>una sola occasione per stagione</b>.</div>
+    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">Racconta: dove vuole arrivare il club e quanto può restare competitivo negli anni, <b>obiettivi con numeri e tempi</b> nei vari settori, cosa offri in visibilità e cosa hai in più degli altri, <b>quanto costa</b> realizzare le idee e quanto ci metti tu, quanto sei disposto ad ascoltare lo sponsor, dove investi sul mercato (nomi sicuri, giovani o entrambi) con un bilancio sano. Frasi vuote e promesse irrealistiche ti fanno perdere credibilità.</div>
+    <div style="font-size:11px;color:var(--testo-dim);margin-bottom:6px">Dati reali del club: ${b.tifosi.toLocaleString('it-IT')} tifosi · ${b.followers.toLocaleString('it-IT')} follower · fast food liv. ${b.fastfood} · stadio ${b.capienza.toLocaleString('it-IT')} posti · ${b.trofei} trofei · budget ${spFmt(b.budget)}</div>
+    <textarea id="sp-testo" class="form-input" rows="10" maxlength="3000" style="width:100%;resize:vertical" placeholder="Buongiorno, siamo un club..." oninput="document.getElementById('sp-cont').textContent=this.value.length+' / 3000 (minimo 150)'"></textarea>
+    <div id="sp-cont" style="font-size:11px;color:var(--testo-dim);text-align:right">0 / 3000 (minimo 150)</div>
+    <button class="btn-primary" id="sp-btn-pres" style="width:100%;margin-top:10px" onclick="spPresentaAI()">📣 PRESENTA IL PROGETTO</button>
+    <button onclick="SP.modo='modulo';spRender()" style="margin-top:10px;font-size:11px;cursor:pointer">Preferisco il modulo guidato</button>`;
+}
+
+async function spPresentaAI(){
+  const sq = spSq();
+  const testo = document.getElementById('sp-testo').value.trim();
+  if(testo.length < 150){ showToast('❌ Scrivi di più: minimo 150 caratteri','error'); return; }
+  if(!confirm('Confermi di presentare il progetto agli sponsor? Si fa una sola volta per stagione e non si può modificare.')) return;
+  const btn = document.getElementById('sp-btn-pres');
+  btn.disabled = true; btn.textContent = '⏳ Gli sponsor stanno leggendo…';
+  const b = spBase(sq);
+  let ai;
+  try{
+    const r = await fetch('/api/sponsor-ai', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({testo, dati:{tifosi:b.tifosi, followers:b.followers, fastfood:b.fastfood, capienza:b.capienza, trofei:b.trofei, budget:b.budget}})});
+    const j = await r.json();
+    if(!j.ok) throw new Error(j.error||'errore');
+    ai = j.valutazione;
+  }catch(e){
+    showToast('❌ '+e.message+'. Puoi usare il modulo guidato.','error');
+    btn.disabled = false; btn.textContent = '📣 PRESENTA IL PROGETTO'; return;
+  }
+  if(!ai.obiettivi.length){
+    showToast('❌ Nel testo non ci sono obiettivi con numeri (es. "50.000 follower in 3 anni"). Aggiungili e riprova: non hai ancora usato la tua occasione.','error');
+    btn.disabled = false; btn.textContent = '📣 PRESENTA IL PROGETTO'; return;
+  }
+  // l'AI non decide da sola: il codice controlla realismo e coerenza con i numeri dichiarati
+  const d = ai.durata;
+  const vals = ai.obiettivi.map(o => spValutaObiettivo(o, b, d));
+  const realismoCodice = vals.reduce((s,x)=>s+x.realismo,0)/vals.length;
+  // conta soprattutto come è scritto il testo (70% giudizio AI); i numeri veri pesano il 30%, ma promesse assurde (realismo<0.2) hanno un tetto
+  let cred = (0.7*ai.credibilita + 0.3*realismoCodice) * (0.6 + 0.4*ai.specificita);
+  if(realismoCodice < 0.2) cred = Math.min(cred, 0.35);
+  // fattori nascosti (lato codice): ripetizioni, prolissità, stile generale, reputazione storica
+  const parole = (testo.toLowerCase().match(/\p{L}+/gu) || []);
+  if(parole.length > 60 && new Set(parole).size/parole.length < 0.40) cred *= 0.8;      // testo ripetitivo/gonfiato
+  if(testo.length > 2200 && ai.specificita < 0.6) cred *= 0.9;                         // tanto testo, poca sostanza
+  const t = ai.tratti;
+  cred *= 0.92 + 0.16*((t.tono + t.chiarezza + t.apertura)/3);                          // cura generale della scrittura
+  const chiusi = SP.contratti.filter(c=>c.stato==='concluso').length, falliti = SP.contratti.filter(c=>c.stato==='decaduto').length;
+  cred += Math.min(0.10, chiusi*0.04) - Math.min(0.15, falliti*0.06);                   // reputazione con gli sponsor passati
+  cred = spClamp(cred);
+  const ha = tipi => ai.obiettivi.some(o=>tipi.includes(o.tipo));
+  const v = Object.assign({}, ai.dimensioni);
+  if(!ha(['tifosi_pct','follower','stadio'])) v.crescita = Math.min(v.crescita, 0.4);
+  if(!ha(['trofei'])) v.vittorie = Math.min(v.vittorie, 0.4);
+  if(!ha(['fastfood','stadio']) && !ai.canali.includes('maglia')) v.commerciale = Math.min(v.commerciale, 0.4);
+  if(!ha(['budget_min'])) v.solidita = Math.min(v.solidita, 0.7);
+  const progetto = {strategia:ai.strategia, durata:d, obiettivi:ai.obiettivi, canali:ai.canali, testo,
+    feedback:{forti:ai.punti_forti, deboli:ai.punti_deboli}, seed:Math.floor(Math.random()*1e9),
+    val:{v, cred:+cred.toFixed(3), tratti:{tono:t.tono, altruismo:1-t.egocentrismo, orig:t.originalita}}};
+  const r1 = await sb.from('sp_progetti').upsert({squadra_id:sq.id, stagione:spStagione(), progetto, credibilita:progetto.val.cred});
+  if(r1.error){ showToast('❌ Errore: '+r1.error.message,'error'); btn.disabled=false; btn.textContent='📣 PRESENTA IL PROGETTO'; return; }
+  await spCarica(); spRender();
+}
+
+function spHtmlModulo(sq){
   const b = spBase(sq);
   const righe = Object.entries(SP_TIPI).map(([k,t])=>{
     const attuale = {tifosi_pct:`ora ${b.tifosi.toLocaleString('it-IT')} tifosi`, follower:`ora ${b.followers.toLocaleString('it-IT')}`,
@@ -325,7 +424,8 @@ function spHtmlForm(sq){
   }).join('');
   const canali = [['maglia','Sponsor sulla maglia'],['stadio','Cartelloni stadio'],['museo','Spazio nel museo'],['social','Tag sui social'],['canale','Canale video/interviste'],['under23','Partite/interviste Under 23']]
     .map(([k,l])=>`<label style="display:block;font-size:13px;margin-bottom:4px"><input type="checkbox" id="spc-${k}"> ${l}</label>`).join('');
-  return `<div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px">Presenta il tuo progetto: gli sponsor lo valutano una volta sola. Obiettivi realistici fanno guadagnare credibilità.</div>
+  return `<button onclick="SP.modo='testo';spRender()" style="margin-bottom:8px;cursor:pointer">← Torna alla presentazione scritta</button>
+    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px">Modulo guidato (alternativa): obiettivi realistici fanno guadagnare credibilità.</div>
     <div class="form-group"><label class="form-label">Strategia</label>
       <select class="form-select" id="sp-strategia"><option value="equilibrata">Equilibrata</option><option value="subito">Tutto e subito (ingaggi pesanti)</option><option value="futuro">Costruire per il futuro (giovani)</option></select></div>
     <div class="form-group"><label class="form-label">Durata desiderata (anni)</label>
@@ -341,24 +441,21 @@ async function spPresenta(){
     .map(k=>({tipo:k, target:parseFloat(document.getElementById('spv-'+k).value)||0}));
   const canali = ['maglia','stadio','museo','social','canale','under23'].filter(k=>document.getElementById('spc-'+k).checked);
   if(!obiettivi.length){ showToast('❌ Scegli almeno un obiettivo','error'); return; }
+  if(!confirm('Confermi di presentare il progetto agli sponsor? Si fa una sola volta per stagione e non si può modificare.')) return;
   const progetto = {strategia:document.getElementById('sp-strategia').value, durata:parseInt(document.getElementById('sp-durata').value), obiettivi, canali};
   const val = spValutaProgetto(progetto, sq);
+  progetto.seed = Math.floor(Math.random()*1e9);          // seme del pool
+  progetto.val = {v:val.v, cred:+val.cred.toFixed(3)};    // valori congelati: il pool non cambia se poi cambiano i tuoi dati
   const st = spStagione();
-  let righe = [];
-  Object.keys(SP_SLOT).forEach(slot => { righe = righe.concat(spGeneraPool(sq, slot, {v:val.v, cred:val.cred, durata:progetto.durata}, st)); });
-  try{
-    const r1 = await sb.from('sp_progetti').upsert({squadra_id:sq.id, stagione:st, progetto, credibilita:+val.cred.toFixed(3)});
-    if(r1.error) throw r1.error;
-    const r2 = await sb.from('sp_sponsor').insert(righe);
-    if(r2.error) throw r2.error;
-  }catch(e){ showToast('❌ Errore: '+e.message,'error'); return; }
+  const r1 = await sb.from('sp_progetti').upsert({squadra_id:sq.id, stagione:st, progetto, credibilita:progetto.val.cred});
+  if(r1.error){ showToast('❌ Errore: '+r1.error.message,'error'); return; }
   await spCarica(); spRender();
 }
 
 async function spAzzera(){
   if(!confirm('Azzerare presentazione e sponsor di questa squadra? (i contratti firmati restano)')) return;
   const st = spStagione();
-  await sb.from('sp_sponsor').delete().eq('squadra_id',SP.sqId).eq('stagione',st);
+  await sb.from('sp_trattative').delete().eq('squadra_id',SP.sqId).eq('stagione',st);
   await sb.from('sp_progetti').delete().eq('squadra_id',SP.sqId).eq('stagione',st);
   await spCarica(); spRender();
 }
@@ -388,7 +485,10 @@ function spHtmlLista(sq){
         <button onclick="spVerifica('${c.id}')" style="float:right;font-size:11px;cursor:pointer">🔍 Controlla obiettivi</button>
         <div id="spv-res-${c.id}"></div></div>`).join('') : '';
   const admin = adminLoggato ? `<button onclick="spAzzera()" style="margin-top:14px;font-size:11px;cursor:pointer">🔄 Azzera presentazione (TEST)</button>` : '';
-  return `<div style="display:flex;gap:6px;margin-bottom:6px">${tabs}</div>${corpo}${contratti}${admin}`;
+  const fb = SP.progetto && SP.progetto.progetto && SP.progetto.progetto.feedback;
+  const feed = fb && (fb.forti.length||fb.deboli.length) ? `<div style="font-size:12px;background:var(--grigio-scuro);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5">
+      <b>Come ti hanno visto gli sponsor</b>${fb.forti.map(x=>`<div>✅ ${spEsc(x)}</div>`).join('')}${fb.deboli.map(x=>`<div>⚠️ ${spEsc(x)}</div>`).join('')}</div>` : '';
+  return `${feed}<div style="display:flex;gap:6px;margin-bottom:6px">${tabs}</div>${corpo}${contratti}${admin}`;
 }
 
 function spApri(id){ SP.sponsorId=id; spRender(); }
@@ -421,8 +521,8 @@ async function spRilancia(){
   const res = spTratta(sp, richiesta);
   log.push({chi:'sponsor', t:res.msg});
   const upd = {offerta_annua:res.offerta, pazienza:res.pazienza, round:(sp.round||0)+1, stato: res.esito==='ritirato'?'ritirato':'in_trattativa'};
-  await sb.from('sp_sponsor').update(upd).eq('id',sp.id);
   Object.assign(sp, upd);
+  await spSalvaTrattativa(sp);
   if(res.esito==='accettato'){ await spFirma(res.offerta); return; }
   spRender();
 }
@@ -430,8 +530,8 @@ async function spRilancia(){
 async function spAbbandona(){
   const sp = SP.sponsors.find(x=>x.id===SP.sponsorId);
   if(!confirm('Abbandonando, questo sponsor non tornerà più. Confermi?')) return;
-  await sb.from('sp_sponsor').update({stato:'ritirato'}).eq('id',sp.id);
-  sp.stato='ritirato'; SP.sponsorId=null; spRender();
+  sp.stato='ritirato'; await spSalvaTrattativa(sp);
+  SP.sponsorId=null; spRender();
 }
 
 async function spFirma(fisso){
@@ -439,12 +539,11 @@ async function spFirma(fisso){
   const sq = spSq();
   if(SP.contratti.some(c=>c.slot===sp.slot && c.stato==='attivo')){ showToast('❌ Slot già firmato','error'); return; }
   const base = spBase(sq);
-  const contratto = {squadra_id:sq.id, sponsor_id:sp.id, slot:sp.slot, nome_sponsor:sp.nome, durata:sp.durata, fisso_annuo:fisso,
+  const contratto = {squadra_id:sq.id, sponsor_key:sp.id, slot:sp.slot, nome_sponsor:sp.nome, durata:sp.durata, fisso_annuo:fisso,
     anno_inizio:spStagione(), obiettivi:spObiettiviPerSlot(SP.progetto.progetto.obiettivi, sp.slot), base};
   const r = await sb.from('sp_contratti').insert(contratto);
   if(r.error){ showToast('❌ Errore: '+r.error.message,'error'); return; }
-  await sb.from('sp_sponsor').update({stato:'firmato'}).eq('id',sp.id);
-  await sb.from('sp_sponsor').update({stato:'chiuso'}).eq('squadra_id',sq.id).eq('stagione',spStagione()).eq('slot',sp.slot).neq('id',sp.id);
+  sp.stato='firmato'; await spSalvaTrattativa(sp);
   showToast('✍️ Contratto firmato con '+sp.nome);
   SP.sponsorId=null; await spCarica(); spRender();
 }
