@@ -5,9 +5,9 @@
 const SP_DIM = ['visibilita','crescita','vittorie','solidita','commerciale','vivaio','collaborazione','costi'];
 
 const SP_SLOT = {
-  principale: {label:'Principale',     emoji:'🏆', mediana:30e6, sigma:0.7, n:[90,120], boost:{}},
-  food:       {label:'Food',           emoji:'🍔', mediana:6e6,  sigma:0.6, n:[25,40],  boost:{commerciale:3}},
-  merch:      {label:'Merchandising',  emoji:'👕', mediana:6e6,  sigma:0.6, n:[25,40],  boost:{vittorie:2.5, commerciale:1.5}}
+  principale: {label:'Principale',     emoji:'🏆', mediana:50e6, sigma:0.65, min:8e6,  max:320e6, n:[90,120], boost:{}},
+  food:       {label:'Food',           emoji:'🍔', mediana:12e6, sigma:0.6,  min:2e6,  max:60e6, n:[25,40],  boost:{commerciale:3}},
+  merch:      {label:'Merchandising',  emoji:'👕', mediana:12e6, sigma:0.6,  min:2e6,  max:60e6, n:[25,40],  boost:{vittorie:2.5, commerciale:1.5}}
 };
 
 // gen = quanto cede a ogni rilancio, paz = pazienza iniziale (min-max), ap = apertura rispetto al tetto
@@ -130,12 +130,18 @@ function spGeneraPoolInterno(sq, slot, progettoVal, stagione){
     nomiUsati.add(nome);
     const carattere = spPick(Object.keys(SP_CARATTERI));
     const C = SP_CARATTERI[carattere];
-    const budget_totale = Math.round(S.mediana*Math.exp(S.sigma*spRandn())*spClima(stagione));
+    // impegno totale: molti sponsor medio-bassi, pochi medio-alti, rarissimi altissimi (coda lunga) + clima di stagione
+    let impegno = S.mediana*Math.exp(S.sigma*spRandn());
+    if(SP_R() < 0.03) impegno *= 1.6;                                   // il "mega sponsor": raro
+    impegno = spClamp(impegno*spClima(stagione), S.min, S.max);
+    const budget_totale = Math.round(impegno);
+    const r0 = SP_R(); const orizzonte = r0<0.25 ? 3 : r0<0.50 ? 4 : 5;   // su quanti anni ragiona (nascosto): chi ragiona su 3 anni spende di più all'anno
+    const extra_totale = Math.round(impegno*spRnd(0.3,1.0));            // quanto può aggiungere SE gli proponi le idee giuste (clausole, contenuti): lo useremo nel pezzo successivo
     let pesi = {}, tot=0;
     SP_DIM.forEach(d => { pesi[d] = (SP_R()**2+0.05)*(S.boost[d]||1); tot+=pesi[d]; });
     SP_DIM.forEach(d => pesi[d] = +(pesi[d]/tot).toFixed(4));
     const sens = {tono:SP_R(), orig:SP_R(), ego:SP_R()}; // quanto badano a stile, originalità, egocentrismo
-    righe.push({id:slot+'-'+i, squadra_id:sq.id, stagione, slot, nome, carattere, budget_totale, pesi, sens, rumore:spRnd(-0.06,0.06),
+    righe.push({id:slot+'-'+i, squadra_id:sq.id, stagione, slot, nome, carattere, budget_totale, orizzonte, extra_totale, pesi, sens, rumore:spRnd(-0.06,0.06),
                 pazienza: spInt(C.paz[0],C.paz[1])});
   }
   // tier = posizione del budget nel pool (0 = povero, 1 = ricchissimo)
@@ -155,7 +161,7 @@ function spGeneraPoolInterno(sq, slot, progettoVal, stagione){
     r.interesse = diff>=0.20 ? 'molto' : diff>=0.05 ? 'interessato' : (diff>=0 || r===facile) ? 'tiepido' : 'nessuno';
     r.stato = r.interesse==='nessuno' ? 'ritirato' : 'disponibile';
     const margine = spClamp(diff,0,0.4)/0.4;
-    r.techo_annuo = Math.round(r.budget_totale/5*(0.9+0.5*margine));
+    r.techo_annuo = Math.round(r.budget_totale/r.orizzonte*(0.9+0.5*margine));
     r.offerta_annua = Math.round(r.techo_annuo*SP_CARATTERI[r.carattere].ap);
     r.durata = progettoVal.durata;
     delete r.tier; delete r.rumore;
@@ -192,7 +198,7 @@ function spTratta(sp, richiesta){
   let offerta = sp.offerta_annua, techo = sp.techo_annuo, paz = sp.pazienza;
   const frase = (k,x) => spPick(SP_FRASI[k]).replace('{x}', spFmt(x));
   if(richiesta <= offerta*1.001){
-    return {esito:'accettato', offerta, pazienza:paz, msg:frase('accettato')};
+    return {esito:'accettato', offerta:Math.round(richiesta), pazienza:paz, msg:frase('accettato')};
   }
   let nuova, costo;
   if(richiesta <= techo){
@@ -485,9 +491,9 @@ function spHtmlLista(sq){
         <button onclick="spVerifica('${c.id}')" style="float:right;font-size:11px;cursor:pointer">🔍 Controlla obiettivi</button>
         <div id="spv-res-${c.id}"></div></div>`).join('') : '';
   const admin = adminLoggato ? `<button onclick="spAzzera()" style="margin-top:14px;font-size:11px;cursor:pointer">🔄 Azzera presentazione (TEST)</button>` : '';
-  const fb = SP.progetto && SP.progetto.progetto && SP.progetto.progetto.feedback;
+  const fb = adminLoggato && SP.progetto && SP.progetto.progetto && SP.progetto.progetto.feedback; // solo admin: i giocatori non vedono gli errori
   const feed = fb && (fb.forti.length||fb.deboli.length) ? `<div style="font-size:12px;background:var(--grigio-scuro);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5">
-      <b>Come ti hanno visto gli sponsor</b>${fb.forti.map(x=>`<div>✅ ${spEsc(x)}</div>`).join('')}${fb.deboli.map(x=>`<div>⚠️ ${spEsc(x)}</div>`).join('')}</div>` : '';
+      <b>Valutazione AI (solo admin)</b>${fb.forti.map(x=>`<div>✅ ${spEsc(x)}</div>`).join('')}${fb.deboli.map(x=>`<div>⚠️ ${spEsc(x)}</div>`).join('')}</div>` : '';
   return `${feed}<div style="display:flex;gap:6px;margin-bottom:6px">${tabs}</div>${corpo}${contratti}${admin}`;
 }
 
@@ -496,18 +502,21 @@ function spIndietro(){ SP.sponsorId=null; spRender(); }
 
 function spHtmlTrattativa(){
   const sp = SP.sponsors.find(x=>x.id===SP.sponsorId);
-  const log = SP.log[sp.id] || (SP.log[sp.id] = [{chi:'sponsor', t:`Buongiorno. Sono interessato alla zona ${SP_SLOT[sp.slot].label}. La mia proposta iniziale è ${spFmt(sp.offerta_annua)} l'anno per ${sp.durata} anni.`}]);
+  const aperta = (sp.round||0) > 0;   // finché non si è parlato non mostra nessuna cifra
+  const log = SP.log[sp.id] || (SP.log[sp.id] = [{chi:'sponsor', t: aperta
+    ? `Riprendiamo da dove eravamo: la mia ultima proposta è ${spFmt(sp.offerta_annua)} l'anno.`
+    : `Buongiorno. Ho letto il vostro progetto e la zona ${SP_SLOT[sp.slot].label} mi interessa. Prima di parlare di cifre voglio capire cosa vi aspettate da una collaborazione di ${sp.durata} anni: quanto chiedete, e perché?`}]);
   const chat = log.map(m=>`<div style="margin-bottom:8px;text-align:${m.chi==='tu'?'right':'left'}"><span style="display:inline-block;padding:8px 12px;border-radius:12px;max-width:85%;font-size:13px;background:${m.chi==='tu'?'rgba(255,215,0,0.15)':'var(--grigio-scuro)'}">${m.t}</span></div>`).join('');
   const chiuso = sp.stato==='ritirato'||sp.stato==='firmato';
   return `<button onclick="spIndietro()" style="margin-bottom:8px;cursor:pointer">← Lista sponsor</button>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--oro)">${SP_SLOT[sp.slot].emoji} ${sp.nome}</div>
-    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px">Offerta attuale: <b>${spFmt(sp.offerta_annua)}</b>/anno · ${sp.durata} anni</div>
+    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px">${aperta ? `Ultima offerta: <b>${spFmt(sp.offerta_annua)}</b>/anno · ${sp.durata} anni = <b>${spFmt(sp.offerta_annua*sp.durata)}</b> totali` : `Durata proposta: ${sp.durata} anni · nessuna offerta ancora sul tavolo`}</div>
     <div style="max-height:260px;overflow:auto;margin-bottom:10px">${chat}</div>
     ${chiuso ? `<div style="text-align:center;color:var(--testo-dim)">Trattativa chiusa</div>` : `
     <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input class="form-input" type="number" step="0.1" id="sp-richiesta" placeholder="Richiesta in M/anno (es. 10.5)" style="flex:1">
-      <button class="btn-primary" onclick="spRilancia()">Rilancia</button></div>
-    <button class="btn-primary" style="width:100%;margin-bottom:6px" onclick="spFirma(${sp.offerta_annua})">✅ ACCETTO ${spFmt(sp.offerta_annua)}/anno</button>
+      <input class="form-input" type="number" step="0.1" id="sp-richiesta" placeholder="La tua richiesta in M/anno (es. 10.5)" style="flex:1">
+      <button class="btn-primary" onclick="spRilancia()">${aperta?'Rilancia':'Proponi'}</button></div>
+    ${aperta ? `<button class="btn-primary" style="width:100%;margin-bottom:6px" onclick="spFirma(${sp.offerta_annua})">✅ ACCETTO ${spFmt(sp.offerta_annua)}/anno (${spFmt(sp.offerta_annua*sp.durata)} totali)</button>` : ''}
     <button onclick="spAbbandona()" style="width:100%;cursor:pointer">🚪 Abbandona la trattativa</button>`}`;
 }
 
