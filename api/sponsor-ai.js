@@ -69,16 +69,34 @@ async function chiamaAnthropic(user){
   const j = await r.json();
   return (j.content || []).map(c => c.text || '').join('');
 }
-async function chiamaGroq(user){
+async function chiamaGroqModello(model, user){
+  const gptoss = model.startsWith('openai/gpt-oss');
+  const body = {model, temperature:0.2, max_tokens: gptoss ? 2500 : 900,
+    messages:[{role:'system', content:SYSTEM},{role:'user', content:user}]};
+  if(gptoss) body.reasoning_effort = 'low'; else body.response_format = {type:'json_object'};
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method:'POST',
     headers:{'content-type':'application/json','authorization':'Bearer ' + process.env.GROQ_API_KEY},
-    body: JSON.stringify({model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', temperature:0.2, max_tokens:900,
-      response_format:{type:'json_object'}, messages:[{role:'system', content:SYSTEM},{role:'user', content:user}]})
+    body: JSON.stringify(body)
   });
-  if(!r.ok) throw new Error('Groq ' + r.status);
+  if(!r.ok){
+    let dett = ''; try { const e = await r.json(); dett = (e.error && e.error.message) || ''; } catch(_){}
+    const err = new Error('Groq ' + r.status + ' (' + model + ')' + (dett ? ': ' + dett.slice(0,120) : ''));
+    err.status = r.status; throw err;
+  }
   const j = await r.json();
-  return j.choices && j.choices[0] && j.choices[0].message.content || '';
+  return (j.choices && j.choices[0] && j.choices[0].message.content) || '';
+}
+// prova il modello scelto e, se non esiste o non è disponibile, quelli successivi
+async function chiamaGroq(user){
+  const modelli = [process.env.GROQ_MODEL, 'llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'llama-3.1-8b-instant']
+    .filter((m, i, a) => m && a.indexOf(m) === i);
+  let ultimo;
+  for(const m of modelli){
+    try { return await chiamaGroqModello(m, user); }
+    catch(e){ ultimo = e; if(e.status === 401 || e.status === 429) throw e; }
+  }
+  throw ultimo;
 }
 
 module.exports = async (req, res) => {
