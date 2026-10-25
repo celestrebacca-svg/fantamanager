@@ -54,7 +54,7 @@ async function rpc(url, key, nome, args){
     body: JSON.stringify(args)
   });
   let dati = null; try { dati = await r.json(); } catch(_){}
-  return {ok:r.ok, dati};
+  return {ok:r.ok, stato:r.status, dati};
 }
 
 module.exports = async (req, res) => {
@@ -81,7 +81,11 @@ module.exports = async (req, res) => {
     const ident = String(body.email || body.username || '').trim().toLowerCase().slice(0, 200);
     if(!ident || !password) return res.status(400).json({ok:false, error:'Inserisci email (o username) e password'});
     const r = await rpc(url, key, 'verifica_accesso', {p_ident:ident, p_password:password});
-    if(!r.ok) return res.status(502).json({ok:false, error:'Errore di connessione al database'});
+    if(!r.ok){                                                // mostra il motivo (senza segreti) per capire cosa non va
+      const det = r.dati && (r.dati.message || r.dati.error || r.dati.hint || r.dati.msg);
+      console.error('verifica_accesso fallita', r.stato, JSON.stringify(r.dati));
+      return res.status(502).json({ok:false, error:'Errore di connessione al database (codice ' + r.stato + (det ? ': ' + String(det).slice(0, 140) : '') + ')'});
+    }
     if(!Array.isArray(r.dati) || !r.dati.length){
       await pausa(600);                                       // rallenta chi prova a indovinare
       return res.status(401).json({ok:false, error:'Email/username o password non corretti'});
