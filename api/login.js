@@ -46,6 +46,12 @@ const daRichiesta = (req) => verifica(String((req.headers && (req.headers.author
 
 // ---- login ----
 const pausa = (ms) => new Promise(r => setTimeout(r, ms));
+// accetta l'indirizzo di Supabase anche se è stato copiato con parti in più (es. /rest/v1/) o senza https://
+function indirizzoBase(u){
+  let s = String(u || '').trim();
+  if(s && !/^https?:\/\//i.test(s)) s = 'https://' + s;
+  try { return new URL(s).origin; } catch(_){ return ''; }
+}
 
 async function rpc(url, key, nome, args){
   const r = await fetch(url + '/rest/v1/rpc/' + nome, {
@@ -59,7 +65,7 @@ async function rpc(url, key, nome, args){
 
 module.exports = async (req, res) => {
   if(req.method !== 'POST') return res.status(405).json({ok:false, error:'metodo non consentito'});
-  const url = (process.env.SUPABASE_URL || '').replace(/\/+$/, ''), key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = indirizzoBase(process.env.SUPABASE_URL), key = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
   if(!url || !key || !process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 24)
     return res.status(500).json({ok:false, error:'Login non configurato: mancano variabili su Vercel'});
   try{
