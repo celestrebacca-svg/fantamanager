@@ -79,11 +79,9 @@ function spRender(){
 
 // ---------- presentazione ----------
 function spHtmlForm(){
-  const b = SP.dati.base;
   const err = SP.errore ? `<div style="color:#ff6b6b;font-size:12px;margin-bottom:8px">${spEsc(SP.errore)}</div>` : '';
-  return `<div style="font-size:13px;margin-bottom:8px">Presentati agli sponsor <b>con parole tue</b>, come in un vero incontro. Hai <b>una sola occasione per stagione</b>.</div>
-    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">Racconta: dove vuole arrivare il club e quanto può restare competitivo negli anni, <b>obiettivi con numeri e tempi</b> nei vari settori, cosa offri in visibilità e cosa hai in più degli altri, <b>quanto costa</b> realizzare le idee e quanto ci metti tu, quanto sei disposto ad ascoltare lo sponsor, dove investi sul mercato (nomi sicuri, giovani o entrambi) con un bilancio sano. <b>Conta anche come ti poni e come spieghi le cose</b>: modo di scrivere, chiarezza, rispetto per chi hai davanti. Frasi vuote e promesse irrealistiche ti fanno perdere credibilità.</div>
-    <div style="font-size:11px;color:var(--testo-dim);margin-bottom:6px">Dati reali del club: ${spNum(b.tifosi)} tifosi · ${spNum(b.followers)} follower · fast food liv. ${b.fastfood} · stadio ${spNum(b.capienza)} posti · ${b.trofei} trofei · budget ${spFmt(b.budget)}</div>
+  return `<div style="font-size:13px;margin-bottom:8px">Presentati agli sponsor <b>con parole tue</b>, come in un vero primo incontro. Hai <b>una sola occasione per stagione</b>.</div>
+    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">Scrivi quello che vuoi: <b>non servono numeri</b>. Ogni sponsor cerca cose diverse, e le cifre le tratterai dopo, in privato, con ciascuno. Conta l'impressione che dai: <b>chiarezza, serietà, rispetto, visione</b>, la voglia di costruire insieme, le idee che puoi offrire a chi ti sostiene e come dividi i costi. Frasi vuote, arroganza e testi copiati ti fanno perdere credibilità.</div>
     <textarea id="sp-testo" class="form-input" rows="10" maxlength="3000" style="width:100%;resize:vertical" placeholder="Buongiorno, siamo un club..." oninput="document.getElementById('sp-cont').textContent=this.value.length+' / 3000 (minimo 150)'"></textarea>
     <div id="sp-cont" style="font-size:11px;color:var(--testo-dim);text-align:right">0 / 3000 (minimo 150)</div>${err}
     <button class="btn-primary" id="sp-btn-pres" style="width:100%;margin-top:10px" onclick="spPresentaAI()">📣 PRESENTA IL PROGETTO</button>
@@ -96,7 +94,7 @@ async function spPresentaAI(){
   const btn = document.getElementById('sp-btn-pres');
   if(btn){ btn.disabled = true; btn.textContent = '⏳ Gli sponsor stanno leggendo…'; }
   try { spApplica(await spApi('presenta', {testo})); SP.errore = ''; spRender(); }
-  catch(e){ spErr(e); spRender(); const t = document.getElementById('sp-testo'); if(t) t.value = testo; }
+  catch(e){ spErr(e); spRender(); const t = document.getElementById('sp-testo'); if(t){ t.value = testo; const k = document.getElementById('sp-cont'); if(k) k.textContent = testo.length + ' / 3000 (minimo 150)'; } }
 }
 
 async function spAzzera(){
