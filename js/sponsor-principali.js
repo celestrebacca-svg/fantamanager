@@ -66,7 +66,7 @@ async function spCambiaSquadra(id){ SP.sqId = id; SP.sponsorId = null; SP.errore
 
 function spRender(){
   const body = document.getElementById('sp-body');
-  const sel = adminLoggato ? `<div class="form-group"><label class="form-label">Squadra (test admin)</label>
+  const sel = adminLoggato ? `<div class="form-group"><label class="form-label">Squadra (admin)</label>
     <select class="form-select" onchange="spCambiaSquadra(this.value)">${squadreDB.map(s=>`<option value="${s.id}" ${String(s.id)===String(SP.sqId)?'selected':''}>${s.nome}</option>`).join('')}</select></div>` : '';
   let html = sel;
   if(!SP.dati) html += `<div style="color:#ff6b6b;font-size:13px;padding:10px 0">${spEsc(SP.errore || 'Impossibile caricare gli sponsor')}</div><button onclick="spCambiaSquadra(SP.sqId)" style="cursor:pointer">Riprova</button>`;
@@ -103,6 +103,12 @@ async function spAzzera(){
   spRender();
 }
 
+async function spAnnulla(id){
+  if(!adminLoggato || !confirm('Annullare questo contratto? Lo sponsor tornerà disponibile e il nuovo presidente potrà rifare la trattativa. Non cambia la reputazione.')) return;
+  try { spApplica(await spApi('annulla', {contratto_id:id})); SP.errore = ''; SP.sponsorId = null; SP.chat = {}; showToast('🛑 Contratto annullato'); } catch(e){ spErr(e); }
+  spRender();
+}
+
 // ---------- lista ----------
 function spHtmlLista(){
   const D = SP.dati;
@@ -130,9 +136,10 @@ function spHtmlLista(){
     + D.contratti.map(c=>`<div style="padding:10px;margin-bottom:6px;background:var(--grigio-scuro);border-radius:8px;font-size:12px">
         <b>${spEsc(c.nome_sponsor)}</b> (${SP_SLOT[c.slot]?.label}) · ${spFmt(c.fisso_annuo)}/anno × ${spAnni(c.durata)}${(c.tifosi_annui||c.follower_annui) ? ` · +${spNum(c.tifosi_annui||0)} tifosi e +${spNum(c.follower_annui||0)} follower/anno` : ''} · ${spEsc(c.stato)}
         <button onclick="spVerifica('${c.id}')" style="float:right;font-size:11px;cursor:pointer">🔍 Controlla obiettivi</button>
+        ${(adminLoggato && c.stato==='attivo') ? `<button onclick="spAnnulla('${c.id}')" style="float:right;margin-right:6px;font-size:11px;cursor:pointer">🛑 Annulla (fine anno)</button>` : ''}
         ${(c.idee&&c.idee.length) ? `<div style="margin-top:6px;clear:both;color:var(--testo-dim)">💡 Idee concordate: ${spEsc(c.idee.map(i=>i.titolo).join(' · '))}</div>` : ''}
         <div id="spv-res-${c.id}"></div></div>`).join('') : '';
-  const admin = adminLoggato ? `<button onclick="spAzzera()" style="margin-top:14px;font-size:11px;cursor:pointer">🔄 Azzera presentazione (TEST)</button>` : '';
+  const admin = adminLoggato ? `<button onclick="spAzzera()" style="margin-top:14px;font-size:11px;cursor:pointer">🔄 Azzera presentazione (admin)</button>` : '';
   const fb = D.feedback;           // il server lo manda solo all'admin: i giocatori non vedono gli errori della presentazione
   const feed = fb && (fb.forti.length||fb.deboli.length) ? `<div style="font-size:12px;background:var(--grigio-scuro);border-radius:8px;padding:10px;margin-bottom:10px;line-height:1.5">
       <b>Valutazione AI (solo admin)</b>${fb.forti.map(x=>`<div>✅ ${spEsc(x)}</div>`).join('')}${fb.deboli.map(x=>`<div>⚠️ ${spEsc(x)}</div>`).join('')}</div>` : '';
@@ -245,17 +252,4 @@ async function spVerifica(id){
     box.innerHTML = `<div style="margin-top:8px;clear:both">` + res.righe.map(r=>`<div>${r.ok?'✅':'❌'} ${spEsc(r.label)}: ${spNum(r.attuale)} / ${spNum(r.target)}</div>`).join('')
       + `<div style="margin-top:4px;color:var(--oro)">${spEsc(res.nota)}</div></div>`;
   } catch(e){ box.innerHTML = `<div style="color:#ff6b6b;margin-top:6px">${spEsc(e.message)}</div>`; }
-}
-
-// pulsante di prova solo per admin (rimuovere quando si integra nel menu)
-if(typeof document!=='undefined'){
-  setInterval(()=>{
-    if(typeof adminLoggato!=='undefined' && adminLoggato && !document.getElementById('sp-test-btn')){
-      const b=document.createElement('button');
-      b.id='sp-test-btn'; b.textContent='🤝 Sponsor principali (TEST)';
-      b.style.cssText='position:fixed;bottom:80px;right:12px;z-index:9999;padding:10px 14px;border-radius:20px;border:1px solid gold;background:#111;color:gold;cursor:pointer;font-size:12px';
-      b.onclick=apriSponsorPrincipali;
-      document.body.appendChild(b);
-    }
-  },2000);
 }
