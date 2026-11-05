@@ -103,6 +103,43 @@ async function spAzzera(){
   spRender();
 }
 
+const SP_BONUS_NOMI = {tifosi_pct:'Tifosi', follower_pct:'Follower', stadio_pct:'Capienza stadio', fastfood:'Fast food', trofei:'Trofei', piazzamento:'Piazzamento'};
+function spBonusTesto(b){
+  if(b.tipo==='tifosi_pct'||b.tipo==='follower_pct'||b.tipo==='stadio_pct') return `${SP_BONUS_NOMI[b.tipo]} +${b.target}% rispetto alla firma`;
+  if(b.tipo==='fastfood') return `Fast food: +${b.target} ${b.target>1?'livelli':'livello'} rispetto alla firma`;
+  if(b.tipo==='trofei') return `Vincere ${b.target} ${b.target>1?'trofei':'trofeo'} in più`;
+  return `Chiudere tra le prime ${b.target} in campionato`;
+}
+function spBonusRiga(c, b){
+  const stati = {pagato:'✅ pagato', scaduto:'⌛ scaduto', raggiunto:'🟢 raggiunto', da_confermare:'⏳ da confermare', aperto:'⚪ aperto'};
+  const paga = adminLoggato && (b.stato==='raggiunto' || b.stato==='da_confermare')
+    ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 ${b.stato==='da_confermare' ? 'Conferma e paga' : 'Paga'}</button>` : '';
+  return `<div style="margin-bottom:3px">• ${b.sorpresa ? '🎁 <b>Bonus a sorpresa!</b> ' : ''}${spBonusTesto(b)} · entro l'anno ${b.anno_max} · <b>${spFmt(b.importo)}</b> · ${stati[b.stato]||b.stato}${paga}</div>`;
+}
+async function spPagaBonus(cid, bid){
+  const x = SP.dati.contratti.find(y => String(y.id) === String(cid)), b = x && x.bonus.find(z => z.id === bid);
+  if(!adminLoggato || !b || !confirm('Accreditare al budget ' + spFmt(b.importo) + ' per il bonus: ' + spBonusTesto(b) + '?')) return;
+  try {
+    const j = await spApi('bonus', {contratto_id:cid, bonus_id:bid});
+    spApplica(j); SP.errore = '';
+    const sq = spSq(); if(sq && typeof j.budget_nuovo === 'number') sq.budget = j.budget_nuovo;
+    showToast('💰 Bonus di ' + spFmt(j.incassato) + ' accreditato');
+  } catch(e){ spErr(e); }
+  spRender();
+}
+
+async function spIncassa(id){
+  const x = SP.dati.contratti.find(y => String(y.id) === String(id));
+  if(!adminLoggato || !x || !confirm('Accreditare al budget ' + spFmt(x.fisso_annuo) + ' (anno ' + ((x.anni_pagati||0)+1) + ' di ' + x.durata + ') di ' + x.nome_sponsor + '?')) return;
+  try {
+    const j = await spApi('incassa', {contratto_id:id});
+    spApplica(j); SP.errore = '';
+    const sq = spSq(); if(sq && typeof j.budget_nuovo === 'number') sq.budget = j.budget_nuovo;
+    showToast('💰 ' + spFmt(j.incassato) + ' accreditati al budget');
+  } catch(e){ spErr(e); }
+  spRender();
+}
+
 async function spAnnulla(id){
   if(!adminLoggato || !confirm('Annullare questo contratto? Lo sponsor tornerà disponibile e il nuovo presidente potrà rifare la trattativa. Non cambia la reputazione.')) return;
   try { spApplica(await spApi('annulla', {contratto_id:id})); SP.errore = ''; SP.sponsorId = null; SP.chat = {}; showToast('🛑 Contratto annullato'); } catch(e){ spErr(e); }
@@ -134,10 +171,12 @@ function spHtmlLista(){
   }
   const contratti = D.contratti.length ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--oro);margin:16px 0 6px">CONTRATTI</div>`
     + D.contratti.map(c=>`<div style="padding:10px;margin-bottom:6px;background:var(--grigio-scuro);border-radius:8px;font-size:12px">
-        <b>${spEsc(c.nome_sponsor)}</b> (${SP_SLOT[c.slot]?.label}) · ${spFmt(c.fisso_annuo)}/anno × ${spAnni(c.durata)}${(c.tifosi_annui||c.follower_annui) ? ` · +${spNum(c.tifosi_annui||0)} tifosi e +${spNum(c.follower_annui||0)} follower/anno` : ''} · ${spEsc(c.stato)}
+        <b>${spEsc(c.nome_sponsor)}</b> (${SP_SLOT[c.slot]?.label}) · ${spFmt(c.fisso_annuo)}/anno × ${spAnni(c.durata)}${(c.tifosi_annui||c.follower_annui) ? ` · +${spNum(c.tifosi_annui||0)} tifosi e +${spNum(c.follower_annui||0)} follower/anno` : ''} · ${spEsc(c.stato)}${c.stato==='attivo' ? ` · pagati ${c.anni_pagati||0}/${c.durata}` : ''}
         <button onclick="spVerifica('${c.id}')" style="float:right;font-size:11px;cursor:pointer">🔍 Controlla obiettivi</button>
+        ${(adminLoggato && c.stato==='attivo') ? ((c.anni_pagati||0) < (c.durata||1) ? `<button onclick="spIncassa('${c.id}')" style="float:right;margin-right:6px;font-size:11px;cursor:pointer">💰 Paga anno ${(c.anni_pagati||0)+1}/${c.durata}</button>` : `<span style="float:right;margin-right:6px;font-size:11px;color:var(--verde)">✅ Tutti gli anni pagati</span>`) : ''}
         ${(adminLoggato && c.stato==='attivo') ? `<button onclick="spAnnulla('${c.id}')" style="float:right;margin-right:6px;font-size:11px;cursor:pointer">🛑 Annulla (fine anno)</button>` : ''}
         ${(c.idee&&c.idee.length) ? `<div style="margin-top:6px;clear:both;color:var(--testo-dim)">💡 Idee concordate: ${spEsc(c.idee.map(i=>i.titolo).join(' · '))}</div>` : ''}
+        ${(c.bonus&&c.bonus.length) ? `<div style="margin-top:8px;clear:both;border-top:1px solid #333;padding-top:6px"><div style="color:var(--oro);margin-bottom:4px">🎯 Bonus</div>${c.bonus.map(b=>spBonusRiga(c,b)).join('')}</div>` : ''}
         <div id="spv-res-${c.id}"></div></div>`).join('') : '';
   const admin = adminLoggato ? `<button onclick="spAzzera()" style="margin-top:14px;font-size:11px;cursor:pointer">🔄 Azzera presentazione (admin)</button>` : '';
   const fb = D.feedback;           // il server lo manda solo all'admin: i giocatori non vedono gli errori della presentazione
