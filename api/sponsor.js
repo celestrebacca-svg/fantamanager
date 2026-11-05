@@ -68,7 +68,7 @@ function spClima(stagione){ return 0.88 + 0.24*spMulberry(spHash('clima|'+stagio
 const SP_DIM = ['visibilita','crescita','vittorie','solidita','commerciale','vivaio','collaborazione','costi'];
 
 const SP_SLOT = {
-  principale: {label:'Principale',     emoji:'🏆', mediana:50e6, sigma:0.65, min:8e6,  max:320e6, n:[90,120], boost:{}},
+  principale: {label:'Principale',     emoji:'🏆', mediana:90e6, sigma:0.65, min:12e6, max:450e6, n:[90,120], boost:{}},
   food:       {label:'Food',           emoji:'🍔', mediana:12e6, sigma:0.6,  min:2e6,  max:60e6, n:[25,40],  boost:{commerciale:3}},
   merch:      {label:'Merchandising',  emoji:'👕', mediana:12e6, sigma:0.6,  min:2e6,  max:60e6, n:[25,40],  boost:{vittorie:2.5, commerciale:1.5}}
 };
@@ -255,6 +255,31 @@ function spControllaContratto(sq, c){
   return {righe, nOk, totale:righe.length, verdetto, nota};
 }
 
+
+// ---------- bonus: clausole concordate con lo sponsor; importo fisso pagato dall'admin quando l'obiettivo è raggiunto (entro l'anno indicato) ----------
+const SP_BONUS_TIPI = {
+  tifosi_pct:   {livelli:[[5,.12],[10,.3],[15,.45],[25,.65],[40,.85],[60,1]]},
+  follower_pct: {livelli:[[10,.12],[25,.3],[50,.5],[100,.75],[200,1]]},
+  stadio_pct:   {livelli:[[5,.15],[10,.35],[20,.6],[40,.9]]},
+  fastfood:     {livelli:[[1,.3],[2,.65],[3,.95]]},               // livelli in più rispetto alla firma
+  trofei:       {livelli:[[1,.75],[2,.95],[3,1]]},
+  piazzamento:  {livelli:[[8,.1],[6,.25],[4,.5],[3,.7],[2,.85],[1,1]]}   // entro i primi N: lo conferma l'admin
+};
+const spAnnoDi = x => parseInt(String(x||'').slice(0,4), 10) || 0;
+// stato di un bonus: pagato | scaduto | raggiunto | da_confermare (piazzamento) | aperto
+function spBonusStato(b, cc, sq, stagione){
+  if(b.stato === 'pagato') return 'pagato';
+  const anno = Math.max(1, spAnnoDi(stagione) - spAnnoDi(cc.anno_inizio) + 1);
+  if(anno > b.anno_max) return 'scaduto';
+  if(b.tipo === 'piazzamento') return 'da_confermare';
+  const base = cc.base || {}, t = b.target;
+  const ok = b.tipo === 'tifosi_pct' ? (sq.tifosi||0) >= (base.tifosi||0)*(1 + t/100)
+    : b.tipo === 'follower_pct' ? (sq.social_followers||0) >= (base.followers||0)*(1 + t/100)
+    : b.tipo === 'stadio_pct' ? (sq.capienza_stadio||0) >= (base.capienza||0)*(1 + t/100)
+    : b.tipo === 'fastfood' ? (sq.fastfood_livello||0) >= (base.fastfood||0) + t
+    : b.tipo === 'trofei' ? (sq.trofei||[]).length >= (base.trofei||0) + t : false;
+  return ok ? 'raggiunto' : 'aperto';
+}
 
 // ---------- reputazione del dirigente: conta quanto erano ambiziosi gli obiettivi centrati ----------
 // difficoltà 0-1 di un contratto: obiettivi che chiedono una crescita piccola (facili) pesano poco, crescite grandi (ambiziosi) pesano molto
@@ -782,8 +807,10 @@ function vistaSponsor(sp){
     offerta: aperta ? {fm:sp.offerta_annua, tifosi:sp.offerta_tifosi||0, follower:sp.offerta_follower||0} : null,
     idee:(sp.idee||[]).map(i => i.titolo)};
 }
-const contrattoPubblico = c => ({id:c.id, slot:c.slot, nome_sponsor:c.nome_sponsor, durata:c.durata, fisso_annuo:Number(c.fisso_annuo),
-  tifosi_annui:c.tifosi_annui, follower_annui:c.follower_annui, idee:c.idee || [], stato:c.stato, anno_inizio:c.anno_inizio});
+const contrattoPubblico = (c, ctx) => ({id:c.id, slot:c.slot, nome_sponsor:c.nome_sponsor, durata:c.durata, fisso_annuo:Number(c.fisso_annuo),
+  tifosi_annui:c.tifosi_annui, follower_annui:c.follower_annui, idee:c.idee || [], stato:c.stato, anno_inizio:c.anno_inizio, anni_pagati:Number(c.anni_pagati)||0,
+  bonus:(Array.isArray(c.bonus) ? c.bonus : []).map(b => ({id:b.id, tipo:b.tipo, target:b.target, anno_max:b.anno_max, importo:b.importo, sorpresa:!!b.nascosto, stato:ctx ? spBonusStato(b, c, ctx.sq, ctx.stagione) : b.stato}))
+    .filter(b => !b.sorpresa || b.stato === 'raggiunto' || b.stato === 'pagato')});
 // la chat di uno sponsor: se non c'è ancora, il saluto (o la ripresa se c'è già un'offerta)
 function logSponsor(sp){
   if(Array.isArray(sp.chat) && sp.chat.length) return sp.chat;
@@ -816,7 +843,7 @@ function payload(c, sess, extra){
   c.sponsors.forEach(sp => { if(sp.interesse === 'nessuno') scartati[sp.slot] = (scartati[sp.slot]||0) + 1; else visibili.push(vistaSponsor(sp)); });
   return {ok:true, stagione:c.stagione, base:spBase(c.sq), presentato:!!c.progetto,
     feedback: sess.adm && c.progetto && c.progetto.feedback ? c.progetto.feedback : null,   // gli errori della presentazione li vede solo l'admin
-    sponsors:visibili, scartati, contratti:c.contratti.map(contrattoPubblico), ...(extra || {})};
+    sponsors:visibili, scartati, contratti:c.contratti.map(x => contrattoPubblico(x, c)), ...(extra || {})};
 }
 async function salvaTrattativa(sqId, stagione, sp){
   await dbUps('sponsor_trattative', {squadra_id:sqId, stagione, key:sp.id, stato:sp.stato, offerta_annua:Math.round(sp.offerta_annua||0),
@@ -922,7 +949,7 @@ async function azioneFirma(c, sess, body){
   const obiettivi = scalaObiettivi(spObiettiviPerSlot(pr.obiettivi, sp.slot), pr.durata, sp.durata, pr.base || spBase(c.sq));
   const nuovo = await dbIns('sponsor_contratti', {squadra_id:c.sqId, stagione:c.stagione, sponsor_key:sp.id, slot:sp.slot, nome_sponsor:sp.nome, durata:sp.durata,
     fisso_annuo:Math.round(sp.offerta_annua), tifosi_annui:sp.offerta_tifosi||0, follower_annui:sp.offerta_follower||0, idee:sp.idee||[],
-    anno_inizio:c.stagione, obiettivi, base:spBase(c.sq), stato:'attivo'});
+    anno_inizio:c.stagione, obiettivi, base:spBase(c.sq), stato:'attivo', anni_pagati:0, bonus:[]});     // i bonus li deciderà la trattativa con lo sponsor (non il server a caso)
   sp.stato = 'firmato';
   await salvaTrattativa(c.sqId, c.stagione, sp);
   if(Array.isArray(nuovo) && nuovo[0]) c.contratti.unshift(nuovo[0]);
@@ -949,6 +976,53 @@ async function azioneReset(c, sess, body){            // admin: la trattativa co
   if(c.contratti.some(x => x.sponsor_key === sp.id && x.stato === 'attivo')) throw new Errore('Con questo sponsor c\'è già un contratto attivo: non si può resettare');
   await dbDel('sponsor_trattative', {squadra_id:c.sqId, stagione:c.stagione, key:sp.id});
 }
+async function azioneIncassa(c, sess, body){          // admin: accredita al budget la quota annuale pattuita (una volta per anno di contratto)
+  soloAdmin(sess);
+  const cc = c.contratti.find(x => String(x.id) === String(body.contratto_id));
+  if(!cc) throw new Errore('Contratto non trovato', 404);
+  if(cc.stato !== 'attivo') throw new Errore('Il contratto non è attivo');
+  const pagati = Number(cc.anni_pagati) || 0, importo = Math.round(Number(cc.fisso_annuo) || 0);
+  if(pagati >= (cc.durata || 1)) throw new Errore('Tutti gli anni di questo contratto sono già stati pagati');
+  if(importo <= 0) throw new Errore('Importo non valido');
+  // si segna prima l'anno come pagato (solo se nessun altro lo ha già fatto): così un doppio clic non paga due volte
+  const segnato = await db('PATCH', 'sponsor_contratti?' + filtro({id:cc.id, anni_pagati:pagati}), {anni_pagati:pagati + 1}, 'return=representation');
+  if(!Array.isArray(segnato) || !segnato.length) throw new Errore('Anno già pagato: ricarica la pagina');
+  try {
+    const sq = await getSquadra(c.sqId);
+    const nuovo = (Number(sq.budget) || 0) + importo;
+    await dbUpd('squadre', {id:c.sqId}, {budget:nuovo});
+    cc.anni_pagati = pagati + 1;
+    return {budget_nuovo:nuovo, incassato:importo};
+  } catch(e){
+    await db('PATCH', 'sponsor_contratti?' + filtro({id:cc.id}), {anni_pagati:pagati}).catch(() => {});   // se il budget non si aggiorna, l'anno torna da pagare
+    throw e;
+  }
+}
+async function azioneBonus(c, sess, body){            // admin: accredita al budget un bonus raggiunto (o, per il piazzamento, confermato a mano)
+  soloAdmin(sess);
+  const cc = c.contratti.find(x => String(x.id) === String(body.contratto_id));
+  if(!cc) throw new Errore('Contratto non trovato', 404);
+  if(cc.stato !== 'attivo') throw new Errore('Il contratto non è attivo');
+  const lista = Array.isArray(cc.bonus) ? cc.bonus : [];
+  const b = lista.find(x => x.id === body.bonus_id);
+  if(!b) throw new Errore('Bonus non trovato', 404);
+  const st = spBonusStato(b, cc, c.sq, c.stagione);
+  if(st === 'pagato') throw new Errore('Bonus già pagato');
+  if(st === 'scaduto') throw new Errore('Bonus scaduto: l\'anno limite è passato');
+  if(st !== 'raggiunto' && st !== 'da_confermare') throw new Errore('Obiettivo non ancora raggiunto');
+  const nuovaLista = lista.map(x => x.id === b.id ? {...x, stato:'pagato'} : x);
+  await dbUpd('sponsor_contratti', {id:cc.id}, {bonus:nuovaLista});               // prima si segna pagato, poi si accredita
+  try {
+    const sq = await getSquadra(c.sqId);
+    const nuovo = (Number(sq.budget) || 0) + b.importo;
+    await dbUpd('squadre', {id:c.sqId}, {budget:nuovo});
+    cc.bonus = nuovaLista;
+    return {budget_nuovo:nuovo, incassato:b.importo};
+  } catch(e){
+    await dbUpd('sponsor_contratti', {id:cc.id}, {bonus:lista}).catch(() => {});
+    throw e;
+  }
+}
 async function azioneAnnulla(c, sess, body){          // admin, a fine anno: annulla un contratto attivo e lo sponsor torna trattabile dal nuovo presidente
   soloAdmin(sess);
   const cc = c.contratti.find(x => String(x.id) === String(body.contratto_id));
@@ -974,7 +1048,7 @@ module.exports = async (req, res) => {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     // un giocatore agisce sempre e solo per la propria squadra; l'admin può scegliere (modalità di prova)
     const sqId = (sess.adm && body.squadra_id) ? String(body.squadra_id).slice(0, 80) : String(sess.sq);
-    const azioni = {presenta:azionePresenta, chat:azioneChat, firma:azioneFirma, abbandona:azioneAbbandona, reset:azioneReset, azzera:azioneAzzera, annulla:azioneAnnulla};
+    const azioni = {presenta:azionePresenta, chat:azioneChat, firma:azioneFirma, abbandona:azioneAbbandona, reset:azioneReset, azzera:azioneAzzera, annulla:azioneAnnulla, incassa:azioneIncassa, bonus:azioneBonus};
     const a = body.azione;
     if(a === 'carica') return res.status(200).json(payload(await caricaTutto(sqId), sess));
     if(a === 'dettaglio'){
@@ -993,4 +1067,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ok:false, error:'Errore del server, riprova tra poco'});
   }
 };
-module.exports._test = {spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
+module.exports._test = {spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
