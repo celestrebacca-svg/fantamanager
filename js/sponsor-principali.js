@@ -250,6 +250,7 @@ async function spInvia(){
     return;
   }
   SP.pending = ''; SP.attesa = false; spApplica(j); spRender();
+  if(adminLoggato && j.ai) showToast('🤖 Ha risposto: ' + j.ai);      // solo per l'admin: quale intelligenza artificiale ha scritto
   // azioni del giocatore lette dall'AI: chiedono sempre conferma
   const nuovo = SP.dati.sponsors.find(x=>x.id===sp.id);
   if(j.giocatore === 'accetta_offerta' && nuovo && nuovo.offerta && nuovo.stato === 'in_trattativa'){

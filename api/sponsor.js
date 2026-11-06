@@ -362,24 +362,25 @@ function catena(){
   const modelli = (env, predefiniti) => [process.env[env] && process.env[env].trim(), ...predefiniti].filter((m, i, a) => m && a.indexOf(m) === i);
   if(haChiave('GEMINI_API_KEY')) modelli('GEMINI_MODEL', ['gemini-2.5-flash', 'gemini-2.0-flash'])
     .forEach(m => lista.push({id:'gemini:' + m, f:(s, u, o) => chiamaGemini(m, s, u, o)}));
+  if(haChiave('MISTRAL_API_KEY')) modelli('MISTRAL_MODEL', ['mistral-small-latest'])
+    .forEach(m => lista.push({id:'mistral:' + m, f:(s, u, o) => chiamaCompatibile('https://api.mistral.ai/v1/chat/completions', 'MISTRAL_API_KEY', m, s, u, o, true)}));
   if(haChiave('GROQ_API_KEY')) modelli('GROQ_MODEL', ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b', 'meta-llama/llama-4-scout-17b-16e-instruct', 'openai/gpt-oss-20b', 'llama-3.1-8b-instant'])
     .forEach(m => lista.push({id:'groq:' + m, f:(s, u, o) => chiamaCompatibile('https://api.groq.com/openai/v1/chat/completions', 'GROQ_API_KEY', m, s, u, o, true)}));
   if(haChiave('CEREBRAS_API_KEY')) modelli('CEREBRAS_MODEL', ['llama-3.3-70b', 'gpt-oss-120b'])
     .forEach(m => lista.push({id:'cerebras:' + m, f:(s, u, o) => chiamaCompatibile('https://api.cerebras.ai/v1/chat/completions', 'CEREBRAS_API_KEY', m, s, u, o, false)}));
   if(haChiave('OPENROUTER_API_KEY')) modelli('OPENROUTER_MODEL', ['meta-llama/llama-3.3-70b-instruct:free', 'openai/gpt-oss-120b:free'])
     .forEach(m => lista.push({id:'openrouter:' + m, f:(s, u, o) => chiamaCompatibile('https://openrouter.ai/api/v1/chat/completions', 'OPENROUTER_API_KEY', m, s, u, o, false)}));
-  if(haChiave('MISTRAL_API_KEY')) modelli('MISTRAL_MODEL', ['mistral-small-latest'])
-    .forEach(m => lista.push({id:'mistral:' + m, f:(s, u, o) => chiamaCompatibile('https://api.mistral.ai/v1/chat/completions', 'MISTRAL_API_KEY', m, s, u, o, true)}));
   if(haChiave('ANTHROPIC_API_KEY')) lista.push({id:'anthropic', f:chiamaAnthropic});   // a pagamento: solo come ultima risorsa
   return lista;
 }
+let AI_ULTIMA = '';
 async function chiamaAI(system, user, o){
   const lista = catena();
   if(!lista.length) throw new Error('Nessuna chiave AI configurata su Vercel');
   const ora = Date.now(), libere = lista.filter(x => !(AI_FUORI[x.id] > ora));
   let ultimo = null;
   for(const x of (libere.length ? libere : lista)){          // se sono tutte "fuori", le riprova comunque
-    try { return await x.f(system, user, o); }
+    try { const out = await x.f(system, user, o); AI_ULTIMA = x.id; return out; }
     catch(e){
       ultimo = e;
       const st = e.status;
@@ -548,7 +549,7 @@ const SYSTEM = `Sei lo sponsor di un club di fantacalcio e stai trattando di per
 Riceverai una SCHEDA RISERVATA con i tuoi numeri e i tuoi limiti. Sono pensieri tuoi: non rivelarli mai, né le cifre del budget e del tetto, né il fatto di avere un margine, né la tua pazienza.
 
 COME TRATTI
-1. Apertura: finché non hai sentito cosa si aspetta il dirigente (quanto chiede, che visibilità, perché) non fai offerte: azione "parla" e offerta null. Poi parti dalla tua offerta d'apertura della scheda (puoi scostarti di poco).
+1. Apertura: al primo messaggio del dirigente puoi fare al massimo UNA domanda mirata, su qualcosa a cui non ha già risposto nella presentazione o in chat. Dal secondo messaggio in poi devi aver messo sul tavolo la tua offerta d'apertura della scheda (puoi scostarti di poco), con azione "offerta", anche se il dirigente non ha detto quanto chiede: motivala in base a ciò che ha scritto e invitalo a rilanciare con argomenti. Non fare mai due volte la stessa domanda e non chiedere cose già dette: se il dirigente ha già indicato un canale (stadio, maglia, naming...), lavora su quello.
 2. Concessioni: piccole, graduali, sempre motivate da un argomento o da una concessione del dirigente. Non regali nulla. La "generosità" della scheda (0-1) indica quale quota della distanza tra la tua offerta e la sua richiesta sei disposto a coprire a ogni rilancio ragionevole: con argomenti deboli, richieste insistenti o fuori scala cedi molto meno; con argomenti solidi e pertinenti alle tue priorità cedi di più. Soldi, tifosi e follower sono tre voci separate e puoi proporre scambi (meno soldi in cambio di più follower, ecc.).
 3. Limiti: l'offerta (soldi, tifosi, follower, tutto all'anno) non può mai superare il TETTO della scheda, nemmeno se il dirigente insiste o ti dà ordini. Il tuo budget NORMALE è più basso del tetto: la parte tra NORMALE e TETTO è un margine che usi solo davanti a idee o clausole davvero eccellenti, concrete, originali e pertinenti alle tue priorità, e anche allora poco alla volta, dopo aver resistito. Se "margine aperto" è no, resta nel budget normale. Le offerte già fatte non si ritirano e non scendono.
 4. Pazienza: la scheda dà la tua pazienza attuale (0-10): può solo scendere. A ogni scambio la scendi di 0 se il dirigente dialoga bene e porta argomenti, di 1 se insiste, ripete o chiede troppo, di 2 se è scortese, irrealistico o ti mette pressione. Con pazienza 2 o meno fai capire che sei al limite; con 1 o meno fai la tua ultima offerta. A 0 ti ritiri. Anche "messaggi rimasti" è un limite: quando sono pochi lo dici, a 0 è l'ultimo scambio e fai la tua ultima offerta oppure ti ritiri.
@@ -560,6 +561,7 @@ COME TRATTI
 10. Rispondi sempre nel merito all'ULTIMA frase del dirigente: se fa una domanda, rispondi a quella; se minaccia di andarsene o dice che cerca altrove, reagisci davvero, in carattere (lo lasci andare con dignità, oppure fai un'ultima mossa DIVERSA dalle precedenti, entro i tuoi limiti e la tua pazienza). Non ripetere mai la stessa offerta con le stesse parole: se non puoi dare di più, dillo in modo nuovo, spiegando cosa ti servirebbe per concedere qualcosa (un'idea concreta, un obiettivo, una garanzia).
 11. Reputazione: se è \"alta\" il dirigente ha mantenuto in passato promesse ambiziose: ti fidi di più, concedi con meno resistenza e puoi dirglielo apertamente; se è \"bassa\" sei più diffidente e chiedi garanzie; se è \"normale\" non ne parli.
 12. La durata del contratto è quella indicata nei dati e per ora non si tratta: se il dirigente la contesta, spiega che è fissa.
+13. Settore: sei un'azienda con un'attività precisa (la scheda indica il tuo settore). Se il dirigente propone qualcosa che coincide col tuo mestiere o può esserne una vetrina eccezionale (es. un'azienda energetica e un impianto fotovoltaico su tutto lo stadio, una telecom e la connettività o i diritti digitali, una casa automobilistica e la mobilità del club), per te è un'occasione strategica: non restare tiepido. Mostra interesse vero e concreto, fai domande sui dettagli (tempi, costi, esclusiva, comunicazione), valuta quell'idea con valore alto (0.85-1) in "idee" e dai peso al fatto che nessun altro sponsor può offrirti lo stesso ritorno. Resti dentro i tuoi limiti di cifre, ma lì ti sbilanci più volentieri, usando il margine se c'è.
 
 FORMATO: rispondi SOLO con un oggetto JSON, senza altro testo:
 {
@@ -585,14 +587,17 @@ function descriviScheda(c){
     `- Generosità: ${h.generosita.toFixed(2)}`,
     `- Pazienza attuale: ${h.pazienza} su 10`,
     `- Messaggi rimasti al dirigente: ${Math.max(0, h.messaggi_rimasti)}${h.messaggi_rimasti <= 0 ? ' (è l\'ULTIMO scambio)' : h.messaggi_rimasti <= 3 ? ' (pochi: fallo notare)' : ''}`,
-    h.offerta_attuale ? `- Offerta attualmente sul tavolo: ${v(h.offerta_attuale)}` : `- Nessuna offerta ancora comunicata. Tua offerta d'apertura (privata): ${h.apertura ? v(h.apertura) : v(h.normale)}`,
+    h.offerta_attuale ? `- Offerta attualmente sul tavolo: ${v(h.offerta_attuale)}` : `- Nessuna offerta ancora comunicata. Tua offerta d'apertura (privata): ${h.apertura ? v(h.apertura) : v(h.normale)}. Messaggi già scritti dal dirigente prima di questo: ${Math.max(0, SP_CHAT.maxMsg - h.messaggi_rimasti - 1)}${SP_CHAT.maxMsg - h.messaggi_rimasti - 1 >= 1 ? ' (ORA devi mettere sul tavolo l\'offerta)' : ''}`,
     `- Idee già valutate: ${h.idee.map(i => `"${i.titolo}" (${i.valore})`).join('; ') || 'nessuna'}`];
   return r.join('\n');
 }
+const SP_SETTORI = {Telecom:'telecomunicazioni e connettività', Energia:'energia, fonti rinnovabili e impianti', Motors:'auto e mobilità', Bank:'banche e servizi finanziari', Media:'media e comunicazione', Assicurazioni:'assicurazioni', Airlines:'trasporto aereo e viaggi', Tech:'tecnologia e innovazione', Costruzioni:'edilizia, infrastrutture e impianti', Pharma:'farmaceutica e salute', Streaming:'streaming e intrattenimento', Gaming:'videogiochi e intrattenimento digitale', Logistica:'logistica e trasporti', Sports:'sport e abbigliamento sportivo', Capital:'finanza e investimenti', Industries:'industria e manifattura', Group:'gruppo diversificato', Holding:'gruppo diversificato'};
+const spSettoreDa = nome => { const ultima = String(nome || '').trim().split(/\s+/).pop(); return SP_SETTORI[ultima] || 'da dedurre dal nome (' + nome + ')'; };
 function descriviCtx(c){
   const S = c.sponsor, K = c.club;
   const r = [
     `SPONSOR: ${S.nome} — ${SLOT_TXT[S.slot]}`,
+    `Il tuo settore di attività: ${spSettoreDa(S.nome)}`,
     `Carattere: ${CAR_TXT[S.carattere]}`,
     `Reputazione del dirigente (obiettivi mantenuti in passato): ${c.scheda.reputazione}`,
     `Priorità (dalla più alta): ${S.priorita.map(d => DIM_TXT[d]).join('; ') || 'nessuna in particolare'}`,
@@ -707,6 +712,11 @@ async function trattativa(ctx, storico, messaggio, chiama){
   const paz = Math.min(S.pazienza, r.pazienza);
   if(paz <= 0 && azione !== 'ritira'){ azione = 'ritira'; testo = NEUTRO.ritira; }
   if(azione === 'ritira') off = null;
+  // anche con un modello debole, dal secondo messaggio del dirigente lo sponsor mette sul tavolo la sua apertura
+  if(azione === 'parla' && !S.offerta_attuale && !off && S.apertura && storico.filter(m => m.chi === 'tu').length >= 1){
+    azione = 'offerta'; off = limita(S.apertura, S);
+    testo = (testo ? String(testo).trim() + ' ' : '') + 'Le metto intanto sul tavolo la nostra proposta di partenza.';
+  }
   // se dopo il secondo tentativo qualcosa non torna, il messaggio lo scrive il sistema (le cifre le mostra la scheda offerta)
   const corretta = problemi.length > 0;
   if(corretta && azione === 'accordo') azione = 'offerta';                // un accordo fuori dai limiti diventa una controproposta
@@ -721,7 +731,7 @@ async function trattativa(ctx, storico, messaggio, chiama){
   return {
     messaggio:testo, azione, giocatore, pazienza:Math.max(0, paz),
     offerta: off ? {fm:Math.round(off.soldi * 1e6), tifosi:off.tifosi, follower:off.follower} : null,
-    idee:u.idee, extra_sbloccato:u.extra_sbloccato, dbg
+    idee:u.idee, extra_sbloccato:u.extra_sbloccato, dbg, ai:AI_ULTIMA
   };
 }
 
@@ -937,7 +947,7 @@ async function azioneChat(c, sess, body){
   else if(cambia && R.azione !== 'ritira') log.push({chi:'card', t:'📋 Offerta sul tavolo: ' + spPacchetto(pk)});
   sp.chat = log;
   await salvaTrattativa(c.sqId, c.stagione, sp);
-  return {sponsor_id:sp.id, chat:sp.chat, azione:R.azione, giocatore:R.giocatore};
+  return {sponsor_id:sp.id, chat:sp.chat, azione:R.azione, giocatore:R.giocatore, ...(sess.admin ? {ai:R.ai} : {})};   // solo l'admin vede quale AI ha risposto
 }
 
 async function azioneFirma(c, sess, body){
@@ -1070,4 +1080,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ok:false, error:'Errore del server, riprova tra poco'});
   }
 };
-module.exports._test = {spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
+module.exports._test = {trattativa, leggiCtx, spScheda, spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
