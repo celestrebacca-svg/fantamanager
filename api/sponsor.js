@@ -1046,7 +1046,7 @@ module.exports = async (req, res) => {
   if(!sess) return res.status(401).json({ok:false, sessione:false, error:'Sessione scaduta: esci e rientra'});
   try{
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
-    // un giocatore agisce sempre e solo per la propria squadra; l'admin può scegliere (modalità di prova)
+    // un giocatore agisce sempre e solo per la propria squadra; l'admin può guardare e gestire qualsiasi squadra
     const sqId = (sess.adm && body.squadra_id) ? String(body.squadra_id).slice(0, 80) : String(sess.sq);
     const azioni = {presenta:azionePresenta, chat:azioneChat, firma:azioneFirma, abbandona:azioneAbbandona, reset:azioneReset, azzera:azioneAzzera, annulla:azioneAnnulla, incassa:azioneIncassa, bonus:azioneBonus};
     const a = body.azione;
@@ -1057,6 +1057,9 @@ module.exports = async (req, res) => {
     }
     if(a === 'verifica'){ const c = await caricaTutto(sqId); return res.status(200).json({ok:true, ...(await azioneVerifica(c, sess, body))}); }
     if(!azioni[a]) throw new Errore('Azione non valida');
+    // le trattative le fanno solo i presidenti della propria squadra: l'admin guarda, annulla, paga e azzera, ma non tratta al posto degli altri
+    if(['presenta', 'chat', 'firma', 'abbandona'].includes(a) && sqId !== String(sess.sq))
+      throw new Errore('Le trattative le fa il presidente della squadra: tu, da admin, puoi solo vederle', 403);
     let c = await caricaTutto(sqId);
     const extra = await azioni[a](c, sess, body);
     if(a === 'presenta' || a === 'azzera' || a === 'reset' || a === 'annulla') c = await caricaTutto(sqId);    // stato cambiato nel database: si rilegge

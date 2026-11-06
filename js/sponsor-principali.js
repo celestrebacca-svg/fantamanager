@@ -29,6 +29,7 @@ function spErr(e){ SP.errore = '❌ ' + (e.sessione ? 'Sessione scaduta: esci e 
 // applica la risposta del server (stato completo degli sponsor di questa squadra)
 function spApplica(j){ SP.dati = j; if(j.chat && j.sponsor_id) SP.chat[j.sponsor_id] = j.chat; }
 
+const spSolaLettura = () => adminLoggato && String(SP.sqId) !== String(utenteLoggato && utenteLoggato.id);
 function spSq(){ return squadreDB.find(s => String(s.id) === String(SP.sqId)); }
 // una trattativa aperta blocca le altre finché non si accetta, si rifiuta o lo sponsor si ritira (il server lo fa rispettare)
 const spInCorso = () => SP.dati && SP.dati.sponsors.find(x => x.stato === 'in_trattativa');
@@ -70,7 +71,7 @@ function spRender(){
     <select class="form-select" onchange="spCambiaSquadra(this.value)">${squadreDB.map(s=>`<option value="${s.id}" ${String(s.id)===String(SP.sqId)?'selected':''}>${s.nome}</option>`).join('')}</select></div>` : '';
   let html = sel;
   if(!SP.dati) html += `<div style="color:#ff6b6b;font-size:13px;padding:10px 0">${spEsc(SP.errore || 'Impossibile caricare gli sponsor')}</div><button onclick="spCambiaSquadra(SP.sqId)" style="cursor:pointer">Riprova</button>`;
-  else if(!SP.dati.presentato) html += spHtmlForm();
+  else if(!SP.dati.presentato) html += spSolaLettura() ? `<div style="padding:14px 0;color:var(--testo-dim);font-size:13px">Questa squadra non ha ancora presentato il progetto agli sponsor: lo farà il suo presidente.</div>` : spHtmlForm();
   else if(SP.sponsorId) html += spHtmlTrattativa();
   else html += spHtmlLista();
   body.innerHTML = html;
@@ -225,7 +226,7 @@ function spHtmlTrattativa(){
     <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--oro)">${SP_SLOT[sp.slot].emoji} ${spEsc(sp.nome)}</div>
     <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">${riepilogo}${idee}</div>
     <div id="sp-chat" style="max-height:300px;overflow:auto;margin-bottom:10px">${chat}</div>${err}
-    ${chiuso ? `<div style="text-align:center;color:var(--testo-dim);margin-bottom:8px">Trattativa chiusa</div>` : `
+    ${spSolaLettura() ? `<div style="text-align:center;color:var(--testo-dim);margin-bottom:8px;font-size:12px">👁️ Solo visione: le trattative le fa il presidente della squadra</div>` : chiuso ? `<div style="text-align:center;color:var(--testo-dim);margin-bottom:8px">Trattativa chiusa</div>` : `
     ${form}
     ${pk ? `<button class="btn-primary" style="width:100%;margin-bottom:6px" ${occ} onclick="spFirma()">✅ ACCETTO: ${spFmt(pk.fm)}/anno + ${spNum(pk.tifosi)} tifosi e ${spNum(pk.follower)} follower l'anno</button>` : ''}
     <button onclick="spAbbandona()" ${occ} style="width:100%;cursor:pointer">🚪 Abbandona la trattativa</button>`}
