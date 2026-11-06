@@ -52,6 +52,7 @@ function spModal(){
       <div id="sp-body" style="padding:14px 16px 20px"></div></div>`;
     document.body.appendChild(m);
   }
+  m.style.zIndex = '100000';      // sopra la home e qualsiasi altro livello dell'app
   m.classList.add('open');
 }
 
