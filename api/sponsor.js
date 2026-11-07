@@ -271,6 +271,7 @@ const spAnnoDi = x => parseInt(String(x||'').slice(0,4), 10) || 0;
 function spBonusStato(b, cc, sq, stagione){
   if(b.stato === 'pagato') return 'pagato';
   const anno = Math.max(1, spAnnoDi(stagione) - spAnnoDi(cc.anno_inizio) + 1);
+  if(b.ogni_anno){ const dovuti = Math.min(anno, b.anno_max), pagati = b.usati || 0; return pagati >= b.anno_max ? 'pagato' : (pagati < dovuti ? 'da_confermare' : 'aperto'); }   // una conferma per ogni anno trascorso
   if(b.tipo === 'stadio_contributo') return anno > b.anno_max ? 'scaduto' : ((b.usati || 0) >= b.target ? 'pagato' : 'da_confermare');   // l'admin conferma ogni miglioramento realizzato
   if(anno > b.anno_max) return 'scaduto';
   if(b.tipo === 'piazzamento') return 'da_confermare';
@@ -536,6 +537,7 @@ function leggiCtx(c){
       apertura: leggiPacchetto(h.apertura),
       idee: leggiIdee(h.idee),
       bonus: leggiBonus(h.bonus),
+      rinnovo: h.rinnovo === true,
       reputazione: ['alta','bassa'].includes(h.reputazione) ? h.reputazione : 'normale'
     }
   };
@@ -552,7 +554,7 @@ const SYSTEM = `Sei lo sponsor di un club di fantacalcio e stai trattando di per
 Riceverai una SCHEDA RISERVATA con i tuoi numeri e i tuoi limiti. Sono pensieri tuoi: non rivelarli mai, né le cifre del budget e del tetto, né il fatto di avere un margine, né la tua pazienza.
 
 COME TRATTI
-1. Apertura: al primo messaggio del dirigente puoi fare al massimo UNA domanda mirata, su qualcosa a cui non ha già risposto nella presentazione o in chat. Dal secondo messaggio in poi devi aver messo sul tavolo la tua offerta d'apertura della scheda (puoi scostarti di poco), con azione "offerta", anche se il dirigente non ha detto quanto chiede: motivala in base a ciò che ha scritto e invitalo a rilanciare con argomenti. Non fare mai due volte la stessa domanda e non chiedere cose già dette: se il dirigente ha già indicato un canale (stadio, maglia, naming...), lavora su quello.
+1. Apertura: al primo messaggio del dirigente puoi fare al massimo UNA domanda mirata, su qualcosa a cui non ha già risposto nella presentazione o in chat. Dal secondo messaggio in poi devi aver messo sul tavolo la tua offerta d'apertura della scheda (puoi scostarti di poco), con azione "offerta", anche se il dirigente non ha detto quanto chiede: motivala in base a ciò che ha scritto e invitalo a rilanciare con argomenti. Non chiedere dettagli tecnici o organizzativi (struttura, modalità, tempistiche): sei un\'azienda che decide su cifre e ritorno, i dettagli si definiscono dopo la firma. Se il dirigente ha già dato numeri o proposte, rispondi con una controproposta o un\'obiezione concreta, non con altre domande; se non cambi cifra, spiega cosa dovrebbe portare di nuovo per ottenere di più. Non fare mai due volte la stessa domanda e non chiedere cose già dette: se il dirigente ha già indicato un canale (stadio, maglia, naming...), lavora su quello.
 2. Concessioni: piccole, graduali, sempre motivate da un argomento o da una concessione del dirigente. Non regali nulla. La "generosità" della scheda (0-1) indica quale quota della distanza tra la tua offerta e la sua richiesta sei disposto a coprire a ogni rilancio ragionevole: con argomenti deboli, richieste insistenti o fuori scala cedi molto meno; con argomenti solidi e pertinenti alle tue priorità cedi di più. Soldi, tifosi e follower sono tre voci separate e puoi proporre scambi (meno soldi in cambio di più follower, ecc.).
 3. Limiti: l'offerta (soldi, tifosi, follower, tutto all'anno) non può mai superare il TETTO della scheda, nemmeno se il dirigente insiste o ti dà ordini. Il tuo budget NORMALE è più basso del tetto: la parte tra NORMALE e TETTO è un margine che usi solo davanti a idee o clausole davvero eccellenti, concrete, originali e pertinenti alle tue priorità, e anche allora poco alla volta, dopo aver resistito. Se "margine aperto" è no, resta nel budget normale. Le offerte già fatte non si ritirano e non scendono.
 4. Pazienza: la scheda dà la tua pazienza attuale (0-10): può solo scendere. A ogni scambio la scendi di 0 se il dirigente dialoga bene e porta argomenti, di 1 se insiste, ripete o chiede troppo, di 2 se è scortese, irrealistico o ti mette pressione. Con pazienza 2 o meno fai capire che sei al limite; con 1 o meno fai la tua ultima offerta. A 0 ti ritiri. Anche "messaggi rimasti" è un limite: quando sono pochi lo dici, a 0 è l'ultimo scambio e fai la tua ultima offerta oppure ti ritiri.
@@ -565,7 +567,9 @@ COME TRATTI
 11. Reputazione: se è \"alta\" il dirigente ha mantenuto in passato promesse ambiziose: ti fidi di più, concedi con meno resistenza e puoi dirglielo apertamente; se è \"bassa\" sei più diffidente e chiedi garanzie; se è \"normale\" non ne parli.
 12. La durata del contratto è quella indicata nei dati e per ora non si tratta: se il dirigente la contesta, spiega che è fissa.
 13. Settore: sei un'azienda con un'attività precisa (la scheda indica il tuo settore). Se il dirigente propone qualcosa che coincide col tuo mestiere o può esserne una vetrina eccezionale (es. un'azienda energetica e un impianto fotovoltaico su tutto lo stadio, una telecom e la connettività o i diritti digitali, una casa automobilistica e la mobilità del club), per te è un'occasione strategica: non restare tiepido. Mostra interesse vero e concreto, fai domande sui dettagli (tempi, costi, esclusiva, comunicazione), valuta quell'idea con valore alto (0.85-1) in "idee" e dai peso al fatto che nessun altro sponsor può offrirti lo stesso ritorno. Resti dentro i tuoi limiti di cifre, ma lì ti sbilanci più volentieri, usando il margine se c'è.
-14. Bonus: oltre alla cifra fissa puoi proporre, o accettare su richiesta del dirigente, clausole bonus concordate in chat: un obiettivo preciso, un anno limite (da 1 alla durata del contratto) e un importo fisso in milioni, pagato solo se l'obiettivo viene raggiunto. Tipi ammessi: tifosi_pct (aumento % dei tifosi), follower_pct (aumento % dei follower), stadio_pct (aumento % della capienza), fastfood (livelli in più), trofei (trofei in più), piazzamento (chiudere entro i primi N del campionato), stadio_contributo (contributo per OGNI miglioramento dello stadio che il club realizza: "target" = quanti miglioramenti al massimo, "anno_max" = fino a quale anno vale, "importo" = quanto versi per ciascun miglioramento; un miglioramento costa circa 2,5 milioni e di norma ne copri una quota piccola, che sale se la reputazione del dirigente è alta e scende se è bassa: il sistema la limita). Se il dirigente parla di ampliare o migliorare lo stadio con il tuo contributo, è la forma naturale: proponila o accettala, soprattutto se il tuo settore c'entra (edilizia, energia, impianti). Sono il modo per premiare un dirigente ambizioso senza alzare la cifra fissa: obiettivi facili valgono premi piccoli, obiettivi ambiziosi premi più grandi. Non sono mai nascosti: ciò che metti in "bonus" lo vedono tutti. Proponili solo dal secondo scambio, quando c'è già qualcosa da discutere (un dirigente che si dice sicuro dei propri obiettivi, un\'offerta fissa ferma al limite). In "bonus" metti sempre l'elenco COMPLETO dei bonus attualmente sul tavolo (massimo 5), anche quelli già concordati; per toglierne uno basta ometterlo. Quando ne proponi o ne modifichi uno, dillo nel messaggio con le tue parole. Il sistema limita il totale dei bonus: non ti preoccupare di calcolarlo.
+14. Bonus: oltre alla cifra fissa puoi proporre, o accettare su richiesta del dirigente, clausole bonus concordate in chat: un obiettivo preciso, un anno limite (da 1 alla durata del contratto) e un importo fisso in milioni, pagato solo se l'obiettivo viene raggiunto. Tipi ammessi: tifosi_pct (aumento % dei tifosi), follower_pct (aumento % dei follower), stadio_pct (aumento % della capienza), fastfood (livelli in più), trofei (trofei in più), piazzamento (chiudere entro i primi N del campionato), stadio_contributo (contributo per OGNI miglioramento dello stadio che il club realizza: "target" = quanti miglioramenti al massimo, "anno_max" = fino a quale anno vale, "importo" = quanto versi per ciascun miglioramento; un miglioramento costa circa 2,5 milioni e di norma ne copri una quota piccola, che sale se la reputazione del dirigente è alta e scende se è bassa: il sistema la limita). Se il dirigente parla di ampliare o migliorare lo stadio con il tuo contributo, è la forma naturale: proponila o accettala, soprattutto se il tuo settore c'entra (edilizia, energia, impianti). Sono il modo per premiare un dirigente ambizioso senza alzare la cifra fissa: obiettivi facili valgono premi piccoli, obiettivi ambiziosi premi più grandi. Non sono mai nascosti: ciò che metti in "bonus" lo vedono tutti. Proponili solo dal secondo scambio, quando c'è già qualcosa da discutere (un dirigente che si dice sicuro dei propri obiettivi, un\'offerta fissa ferma al limite). In "bonus" metti SOLO i bonus nuovi o modificati in questo messaggio: quelli già sul tavolo restano finché non li togli mettendo il loro tipo in "togli_bonus" (non toglierli mai per dimenticanza). Rispetta ESATTAMENTE ciò che il dirigente chiede: stessa soglia (se chiede primi 10, "target" è 10, non 8) e stessa frequenza (se chiede "ogni anno che arrivo tra i primi 10", metti "ogni_anno": true: il premio si paga per ciascun anno del contratto, non una volta sola). Nel messaggio ripeti la stessa soglia e frequenza che metti in "bonus". Quando ne proponi o ne modifichi uno, dillo nel messaggio con le tue parole. Il sistema limita il totale dei bonus: non ti preoccupare di calcolarlo.
+15. Opzioni a scelta: se il dirigente ti propone più opzioni con prezzi diversi (es. un servizio a 2 milioni, uno migliore a 3, il migliore a 4) o ti dice di scegliere in base al tuo budget, scegli TU un\'opzione e dillo apertamente, con il motivo: la migliore che puoi permetterti entro il tuo tetto. Non pretendere l\'opzione più cara al prezzo di quella più economica. Se il tuo limite sta tra due opzioni, o prendi quella inferiore, o dici di quanto la cifra dovrebbe salire (senza rivelare il tetto), o proponi una versione ridotta della migliore. Se ti ha già detto di scegliere tu, non rispondere con altre domande: scegli subito.
+16. Importanza dell\'accordo: valuta quanto conta per te ciò che ti viene proposto: ritorno di visibilità e immagine, coerenza col tuo settore, esclusiva, durata, valore del servizio rispetto al prezzo. Un accordo molto vantaggioso per te (per esempio l\'opzione migliore con esclusiva) giustifica di spingerti verso il tuo tetto e di usare il margine extra: dai valore alto alle idee che lo meritano, anche se sei uno sponsor food o merchandising e non uno principale. Non trattare un contratto importante come uno qualsiasi. Resti comunque dentro i tuoi limiti di cifre.
 
 FORMATO: rispondi SOLO con un oggetto JSON, senza altro testo:
 {
@@ -575,7 +579,8 @@ FORMATO: rispondi SOLO con un oggetto JSON, senza altro testo:
  "pazienza": intero da 0 a 10,
  "giocatore": "nessuna" | "accetta_offerta" | "abbandona",
  "idee": [{"titolo": "max 6 parole", "categoria": "maglia"|"stadio"|"museo"|"social"|"canale"|"under23"|"spogliatoi"|"evento"|"giovani"|"altro", "valore": 0-1}],
- "bonus": [] oppure [{"tipo": "tifosi_pct"|"follower_pct"|"stadio_pct"|"fastfood"|"trofei"|"piazzamento"|"stadio_contributo", "target": numero (es. 10 per +10%, 4 per primi 4, 3 per tre miglioramenti dello stadio), "anno_max": intero, "importo": milioni di euro (es. 0.15)}]
+ "bonus": [] oppure [{"tipo": "tifosi_pct"|"follower_pct"|"stadio_pct"|"fastfood"|"trofei"|"piazzamento"|"stadio_contributo", "target": numero (es. 10 per +10%, 4 per primi 4, 3 per tre miglioramenti dello stadio), "anno_max": intero, "ogni_anno": true solo per il piazzamento pagato ogni anno, "importo": milioni di euro (es. 0.15)}],
+ "togli_bonus": [] oppure i tipi dei bonus da togliere (es. ["trofei"])
 }
 - azione "parla": stai solo parlando; "offerta" è null se non hai ancora fatto offerte, altrimenti riporta quella già sul tavolo.
 - azione "offerta": comunichi la prima offerta o una nuova (obbligatoria).
@@ -604,6 +609,7 @@ function descriviCtx(c){
   const r = [
     `SPONSOR: ${S.nome} — ${SLOT_TXT[S.slot]}`,
     `Il tuo settore di attività: ${spSettoreDa(S.nome)}`,
+    ...(c.scheda && c.scheda.rinnovo ? ['RINNOVO: con questo club hai già concluso con successo un contratto. C\'è storia e fiducia: dillo, valorizza i risultati raggiunti e sii più aperto di con un nuovo interlocutore, restando nei tuoi limiti.'] : []),
     `Carattere: ${CAR_TXT[S.carattere]}`,
     `Reputazione del dirigente (obiettivi mantenuti in passato): ${c.scheda.reputazione}`,
     `Priorità (dalla più alta): ${S.priorita.map(d => DIM_TXT[d]).join('; ') || 'nessuna in particolare'}`,
@@ -662,17 +668,19 @@ const SP_COSTO_STADIO = 2.5;                                  // milioni: costo 
 const SP_QUOTA_STADIO = {alta:0.15, normale:0.10, bassa:0.06};  // quota massima del costo che lo sponsor può coprire, in base alla reputazione del dirigente
 const spTettoStadio = rep => +(SP_COSTO_STADIO*(SP_QUOTA_STADIO[rep] || SP_QUOTA_STADIO.normale)).toFixed(3);
 const SP_BONUS_QUOTA = 0.4;            // tutti i bonus insieme non superano il 40% del valore fisso del contratto
+const SP_BONUS_RANGE = {tifosi_pct:[1, 100], follower_pct:[1, 300], stadio_pct:[1, 100], fastfood:[1, 5], trofei:[1, 5], piazzamento:[1, 11], stadio_contributo:[1, 8]};
 function leggiBonus(x){
   if(!Array.isArray(x)) return [];
-  return x.slice(0, 5).map(b => {
-    if(!b || !SP_BONUS_TIPI[b.tipo]) return null;
-    const t = nz(b.target); if(!(t > 0)) return null;
-    const liv = SP_BONUS_TIPI[b.tipo].livelli.map(l => l[0]);
-    const target = liv.reduce((p, q) => Math.abs(q - t) < Math.abs(p - t) ? q : p);     // si porta al livello valido più vicino
+  return x.slice(0, 6).map(b => {
+    if(!b || !SP_BONUS_RANGE[b.tipo]) return null;
+    const [lo, hi] = SP_BONUS_RANGE[b.tipo];
+    const t = Math.round(nz(b.target)); if(!(t > 0)) return null;
+    const target = Math.min(hi, Math.max(lo, t));                                       // il valore esatto concordato, entro limiti sensati
     let imp = nz(b.importo); if(imp > 1000) imp = imp/1e6;                              // se scrive in euro invece che in milioni
     imp = Math.round(imp*100)/100;
     if(!(imp > 0)) return null;
-    return {tipo:b.tipo, target, anno_max:Math.max(1, Math.round(nz(b.anno_max)) || 1), importo:imp};
+    const ogniAnno = b.tipo === 'piazzamento' && (b.ogni_anno === true || b.ogni_anno === 'true');   // "ogni anno che arrivi tra i primi N"
+    return {tipo:b.tipo, target, anno_max:Math.max(1, Math.round(nz(b.anno_max)) || 1), importo:imp, ...(ogniAnno ? {ogni_anno:true} : {})};
   }).filter(Boolean);
 }
 function leggiRisposta(j){
@@ -689,7 +697,8 @@ function leggiRisposta(j){
     pazienza: intIn(j.pazienza, 0, 10),
     giocatore: GIOCATORE.includes(j.giocatore) ? j.giocatore : 'nessuna',
     idee: leggiIdee(j.idee).slice(0, 3),
-    bonus: leggiBonus(j.bonus)
+    bonus: leggiBonus(j.bonus),
+    togli_bonus: Array.isArray(j.togli_bonus) ? j.togli_bonus.map(String).slice(0, 6) : []
   };
 }
 // problemi che meritano un secondo tentativo dell'AI
@@ -704,7 +713,7 @@ function trovaProblemi(r, S, durata, contesto){
     if(a && r.azione !== 'ritira' && (r.offerta.soldi < a.soldi - 0.005 || r.offerta.tifosi < a.tifosi || r.offerta.follower < a.follower)) p.push('l\'offerta è scesa sotto quella già fatta');
   }
   const baseB = r.offerta || S.offerta_attuale || S.apertura || S.normale, limB = (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA;
-  if((r.bonus || []).filter(b => b.tipo !== 'stadio_contributo').reduce((t, b) => t + b.importo, 0) > limB + 0.005) p.push('il totale dei bonus supera il limite di ' + limB.toFixed(2) + ' milioni');
+  if((r.bonus || []).filter(b => b.tipo !== 'stadio_contributo').reduce((t, b) => t + b.importo*(b.ogni_anno ? durata : 1), 0) > limB + 0.005) p.push('il totale dei bonus supera il limite di ' + limB.toFixed(2) + ' milioni');
   const tSt = spTettoStadio(S.reputazione);
   if((r.bonus || []).some(b => b.tipo === 'stadio_contributo' && b.importo > tSt + 0.005)) p.push('il contributo per ogni miglioramento dello stadio non può superare ' + tSt.toFixed(2) + ' milioni');
   if(r.messaggio && !cifreCoerenti(r.messaggio, r.offerta, S.offerta_attuale, durata, contesto)) p.push('le cifre nel messaggio non coincidono con l\'offerta');
@@ -743,8 +752,14 @@ async function trattativa(ctx, storico, messaggio, chiama){
   // bonus: anno dentro la durata e totale entro il limite (il resto lo decide l'AI)
   const baseB = off || S.offerta_attuale || S.apertura || S.normale;
   const tSt = spTettoStadio(S.reputazione);
-  let bonus = azione === 'ritira' ? [] : r.bonus.map(b => ({...b, anno_max:Math.min(durata, b.anno_max), importo:b.tipo === 'stadio_contributo' ? Math.min(b.importo, tSt) : b.importo}));
-  const tettoB = Math.max(0, (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA), sommaB = bonus.filter(b => b.tipo !== 'stadio_contributo').reduce((t, b) => t + b.importo, 0);
+  // i bonus già sul tavolo restano: li cambia solo un bonus nuovo dello stesso tipo, o "togli_bonus"; non spariscono per dimenticanza dell'AI
+  const chiave = b => b.tipo + (b.ogni_anno ? ':anno' : '');
+  const togli = new Set(r.togli_bonus || []), nuoveChiavi = new Set(r.bonus.map(chiave));
+  const mantenuti = (S.bonus || []).filter(b => !togli.has(b.tipo) && !nuoveChiavi.has(chiave(b)));
+  let bonus = azione === 'ritira' ? [] : [...mantenuti, ...r.bonus].slice(-6)
+    .map(b => ({...b, anno_max:b.ogni_anno ? durata : Math.min(durata, b.anno_max), importo:b.tipo === 'stadio_contributo' ? Math.min(b.importo, tSt) : b.importo}));
+  const peso = b => b.importo*(b.ogni_anno ? durata : 1);
+  const tettoB = Math.max(0, (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA), sommaB = bonus.filter(b => b.tipo !== 'stadio_contributo').reduce((t, b) => t + peso(b), 0);
   if(sommaB > tettoB && sommaB > 0) bonus = bonus.map(b => b.tipo === 'stadio_contributo' ? b : ({...b, importo:Math.max(0.02, Math.floor(b.importo*tettoB/sommaB*100)/100)}));
   // anche con un modello debole, dal secondo messaggio del dirigente lo sponsor mette sul tavolo la sua apertura
   if(azione === 'parla' && !S.offerta_attuale && !off && S.apertura && storico.filter(m => m.chi === 'tu').length >= 1){
@@ -805,6 +820,7 @@ function spScheda(sp, nMsg){
     generosita:C.gen, pazienza:sp.pazienza, messaggi_rimasti:SP_CHAT.maxMsg - nMsg,
     offerta_attuale: aperta ? pk : null, apertura: aperta ? null : pk,
     idee:(sp.idee||[]),
+    rinnovo:!!sp.rinnovo,
     bonus:(sp.bonus||[]),
     reputazione: (sp.rep||0) >= 0.06 ? 'alta' : (sp.rep||0) <= -0.04 ? 'bassa' : 'normale'
   };
@@ -829,6 +845,22 @@ function scalaObiettivi(obiettivi, d, n, baseP){
   return out;
 }
 
+// ===== rinnovi: lo sponsor di un contratto chiuso bene torna alla presentazione successiva; la crescita è segreta e contenuta =====
+function spRinnovi(contratti, stagione, sqId){
+  const rinnovati = new Set((contratti || []).map(x => x.profilo && x.profilo.da_rinnovo).filter(Boolean).map(String));
+  const rep = spReputazione(contratti);
+  return (contratti || []).filter(x => x.stato === 'concluso' && x.profilo && x.profilo.carattere && !rinnovati.has(String(x.id))).map(x => {
+    const p = x.profilo, C = SP_CARATTERI[p.carattere] || SP_CARATTERI.prudente;
+    const crescita = Math.min(1.2, Math.max(0.9, (p.verdetto === 'rinnovo_ridotto' ? 0.97 : 1.08) + 0.4*rep));
+    const budget_totale = Math.round((p.budget_totale || 0)*crescita), durata = p.durata || 3, orizzonte = Math.max(durata, 3);
+    const techo_annuo = Math.round(budget_totale/orizzonte*1.2), techo_tifosi = Math.round((p.techo_tifosi || 0)*crescita), techo_follower = Math.round((p.techo_follower || 0)*crescita);
+    return {id:'ren-' + x.id, squadra_id:sqId, stagione, slot:p.slot, nome:x.nome_sponsor, carattere:p.carattere, budget_totale, durata, orizzonte,
+      extra_totale:Math.round((p.extra_totale || 0)*crescita), pesi:p.pesi || {}, sens:p.sens || {tono:0.5, orig:0.5, ego:0.5}, pazienza:Math.min(10, (p.pazienza || 5) + 2),
+      score:1, soglia:0, interesse:'molto', stato:'disponibile', techo_annuo, offerta_annua:Math.round(techo_annuo*C.ap),
+      techo_tifosi, techo_follower, offerta_tifosi:Math.round(techo_tifosi*C.ap), offerta_follower:Math.round(techo_follower*C.ap), rinnovo:true, rinnovo_di:x.id};
+  });
+}
+
 // ===== 8) pool, stato, viste pubbliche =====
 function generaSponsors(sqId, stagione, progetto){
   const val = progetto.val;
@@ -848,18 +880,19 @@ function unisciStato(sponsors, righe){
 // ciò che il giocatore può vedere di uno sponsor: niente budget, tetti, pazienza, carattere, priorità
 const SP_BONUS_NOMI = {tifosi_pct:'tifosi', follower_pct:'follower', stadio_pct:'capienza stadio'};
 const spBonusFrase = b => b.tipo === 'stadio_contributo' ? 'ogni miglioramento dello stadio (fino a ' + b.target + ', entro l\'anno ' + b.anno_max + '): ' + String(b.importo).replace('.', ',') + 'M di contributo' : (['tifosi_pct', 'follower_pct', 'stadio_pct'].includes(b.tipo) ? '+' + b.target + '% ' + SP_BONUS_NOMI[b.tipo]
-  : b.tipo === 'fastfood' ? '+' + b.target + ' livelli fast food' : b.tipo === 'trofei' ? '+' + b.target + ' trofei' : 'primi ' + b.target + ' in campionato')
-  + ' entro l\'anno ' + b.anno_max + ': ' + String(b.importo).replace('.', ',') + 'M';
+  : b.tipo === 'fastfood' ? '+' + b.target + ' livelli fast food' : b.tipo === 'trofei' ? '+' + b.target + ' trofei' : (b.ogni_anno ? 'ogni anno ' : '') + 'primi ' + b.target + ' in campionato')
+  + (b.ogni_anno ? ' (per ognuno dei ' + b.anno_max + ' anni): ' : ' entro l\'anno ' + b.anno_max + ': ') + String(b.importo).replace('.', ',') + 'M';
 function vistaSponsor(sp){
   const aperta = (sp.round||0) > 0;
   return {id:sp.id, slot:sp.slot, nome:sp.nome, interesse:sp.interesse, durata:sp.durata, stato:sp.stato, round:sp.round||0,
     offerta: aperta ? {fm:sp.offerta_annua, tifosi:sp.offerta_tifosi||0, follower:sp.offerta_follower||0} : null,
     idee:(sp.idee||[]).map(i => i.titolo),
+    rinnovo:!!sp.rinnovo,
     bonus:(sp.bonus||[]).map(b => ({...b, importo_fm:Math.round(b.importo*1e6)}))};
 }
 const contrattoPubblico = (c, ctx) => ({id:c.id, slot:c.slot, nome_sponsor:c.nome_sponsor, durata:c.durata, fisso_annuo:Number(c.fisso_annuo),
   tifosi_annui:c.tifosi_annui, follower_annui:c.follower_annui, idee:c.idee || [], stato:c.stato, anno_inizio:c.anno_inizio, anni_pagati:Number(c.anni_pagati)||0,
-  bonus:(Array.isArray(c.bonus) ? c.bonus : []).map(b => ({id:b.id, tipo:b.tipo, target:b.target, anno_max:b.anno_max, importo:b.importo, usati:b.usati || 0, sorpresa:!!b.nascosto, stato:ctx ? spBonusStato(b, c, ctx.sq, ctx.stagione) : b.stato}))
+  bonus:(Array.isArray(c.bonus) ? c.bonus : []).map(b => ({id:b.id, tipo:b.tipo, target:b.target, anno_max:b.anno_max, importo:b.importo, usati:b.usati || 0, ogni_anno:!!b.ogni_anno, sorpresa:!!b.nascosto, stato:ctx ? spBonusStato(b, c, ctx.sq, ctx.stagione) : b.stato}))
     .filter(b => !b.sorpresa || b.stato === 'raggiunto' || b.stato === 'pagato')});
 // la chat di uno sponsor: se non c'è ancora, il saluto (o la ripresa se c'è già un'offerta)
 function logSponsor(sp){
@@ -885,7 +918,7 @@ async function caricaTutto(sqId){
   ]);
   const progetto = progRows[0] ? progRows[0].progetto : null;
   let sponsors = [];
-  if(progetto){ sponsors = generaSponsors(sqId, stagione, progetto); unisciStato(sponsors, trattRows); }
+  if(progetto){ sponsors = generaSponsors(sqId, stagione, progetto).concat(spRinnovi(contratti, stagione, sqId)); unisciStato(sponsors, trattRows); }
   return {sqId, stagione, sq, progetto, sponsors, contratti};
 }
 function payload(c, sess, extra){
@@ -1002,7 +1035,8 @@ async function azioneFirma(c, sess, body){
   const nuovo = await dbIns('sponsor_contratti', {squadra_id:c.sqId, stagione:c.stagione, sponsor_key:sp.id, slot:sp.slot, nome_sponsor:sp.nome, durata:sp.durata,
     fisso_annuo:Math.round(sp.offerta_annua), tifosi_annui:sp.offerta_tifosi||0, follower_annui:sp.offerta_follower||0, idee:sp.idee||[],
     anno_inizio:c.stagione, obiettivi, base:spBase(c.sq), stato:'attivo', anni_pagati:0,
-    bonus:(sp.bonus||[]).map((b, i) => ({id:'b' + (i+1), tipo:b.tipo, target:b.target, anno_max:Math.min(sp.durata, b.anno_max), importo:Math.round(b.importo*1e6), usati:0, stato:'aperto'}))});     // i bonus li deciderà la trattativa con lo sponsor (non il server a caso)
+    profilo:{slot:sp.slot, carattere:sp.carattere, pesi:sp.pesi, sens:sp.sens, budget_totale:sp.budget_totale, durata:sp.durata, extra_totale:sp.extra_totale, pazienza:sp.pazienza, techo_tifosi:sp.techo_tifosi, techo_follower:sp.techo_follower, ...(sp.rinnovo_di ? {da_rinnovo:sp.rinnovo_di} : {})},
+    bonus:(sp.bonus||[]).map((b, i) => ({id:'b' + (i+1), tipo:b.tipo, target:b.target, anno_max:b.ogni_anno ? sp.durata : Math.min(sp.durata, b.anno_max), importo:Math.round(b.importo*1e6), usati:0, ...(b.ogni_anno ? {ogni_anno:true} : {}), stato:'aperto'}))});     // i bonus li deciderà la trattativa con lo sponsor (non il server a caso)
   sp.stato = 'firmato';
   await salvaTrattativa(c.sqId, c.stagione, sp);
   if(Array.isArray(nuovo) && nuovo[0]) c.contratti.unshift(nuovo[0]);
@@ -1063,8 +1097,8 @@ async function azioneBonus(c, sess, body){            // admin: accredita al bud
   if(st === 'pagato') throw new Errore('Bonus già pagato');
   if(st === 'scaduto') throw new Errore('Bonus scaduto: l\'anno limite è passato');
   if(st !== 'raggiunto' && st !== 'da_confermare') throw new Errore('Obiettivo non ancora raggiunto');
-  const usati = (b.usati || 0) + 1;
-  const nuovaLista = lista.map(x => x.id !== b.id ? x : (b.tipo === 'stadio_contributo' ? {...x, usati, stato:usati >= b.target ? 'pagato' : 'aperto'} : {...x, stato:'pagato'}));
+  const usati = (b.usati || 0) + 1, ricorrente = b.tipo === 'stadio_contributo' || b.ogni_anno, quanti = b.ogni_anno ? b.anno_max : b.target;
+  const nuovaLista = lista.map(x => x.id !== b.id ? x : (ricorrente ? {...x, usati, stato:usati >= quanti ? 'pagato' : 'aperto'} : {...x, stato:'pagato'}));
   await dbUpd('sponsor_contratti', {id:cc.id}, {bonus:nuovaLista});               // prima si segna pagato, poi si accredita
   try {
     const sq = await getSquadra(c.sqId);
@@ -1076,6 +1110,17 @@ async function azioneBonus(c, sess, body){            // admin: accredita al bud
     await dbUpd('sponsor_contratti', {id:cc.id}, {bonus:lista}).catch(() => {});
     throw e;
   }
+}
+async function azioneChiudi(c, sess, body){           // admin: a fine contratto calcola il verdetto e segna il contratto concluso o decaduto (la reputazione cambia)
+  soloAdmin(sess);
+  const cc = c.contratti.find(x => String(x.id) === String(body.contratto_id));
+  if(!cc) throw new Errore('Contratto non trovato', 404);
+  if(cc.stato !== 'attivo') throw new Errore('Il contratto non è attivo');
+  const v = spControllaContratto(c.sq, cc);
+  const nuovo = (v.verdetto === 'rinnovo' || v.verdetto === 'rinnovo_ridotto') ? 'concluso' : 'decaduto';
+  await dbUpd('sponsor_contratti', {id:cc.id}, {stato:nuovo, profilo:{...(cc.profilo || {}), verdetto:v.verdetto, chiuso_stagione:c.stagione}});
+  cc.stato = nuovo; cc.profilo = {...(cc.profilo || {}), verdetto:v.verdetto};
+  return {verifica:v, chiuso:nuovo};
 }
 async function azioneAnnulla(c, sess, body){          // admin, a fine anno: annulla un contratto attivo e lo sponsor torna trattabile dal nuovo presidente
   soloAdmin(sess);
@@ -1102,7 +1147,7 @@ module.exports = async (req, res) => {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     // un giocatore agisce sempre e solo per la propria squadra; l'admin può guardare e gestire qualsiasi squadra
     const sqId = (sess.adm && body.squadra_id) ? String(body.squadra_id).slice(0, 80) : String(sess.sq);
-    const azioni = {presenta:azionePresenta, chat:azioneChat, firma:azioneFirma, abbandona:azioneAbbandona, reset:azioneReset, azzera:azioneAzzera, annulla:azioneAnnulla, incassa:azioneIncassa, bonus:azioneBonus};
+    const azioni = {presenta:azionePresenta, chat:azioneChat, firma:azioneFirma, abbandona:azioneAbbandona, reset:azioneReset, azzera:azioneAzzera, annulla:azioneAnnulla, incassa:azioneIncassa, bonus:azioneBonus, chiudi:azioneChiudi};
     const a = body.azione;
     if(a === 'carica') return res.status(200).json(payload(await caricaTutto(sqId), sess));
     if(a === 'dettaglio'){
@@ -1116,7 +1161,7 @@ module.exports = async (req, res) => {
       throw new Errore('Le trattative le fa il presidente della squadra: tu, da admin, puoi solo vederle', 403);
     let c = await caricaTutto(sqId);
     const extra = await azioni[a](c, sess, body);
-    if(a === 'presenta' || a === 'azzera' || a === 'reset' || a === 'annulla') c = await caricaTutto(sqId);    // stato cambiato nel database: si rilegge
+    if(a === 'presenta' || a === 'azzera' || a === 'reset' || a === 'annulla' || a === 'chiudi') c = await caricaTutto(sqId);    // stato cambiato nel database: si rilegge
     return res.status(200).json(payload(c, sess, extra));
   }catch(e){
     if(e.pubblico) return res.status(e.stato || 400).json({ok:false, error:e.message});
@@ -1124,4 +1169,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ok:false, error:'Errore del server, riprova tra poco'});
   }
 };
-module.exports._test = {leggiBonus, spBonusFrase, trattativa, leggiCtx, spScheda, spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
+module.exports._test = {spRinnovi, leggiBonus, spBonusFrase, trattativa, leggiCtx, spScheda, spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};

@@ -107,6 +107,7 @@ async function spAzzera(){
 
 const SP_BONUS_NOMI = {stadio_contributo:'Stadio', tifosi_pct:'Tifosi', follower_pct:'Follower', stadio_pct:'Capienza stadio', fastfood:'Fast food', trofei:'Trofei', piazzamento:'Piazzamento'};
 function spBonusTesto(b){
+  if(b.ogni_anno) return `Ogni anno: chiudere tra i primi ${b.target} in campionato`;
   if(b.tipo==='stadio_contributo') return `Contributo dello sponsor per ogni miglioramento dello stadio (fino a ${b.target})`;
   if(b.tipo==='tifosi_pct'||b.tipo==='follower_pct'||b.tipo==='stadio_pct') return `${SP_BONUS_NOMI[b.tipo]} +${b.target}% rispetto alla firma`;
   if(b.tipo==='fastfood') return `Fast food: +${b.target} ${b.target>1?'livelli':'livello'} rispetto alla firma`;
@@ -120,6 +121,10 @@ function spBonusRiga(c, b){
   if(b.tipo==='stadio_contributo'){
     const incassa = adminLoggato && b.stato==='da_confermare' ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 Incassa miglioramento</button>` : '';
     return `<div style="margin-bottom:3px">• ${spBonusTesto(b)} · entro l'anno ${b.anno_max} · <b>${spFmt(b.importo)}</b> a miglioramento · usati ${b.usati||0}/${b.target} · ${stati[b.stato]||b.stato}${incassa}</div>`;
+  }
+  if(b.ogni_anno){
+    const incassaA = adminLoggato && b.stato==='da_confermare' ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 Incassa anno ${(b.usati||0)+1}</button>` : '';
+    return `<div style="margin-bottom:3px">• ${spBonusTesto(b)} · <b>${spFmt(b.importo)}</b> ogni anno · pagati ${b.usati||0}/${b.anno_max} · ${stati[b.stato]||b.stato}${incassaA}</div>`;
   }
   return `<div style="margin-bottom:3px">• ${b.sorpresa ? '🎁 <b>Bonus a sorpresa!</b> ' : ''}${spBonusTesto(b)} · entro l'anno ${b.anno_max} · <b>${spFmt(b.importo)}</b> · ${stati[b.stato]||b.stato}${paga}</div>`;
 }
@@ -143,6 +148,17 @@ async function spIncassa(id){
     spApplica(j); SP.errore = '';
     const sq = spSq(); if(sq && typeof j.budget_nuovo === 'number') sq.budget = j.budget_nuovo;
     showToast('💰 ' + spFmt(j.incassato) + ' accreditati al budget');
+  } catch(e){ spErr(e); }
+  spRender();
+}
+
+async function spChiudi(id){
+  const x = SP.dati.contratti.find(y => String(y.id) === String(id));
+  if(!adminLoggato || !x || !confirm('Chiudere il contratto con ' + x.nome_sponsor + '? Si controllano gli obiettivi: il contratto risulterà concluso o decaduto e la reputazione del club cambia. Se è andato bene, lo sponsor potrà tornare al prossimo giro di presentazioni.')) return;
+  try {
+    const j = await spApi('chiudi', {contratto_id:id});
+    spApplica(j); SP.errore = '';
+    showToast((j.chiuso === 'concluso' ? '🏁 Contratto concluso: ' : '❌ Contratto decaduto: ') + (j.verifica && j.verifica.nota ? j.verifica.nota : ''));
   } catch(e){ spErr(e); }
   spRender();
 }
@@ -174,13 +190,14 @@ function spHtmlLista(){
     const attivi = lista.filter(x=>x.stato==='disponibile'||x.stato==='in_trattativa');
     corpo = `<div style="font-size:12px;color:var(--testo-dim);margin:8px 0">${lista.length} sponsor si sono fatti avanti · ${D.scartati[slot]||0} non interessati · ${lista.length-attivi.length} ritirati</div>`
       + attivi.map(x=>`<div onclick="spApri('${x.id}')" style="display:flex;justify-content:space-between;align-items:center;padding:10px;margin-bottom:6px;background:var(--grigio-scuro);border-radius:8px;cursor:pointer;opacity:${corso&&corso.id!==x.id?0.45:1}">
-          <span>${x.stato==='in_trattativa'?'🟢 ':''}${spEsc(x.nome)}</span><span style="font-size:11px;color:${x.interesse==='molto'?'var(--verde)':x.interesse==='interessato'?'var(--oro)':'var(--testo-dim)'}">${x.interesse==='molto'?'molto interessato':x.interesse}</span></div>`).join('');
+          <span>${x.stato==='in_trattativa'?'🟢 ':''}${x.rinnovo?'🤝 Rinnovo · ':''}${spEsc(x.nome)}</span><span style="font-size:11px;color:${x.interesse==='molto'?'var(--verde)':x.interesse==='interessato'?'var(--oro)':'var(--testo-dim)'}">${x.interesse==='molto'?'molto interessato':x.interesse}</span></div>`).join('');
   }
   const contratti = D.contratti.length ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--oro);margin:16px 0 6px">CONTRATTI</div>`
     + D.contratti.map(c=>`<div style="padding:10px;margin-bottom:6px;background:var(--grigio-scuro);border-radius:8px;font-size:12px">
         <b>${spEsc(c.nome_sponsor)}</b> (${SP_SLOT[c.slot]?.label}) · ${spFmt(c.fisso_annuo)}/anno × ${spAnni(c.durata)}${(c.tifosi_annui||c.follower_annui) ? ` · +${spNum(c.tifosi_annui||0)} tifosi e +${spNum(c.follower_annui||0)} follower/anno` : ''} · ${spEsc(c.stato)}${c.stato==='attivo' ? ` · pagati ${c.anni_pagati||0}/${c.durata}` : ''}
         <button onclick="spVerifica('${c.id}')" style="float:right;font-size:11px;cursor:pointer">🔍 Controlla obiettivi</button>
         ${(adminLoggato && c.stato==='attivo') ? ((c.anni_pagati||0) < (c.durata||1) ? `<button onclick="spIncassa('${c.id}')" style="float:right;margin-right:6px;font-size:11px;cursor:pointer">💰 Paga anno ${(c.anni_pagati||0)+1}/${c.durata}</button>` : `<span style="float:right;margin-right:6px;font-size:11px;color:var(--verde)">✅ Tutti gli anni pagati</span>`) : ''}
+        ${(adminLoggato && c.stato==='attivo') ? `<button onclick="spChiudi('${c.id}')" style="float:right;margin-right:6px;font-size:11px;cursor:pointer">🏁 Chiudi contratto</button>` : ''}
         ${(adminLoggato && c.stato==='attivo') ? `<button onclick="spAnnulla('${c.id}')" style="float:right;margin-right:6px;font-size:11px;cursor:pointer">🛑 Annulla (fine anno)</button>` : ''}
         ${(c.idee&&c.idee.length) ? `<div style="margin-top:6px;clear:both;color:var(--testo-dim)">💡 Idee concordate: ${spEsc(c.idee.map(i=>i.titolo).join(' · '))}</div>` : ''}
         ${(c.bonus&&c.bonus.length) ? `<div style="margin-top:8px;clear:both;border-top:1px solid #333;padding-top:6px"><div style="color:var(--oro);margin-bottom:4px">🎯 Bonus</div>${c.bonus.map(b=>spBonusRiga(c,b)).join('')}</div>` : ''}
