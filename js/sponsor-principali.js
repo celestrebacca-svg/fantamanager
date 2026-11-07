@@ -105,8 +105,9 @@ async function spAzzera(){
   spRender();
 }
 
-const SP_BONUS_NOMI = {tifosi_pct:'Tifosi', follower_pct:'Follower', stadio_pct:'Capienza stadio', fastfood:'Fast food', trofei:'Trofei', piazzamento:'Piazzamento'};
+const SP_BONUS_NOMI = {stadio_contributo:'Stadio', tifosi_pct:'Tifosi', follower_pct:'Follower', stadio_pct:'Capienza stadio', fastfood:'Fast food', trofei:'Trofei', piazzamento:'Piazzamento'};
 function spBonusTesto(b){
+  if(b.tipo==='stadio_contributo') return `Contributo dello sponsor per ogni miglioramento dello stadio (fino a ${b.target})`;
   if(b.tipo==='tifosi_pct'||b.tipo==='follower_pct'||b.tipo==='stadio_pct') return `${SP_BONUS_NOMI[b.tipo]} +${b.target}% rispetto alla firma`;
   if(b.tipo==='fastfood') return `Fast food: +${b.target} ${b.target>1?'livelli':'livello'} rispetto alla firma`;
   if(b.tipo==='trofei') return `Vincere ${b.target} ${b.target>1?'trofei':'trofeo'} in più`;
@@ -116,6 +117,10 @@ function spBonusRiga(c, b){
   const stati = {pagato:'✅ pagato', scaduto:'⌛ scaduto', raggiunto:'🟢 raggiunto', da_confermare:'⏳ da confermare', aperto:'⚪ aperto'};
   const paga = adminLoggato && (b.stato==='raggiunto' || b.stato==='da_confermare')
     ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 ${b.stato==='da_confermare' ? 'Conferma e paga' : 'Paga'}</button>` : '';
+  if(b.tipo==='stadio_contributo'){
+    const incassa = adminLoggato && b.stato==='da_confermare' ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 Incassa miglioramento</button>` : '';
+    return `<div style="margin-bottom:3px">• ${spBonusTesto(b)} · entro l'anno ${b.anno_max} · <b>${spFmt(b.importo)}</b> a miglioramento · usati ${b.usati||0}/${b.target} · ${stati[b.stato]||b.stato}${incassa}</div>`;
+  }
   return `<div style="margin-bottom:3px">• ${b.sorpresa ? '🎁 <b>Bonus a sorpresa!</b> ' : ''}${spBonusTesto(b)} · entro l'anno ${b.anno_max} · <b>${spFmt(b.importo)}</b> · ${stati[b.stato]||b.stato}${paga}</div>`;
 }
 async function spPagaBonus(cid, bid){
@@ -219,13 +224,14 @@ function spHtmlTrattativa(){
   const riepilogo = pk
     ? `Offerta sul tavolo: <b>${spFmt(pk.fm)}</b>/anno · ${spAnni(sp.durata)} = <b>${spFmt(pk.fm*sp.durata)}</b> totali<br>📣 Visibilità: <b>+${spNum(pk.tifosi)}</b> tifosi e <b>+${spNum(pk.follower)}</b> follower l'anno (${spNum(pk.tifosi*sp.durata)} tifosi e ${spNum(pk.follower*sp.durata)} follower in ${spAnni(sp.durata)})`
     : `Durata proposta: ${spAnni(sp.durata)} · nessuna offerta ancora sul tavolo`;
+  const bon = (sp.bonus && sp.bonus.length) ? `<br>🎯 Bonus concordati: ${sp.bonus.map(b => spEsc(spBonusTesto(b)) + ' entro l\'anno ' + b.anno_max + ': <b>' + spFmt(b.importo_fm) + '</b>').join(' · ')}` : '';
   const idee = sp.idee.length ? `<br>💡 Idee sul tavolo: ${spEsc(sp.idee.join(' · '))}` : '';
   const err = SP.errore ? `<div style="color:#ff6b6b;font-size:12px;margin-bottom:8px">${spEsc(SP.errore)}</div>` : '';
   const form = `<textarea id="sp-msg" class="form-input" rows="2" maxlength="500" ${occ} placeholder="Scrivi allo sponsor…" style="width:100%;resize:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey&&window.innerWidth>700){event.preventDefault();spInvia()}"></textarea>
     <button class="btn-primary" style="width:100%;margin:6px 0 8px" ${occ} onclick="spInvia()">Invia</button>`;
   return `<button onclick="spIndietro()" style="margin-bottom:8px;cursor:pointer">← Lista sponsor</button>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--oro)">${SP_SLOT[sp.slot].emoji} ${spEsc(sp.nome)}</div>
-    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">${riepilogo}${idee}</div>
+    <div style="font-size:12px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">${riepilogo}${idee}${bon}</div>
     <div id="sp-chat" style="max-height:300px;overflow:auto;margin-bottom:10px">${chat}</div>${err}
     ${spSolaLettura() ? `<div style="text-align:center;color:var(--testo-dim);margin-bottom:8px;font-size:12px">👁️ Solo visione: le trattative le fa il presidente della squadra</div>` : chiuso ? `<div style="text-align:center;color:var(--testo-dim);margin-bottom:8px">Trattativa chiusa</div>` : `
     ${form}
