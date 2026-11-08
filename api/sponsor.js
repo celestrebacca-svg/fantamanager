@@ -318,9 +318,21 @@ function spReputazione(contratti){
 //   GROQ_API_KEY, CEREBRAS_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, MISTRAL_API_KEY, ANTHROPIC_API_KEY
 // Facoltativi per scegliere il modello: GROQ_MODEL, CEREBRAS_MODEL, GEMINI_MODEL, OPENROUTER_MODEL, MISTRAL_MODEL, ANTHROPIC_MODEL
 function estraiJson(txt){
-  const a = txt.indexOf('{'), b = txt.lastIndexOf('}');
-  if(a < 0 || b < a) throw new Error('risposta non valida');
-  return JSON.parse(txt.slice(a, b + 1));
+  const t = String(txt || '').replace(/```(?:json)?/gi, '');
+  const a = t.indexOf('{'); if(a < 0) throw new Error('risposta non valida');
+  const prova = x => JSON.parse(x.replace(/,\s*([}\]])/g, '$1'));        // tollera le virgole di troppo
+  const b = t.lastIndexOf('}');
+  if(b > a){ try { return prova(t.slice(a, b + 1)); } catch(e){} }
+  // risposta troncata (troppo lunga): chiude virgolette e parentesi rimaste aperte
+  let s = t.slice(a), pila = [], dentro = false, esc = false;
+  for(const ch of s){
+    if(esc){ esc = false; continue; }
+    if(ch === '\\'){ esc = true; continue; }
+    if(ch === '"') dentro = !dentro;
+    else if(!dentro){ if(ch === '{') pila.push('}'); else if(ch === '[') pila.push(']'); else if(ch === '}' || ch === ']') pila.pop(); }
+  }
+  s = s.replace(/[,:\s]+$/, ''); if(dentro) s += '"';
+  return prova(s + pila.reverse().join(''));
 }
 const haChiave = nome => !!(process.env[nome] && process.env[nome].trim());
 const chiave = nome => process.env[nome].trim();
@@ -944,11 +956,15 @@ const msgAI = e => e && e.status === 429 ? 'troppe richieste, riprova tra un min
 // valutazione della presentazione scritta (stessa AI della trattativa, con le stesse alternative se una è occupata)
 async function valutaAI(testo){
   const user = `<presentazione>\n${testo}\n</presentazione>`;
-  let out;
-  try { out = await chiamaAI(SYS_PRESENTAZIONE, user, {maxTokens:900, temp:0.2}); }
-  catch(e){ console.error('presentazione AI', e && e.message); throw new Errore('Gli sponsor non riescono a leggere il progetto in questo momento (' + msgAI(e) + '). Non hai ancora usato la tua occasione: riprova tra poco.', 502); }
-  try { return sanificaPresentazione(estraiJson(out)); }
-  catch(e){ throw new Errore('Gli sponsor non hanno capito il progetto: riprova a presentarlo (non hai ancora usato la tua occasione).', 502); }
+  // fino a 3 tentativi: se una AI risponde in modo illeggibile, si passa a un'altra (la presentazione non è ancora stata consumata)
+  for(let tentativo = 0; tentativo < 3; tentativo++){
+    let out;
+    try { out = await chiamaAI(SYS_PRESENTAZIONE, user, {maxTokens:1600, temp:0.2}); }
+    catch(e){ console.error('presentazione AI', e && e.message); throw new Errore('Gli sponsor non riescono a leggere il progetto in questo momento (' + msgAI(e) + '). Non hai ancora usato la tua occasione: riprova tra poco.', 502); }
+    try { return sanificaPresentazione(estraiJson(out)); }
+    catch(e){ console.error('presentazione: risposta illeggibile da', AI_ULTIMA, String(out).slice(0, 200)); AI_FUORI[AI_ULTIMA] = Date.now() + 30*1000; }
+  }
+  throw new Errore('Gli sponsor non hanno capito il progetto: riprova a presentarlo (non hai ancora usato la tua occasione).', 502);
 }
 async function creaProgetto(c, progetto){
   await dbIns('sponsor_progetti', {squadra_id:c.sqId, stagione:c.stagione, progetto, credibilita:progetto.val.cred});
@@ -1169,4 +1185,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ok:false, error:'Errore del server, riprova tra poco'});
   }
 };
-module.exports._test = {spRinnovi, leggiBonus, spBonusFrase, trattativa, leggiCtx, spScheda, spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
+module.exports._test = {estraiJson, spRinnovi, leggiBonus, spBonusFrase, trattativa, leggiCtx, spScheda, spBonusStato, spReputazione, spDifficolta, scalaObiettivi, generaSponsors, vistaSponsor, spControllaContratto, spBase, spTechoEff, spScheda, SP_CHAT, chiamaAI, catena, AI_FUORI, valutaAI};
