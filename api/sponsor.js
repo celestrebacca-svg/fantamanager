@@ -706,7 +706,7 @@ function leggiRisposta(j){
     messaggio: pulisci(j.messaggio, 900),
     azione: AZIONI.includes(j.azione) ? j.azione : null,
     offerta: off,
-    pazienza: intIn(j.pazienza, 0, 10),
+    pazienza: (j.pazienza === undefined || j.pazienza === null || j.pazienza === '' || !isFinite(Number(j.pazienza))) ? null : intIn(j.pazienza, 0, 10),   // se l'AI non la scrive, resta quella di prima (non diventa 0!)
     giocatore: GIOCATORE.includes(j.giocatore) ? j.giocatore : 'nessuna',
     idee: leggiIdee(j.idee).slice(0, 3),
     bonus: leggiBonus(j.bonus),
@@ -758,7 +758,7 @@ async function trattativa(ctx, storico, messaggio, chiama){
   let off = limita(r.offerta, S);
   if((azione === 'offerta' || azione === 'accordo') && !off){ azione = 'parla'; off = S.offerta_attuale; }
   // pazienza: può solo scendere; a 0 lo sponsor se ne va
-  const paz = Math.min(S.pazienza, r.pazienza);
+  const paz = r.pazienza === null ? S.pazienza : Math.max(S.pazienza - 3, Math.min(S.pazienza, r.pazienza));   // non crolla di colpo: al massimo -3 per messaggio
   if(paz <= 0 && azione !== 'ritira'){ azione = 'ritira'; testo = NEUTRO.ritira; }
   if(azione === 'ritira') off = null;
   // bonus: anno dentro la durata e totale entro il limite (il resto lo decide l'AI)
