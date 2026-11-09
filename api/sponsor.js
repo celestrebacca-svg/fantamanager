@@ -264,7 +264,8 @@ const SP_BONUS_TIPI = {
   fastfood:     {livelli:[[1,.3],[2,.65],[3,.95]]},               // livelli in più rispetto alla firma
   trofei:       {livelli:[[1,.75],[2,.95],[3,1]]},
   piazzamento:  {livelli:[[8,.1],[6,.25],[4,.5],[3,.7],[2,.85],[1,1]]},
-  stadio_contributo: {livelli:[[1,.3],[2,.3],[3,.3],[4,.3],[5,.3],[6,.3]]}   // entro i primi N: lo conferma l'admin
+  stadio_contributo: {livelli:[[1,.3],[2,.3],[3,.3],[4,.3],[5,.3],[6,.3]]},
+  food_contributo: {livelli:[[1,.3],[2,.3],[3,.3],[4,.3],[5,.3],[6,.3]]}   // entro i primi N: lo conferma l'admin
 };
 const spAnnoDi = x => parseInt(String(x||'').slice(0,4), 10) || 0;
 // stato di un bonus: pagato | scaduto | raggiunto | da_confermare (piazzamento) | aperto
@@ -272,7 +273,7 @@ function spBonusStato(b, cc, sq, stagione){
   if(b.stato === 'pagato') return 'pagato';
   const anno = Math.max(1, spAnnoDi(stagione) - spAnnoDi(cc.anno_inizio) + 1);
   if(b.ogni_anno){ const dovuti = Math.min(anno, b.anno_max), pagati = b.usati || 0; return pagati >= b.anno_max ? 'pagato' : (pagati < dovuti ? 'da_confermare' : 'aperto'); }   // una conferma per ogni anno trascorso
-  if(b.tipo === 'stadio_contributo') return anno > b.anno_max ? 'scaduto' : ((b.usati || 0) >= b.target ? 'pagato' : 'da_confermare');   // l'admin conferma ogni miglioramento realizzato
+  if(isContributo(b)) return anno > b.anno_max ? 'scaduto' : ((b.usati || 0) >= b.target ? 'pagato' : 'da_confermare');   // l'admin conferma ogni miglioramento realizzato
   if(anno > b.anno_max) return 'scaduto';
   if(b.tipo === 'piazzamento') return 'da_confermare';
   const base = cc.base || {}, t = b.target;
@@ -579,7 +580,7 @@ COME TRATTI
 11. Reputazione: se è \"alta\" il dirigente ha mantenuto in passato promesse ambiziose: ti fidi di più, concedi con meno resistenza e puoi dirglielo apertamente; se è \"bassa\" sei più diffidente e chiedi garanzie; se è \"normale\" non ne parli.
 12. La durata del contratto è quella indicata nei dati e per ora non si tratta: se il dirigente la contesta, spiega che è fissa.
 13. Settore: sei un'azienda con un'attività precisa (la scheda indica il tuo settore). Se il dirigente propone qualcosa che coincide col tuo mestiere o può esserne una vetrina eccezionale (es. un'azienda energetica e un impianto fotovoltaico su tutto lo stadio, una telecom e la connettività o i diritti digitali, una casa automobilistica e la mobilità del club), per te è un'occasione strategica: non restare tiepido. Mostra interesse vero e concreto, fai domande sui dettagli (tempi, costi, esclusiva, comunicazione), valuta quell'idea con valore alto (0.85-1) in "idee" e dai peso al fatto che nessun altro sponsor può offrirti lo stesso ritorno. Resti dentro i tuoi limiti di cifre, ma lì ti sbilanci più volentieri, usando il margine se c'è.
-14. Bonus: oltre alla cifra fissa puoi proporre, o accettare su richiesta del dirigente, clausole bonus concordate in chat: un obiettivo preciso, un anno limite (da 1 alla durata del contratto) e un importo fisso in milioni, pagato solo se l'obiettivo viene raggiunto. Tipi ammessi: tifosi_pct (aumento % dei tifosi), follower_pct (aumento % dei follower), stadio_pct (aumento % della capienza), fastfood (livelli in più), trofei (trofei in più), piazzamento (chiudere entro i primi N del campionato), stadio_contributo (contributo per OGNI miglioramento dello stadio che il club realizza: "target" = quanti miglioramenti al massimo, "anno_max" = fino a quale anno vale, "importo" = quanto versi per ciascun miglioramento; un miglioramento costa circa 2,5 milioni e di norma ne copri una quota piccola, che sale se la reputazione del dirigente è alta e scende se è bassa: il sistema la limita). Se il dirigente parla di ampliare o migliorare lo stadio con il tuo contributo, è la forma naturale: proponila o accettala, soprattutto se il tuo settore c'entra (edilizia, energia, impianti). Sono il modo per premiare un dirigente ambizioso senza alzare la cifra fissa: obiettivi facili valgono premi piccoli, obiettivi ambiziosi premi più grandi. Non sono mai nascosti: ciò che metti in "bonus" lo vedono tutti. Proponili solo dal secondo scambio, quando c'è già qualcosa da discutere (un dirigente che si dice sicuro dei propri obiettivi, un\'offerta fissa ferma al limite). In "bonus" metti SOLO i bonus nuovi o modificati in questo messaggio: quelli già sul tavolo restano finché non li togli mettendo il loro tipo in "togli_bonus" (non toglierli mai per dimenticanza). Rispetta ESATTAMENTE ciò che il dirigente chiede: stessa soglia (se chiede primi 10, "target" è 10, non 8) e stessa frequenza (se chiede "ogni anno che arrivo tra i primi 10", metti "ogni_anno": true: il premio si paga per ciascun anno del contratto, non una volta sola). Nel messaggio ripeti la stessa soglia e frequenza che metti in "bonus". Quando ne proponi o ne modifichi uno, dillo nel messaggio con le tue parole. Il sistema limita il totale dei bonus: non ti preoccupare di calcolarlo.
+14. Bonus: oltre alla cifra fissa puoi proporre, o accettare su richiesta del dirigente, clausole bonus concordate in chat: un obiettivo preciso, un anno limite (da 1 alla durata del contratto) e un importo fisso in milioni, pagato solo se l'obiettivo viene raggiunto. Tipi ammessi: tifosi_pct (aumento % dei tifosi), follower_pct (aumento % dei follower), stadio_pct (aumento % della capienza), fastfood (livelli in più), trofei (trofei in più), piazzamento (chiudere entro i primi N del campionato), stadio_contributo e food_contributo (contributo per OGNI miglioramento dello stadio o della zona food che il club realizza: "target" = quanti miglioramenti al massimo, "anno_max" = fino a quale anno vale, "importo" = quanto versi per ciascun miglioramento; un miglioramento dello stadio costa circa 3,5 milioni, uno della zona food circa 2, e di norma ne copri una quota piccola, che sale se la reputazione del dirigente è alta e scende se è bassa: il sistema la limita). Per i trofei e il piazzamento puoi concordare anche premi che si ripetono ogni anno ("ogni_anno": true, per esempio un trofeo ogni anno). Il premio deve essere proporzionato alla difficoltà dell'obiettivo: facile (primi 8 su 12, +5% tifosi) = poco, difficile (primi 3, trofei, +50% tifosi) = di più; un bonus una tantum non deve ripetere uno già concordato ogni anno sulla stessa soglia. Se il dirigente parla di ampliare o migliorare lo stadio con il tuo contributo, è la forma naturale: proponila o accettala, soprattutto se il tuo settore c'entra (edilizia, energia, impianti). Sono il modo per premiare un dirigente ambizioso senza alzare la cifra fissa: obiettivi facili valgono premi piccoli, obiettivi ambiziosi premi più grandi. Non sono mai nascosti: ciò che metti in "bonus" lo vedono tutti. Proponili solo dal secondo scambio, quando c'è già qualcosa da discutere (un dirigente che si dice sicuro dei propri obiettivi, un\'offerta fissa ferma al limite). In "bonus" metti SOLO i bonus nuovi o modificati in questo messaggio: quelli già sul tavolo restano finché non li togli mettendo il loro tipo in "togli_bonus" (non toglierli mai per dimenticanza). Rispetta ESATTAMENTE ciò che il dirigente chiede: stessa soglia (se chiede primi 10, "target" è 10, non 8) e stessa frequenza (se chiede "ogni anno che arrivo tra i primi 10", metti "ogni_anno": true: il premio si paga per ciascun anno del contratto, non una volta sola). Nel messaggio ripeti la stessa soglia e frequenza che metti in "bonus". Quando ne proponi o ne modifichi uno, dillo nel messaggio con le tue parole. Il sistema limita il totale dei bonus: non ti preoccupare di calcolarlo.
 15. Opzioni a scelta: se il dirigente ti propone più opzioni con prezzi diversi (es. un servizio a 2 milioni, uno migliore a 3, il migliore a 4) o ti dice di scegliere in base al tuo budget, scegli TU un\'opzione e dillo apertamente, con il motivo: la migliore che puoi permetterti entro il tuo tetto. Non pretendere l\'opzione più cara al prezzo di quella più economica. Se il tuo limite sta tra due opzioni, o prendi quella inferiore, o dici di quanto la cifra dovrebbe salire (senza rivelare il tetto), o proponi una versione ridotta della migliore. Se ti ha già detto di scegliere tu, non rispondere con altre domande: scegli subito.
 16. Importanza dell\'accordo: valuta quanto conta per te ciò che ti viene proposto: ritorno di visibilità e immagine, coerenza col tuo settore, esclusiva, durata, valore del servizio rispetto al prezzo. Un accordo molto vantaggioso per te (per esempio l\'opzione migliore con esclusiva) giustifica di spingerti verso il tuo tetto e di usare il margine extra: dai valore alto alle idee che lo meritano, anche se sei uno sponsor food o merchandising e non uno principale. Non trattare un contratto importante come uno qualsiasi. Resti comunque dentro i tuoi limiti di cifre.
 
@@ -591,7 +592,7 @@ FORMATO: rispondi SOLO con un oggetto JSON, senza altro testo:
  "pazienza": intero da 0 a 10,
  "giocatore": "nessuna" | "accetta_offerta" | "abbandona",
  "idee": [{"titolo": "max 6 parole", "categoria": "maglia"|"stadio"|"museo"|"social"|"canale"|"under23"|"spogliatoi"|"evento"|"giovani"|"altro", "valore": 0-1}],
- "bonus": [] oppure [{"tipo": "tifosi_pct"|"follower_pct"|"stadio_pct"|"fastfood"|"trofei"|"piazzamento"|"stadio_contributo", "target": numero (es. 10 per +10%, 4 per primi 4, 3 per tre miglioramenti dello stadio), "anno_max": intero, "ogni_anno": true solo per il piazzamento pagato ogni anno, "importo": milioni di euro (es. 0.15)}],
+ "bonus": [] oppure [{"tipo": "tifosi_pct"|"follower_pct"|"stadio_pct"|"fastfood"|"trofei"|"piazzamento"|"stadio_contributo"|"food_contributo", "target": numero (es. 10 per +10%, 4 per primi 4, 3 per tre miglioramenti dello stadio), "anno_max": intero, "ogni_anno": true solo per piazzamento o trofei pagati ogni anno, "importo": milioni di euro (es. 0.15)}],
  "togli_bonus": [] oppure i tipi dei bonus da togliere (es. ["trofei"])
 }
 - azione "parla": stai solo parlando; "offerta" è null se non hai ancora fatto offerte, altrimenti riporta quella già sul tavolo.
@@ -676,11 +677,23 @@ function limita(off, S){
   const f = v => Math.min(Math.max(off[v], a[v]), S.tetto[v]);       // mai sopra il tetto, mai sotto l'offerta già fatta
   return {soldi:+f('soldi').toFixed(2), tifosi:Math.round(f('tifosi')), follower:Math.round(f('follower'))};
 }
-const SP_COSTO_STADIO = 2.5;                                  // milioni: costo di un miglioramento dello stadio
-const SP_QUOTA_STADIO = {alta:0.15, normale:0.10, bassa:0.06};  // quota massima del costo che lo sponsor può coprire, in base alla reputazione del dirigente
-const spTettoStadio = rep => +(SP_COSTO_STADIO*(SP_QUOTA_STADIO[rep] || SP_QUOTA_STADIO.normale)).toFixed(3);
+// contributi dello sponsor a ogni miglioramento realizzato dal club (milioni di costo per miglioramento)
+const SP_CONTRIBUTI = {stadio_contributo:{costo:3.5, nome:'dello stadio'}, food_contributo:{costo:2.0, nome:'della zona food'}};   // costo food: valore indicativo, da confermare
+const SP_QUOTA_STADIO = {alta:0.16, normale:0.11, bassa:0.06};  // quota massima del costo che lo sponsor può coprire, in base alla reputazione del dirigente
+const isContributo = b => !!SP_CONTRIBUTI[b.tipo];
+const spTettoContributo = (tipo, rep) => +(SP_CONTRIBUTI[tipo].costo*(SP_QUOTA_STADIO[rep] || SP_QUOTA_STADIO.normale)).toFixed(3);
+// difficoltà 0-1 di un obiettivo bonus: facile = premio basso, difficile = premio alto
+function spDiffBonus(b){
+  const t = b.target;
+  const d = b.tipo === 'piazzamento' ? (12 - t)/11            // 12 squadre: primi 8 è facile, primi 3 è difficile
+    : b.tipo === 'tifosi_pct' ? t/60 : b.tipo === 'follower_pct' ? t/150 : b.tipo === 'stadio_pct' ? t/40
+    : b.tipo === 'fastfood' ? t/3 : b.tipo === 'trofei' ? 0.6 + 0.2*(t - 1) : 0.5;
+  return Math.max(0.05, Math.min(1, d));
+}
+// importo massimo (milioni) di un bonus, in base alla cifra annuale e alla difficoltà; un bonus che si ripete ogni anno vale la metà per anno
+const spTettoBonus = (b, annuale) => +(annuale*(0.02 + 0.30*Math.pow(spDiffBonus(b), 1.5))*(b.ogni_anno ? 0.5 : 1)).toFixed(3);
 const SP_BONUS_QUOTA = 0.4;            // tutti i bonus insieme non superano il 40% del valore fisso del contratto
-const SP_BONUS_RANGE = {tifosi_pct:[1, 100], follower_pct:[1, 300], stadio_pct:[1, 100], fastfood:[1, 5], trofei:[1, 5], piazzamento:[1, 11], stadio_contributo:[1, 8]};
+const SP_BONUS_RANGE = {tifosi_pct:[1, 100], follower_pct:[1, 300], stadio_pct:[1, 100], fastfood:[1, 5], trofei:[1, 5], piazzamento:[1, 11], stadio_contributo:[1, 8], food_contributo:[1, 8]};
 function leggiBonus(x){
   if(!Array.isArray(x)) return [];
   return x.slice(0, 6).map(b => {
@@ -691,7 +704,7 @@ function leggiBonus(x){
     let imp = nz(b.importo); if(imp > 1000) imp = imp/1e6;                              // se scrive in euro invece che in milioni
     imp = Math.round(imp*100)/100;
     if(!(imp > 0)) return null;
-    const ogniAnno = b.tipo === 'piazzamento' && (b.ogni_anno === true || b.ogni_anno === 'true');   // "ogni anno che arrivi tra i primi N"
+    const ogniAnno = (b.tipo === 'piazzamento' || b.tipo === 'trofei') && (b.ogni_anno === true || b.ogni_anno === 'true');   // "ogni anno": piazzamento o trofeo   // "ogni anno che arrivi tra i primi N"
     return {tipo:b.tipo, target, anno_max:Math.max(1, Math.round(nz(b.anno_max)) || 1), importo:imp, ...(ogniAnno ? {ogni_anno:true} : {})};
   }).filter(Boolean);
 }
@@ -725,9 +738,11 @@ function trovaProblemi(r, S, durata, contesto){
     if(a && r.azione !== 'ritira' && (r.offerta.soldi < a.soldi - 0.005 || r.offerta.tifosi < a.tifosi || r.offerta.follower < a.follower)) p.push('l\'offerta è scesa sotto quella già fatta');
   }
   const baseB = r.offerta || S.offerta_attuale || S.apertura || S.normale, limB = (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA;
-  if((r.bonus || []).filter(b => b.tipo !== 'stadio_contributo').reduce((t, b) => t + b.importo*(b.ogni_anno ? durata : 1), 0) > limB + 0.005) p.push('il totale dei bonus supera il limite di ' + limB.toFixed(2) + ' milioni');
-  const tSt = spTettoStadio(S.reputazione);
-  if((r.bonus || []).some(b => b.tipo === 'stadio_contributo' && b.importo > tSt + 0.005)) p.push('il contributo per ogni miglioramento dello stadio non può superare ' + tSt.toFixed(2) + ' milioni');
+  if((r.bonus || []).filter(b => !isContributo(b)).reduce((t, b) => t + b.importo*(b.ogni_anno ? durata : 1), 0) > limB + 0.005) p.push('il totale dei bonus supera il limite di ' + limB.toFixed(2) + ' milioni');
+  (r.bonus || []).forEach(b => {
+    if(isContributo(b)){ const t = spTettoContributo(b.tipo, S.reputazione); if(b.importo > t + 0.005) p.push('il contributo per ogni miglioramento ' + SP_CONTRIBUTI[b.tipo].nome + ' non può superare ' + t.toFixed(2) + ' milioni'); }
+    else { const t = spTettoBonus(b, baseB ? baseB.soldi : 0); if(b.importo > t + 0.005) p.push('un bonus ' + b.tipo + ' ' + b.target + (b.ogni_anno ? ' ogni anno' : '') + ' non può superare ' + t.toFixed(2) + ' milioni: il premio deve essere proporzionato alla difficoltà'); }
+  });
   if(r.messaggio && !cifreCoerenti(r.messaggio, r.offerta, S.offerta_attuale, durata, contesto)) p.push('le cifre nel messaggio non coincidono con l\'offerta');
   return p;
 }
@@ -763,16 +778,17 @@ async function trattativa(ctx, storico, messaggio, chiama){
   if(azione === 'ritira') off = null;
   // bonus: anno dentro la durata e totale entro il limite (il resto lo decide l'AI)
   const baseB = off || S.offerta_attuale || S.apertura || S.normale;
-  const tSt = spTettoStadio(S.reputazione);
   // i bonus già sul tavolo restano: li cambia solo un bonus nuovo dello stesso tipo, o "togli_bonus"; non spariscono per dimenticanza dell'AI
   const chiave = b => b.tipo + (b.ogni_anno ? ':anno' : '');
   const togli = new Set(r.togli_bonus || []), nuoveChiavi = new Set(r.bonus.map(chiave));
   const mantenuti = (S.bonus || []).filter(b => !togli.has(b.tipo) && !nuoveChiavi.has(chiave(b)));
-  let bonus = azione === 'ritira' ? [] : [...mantenuti, ...r.bonus].slice(-6)
-    .map(b => ({...b, anno_max:b.ogni_anno ? durata : Math.min(durata, b.anno_max), importo:b.tipo === 'stadio_contributo' ? Math.min(b.importo, tSt) : b.importo}));
+  let bonus = azione === 'ritira' ? [] : [...mantenuti, ...r.bonus].slice(-8)
+    .map(b => ({...b, anno_max:b.ogni_anno ? durata : Math.min(durata, b.anno_max), importo:Math.min(b.importo, isContributo(b) ? spTettoContributo(b.tipo, S.reputazione) : spTettoBonus(b, baseB ? baseB.soldi : 0))}));
+  // un bonus una tantum non può ripetere uno "ogni anno" già concordato sullo stesso obiettivo (stessa soglia o più facile)
+  bonus = bonus.filter(b => b.ogni_anno || !bonus.some(y => y.ogni_anno && y.tipo === b.tipo && (b.tipo === 'piazzamento' ? b.target >= y.target : b.target <= y.target)));
   const peso = b => b.importo*(b.ogni_anno ? durata : 1);
-  const tettoB = Math.max(0, (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA), sommaB = bonus.filter(b => b.tipo !== 'stadio_contributo').reduce((t, b) => t + peso(b), 0);
-  if(sommaB > tettoB && sommaB > 0) bonus = bonus.map(b => b.tipo === 'stadio_contributo' ? b : ({...b, importo:Math.max(0.02, Math.floor(b.importo*tettoB/sommaB*100)/100)}));
+  const tettoB = Math.max(0, (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA), sommaB = bonus.filter(b => !isContributo(b)).reduce((t, b) => t + peso(b), 0);
+  if(sommaB > tettoB && sommaB > 0) bonus = bonus.map(b => isContributo(b) ? b : ({...b, importo:Math.max(0.02, Math.floor(b.importo*tettoB/sommaB*100)/100)}));
   // anche con un modello debole, dal secondo messaggio del dirigente lo sponsor mette sul tavolo la sua apertura
   if(azione === 'parla' && !S.offerta_attuale && !off && S.apertura && storico.filter(m => m.chi === 'tu').length >= 1){
     azione = 'offerta'; off = limita(S.apertura, S);
@@ -891,8 +907,8 @@ function unisciStato(sponsors, righe){
 }
 // ciò che il giocatore può vedere di uno sponsor: niente budget, tetti, pazienza, carattere, priorità
 const SP_BONUS_NOMI = {tifosi_pct:'tifosi', follower_pct:'follower', stadio_pct:'capienza stadio'};
-const spBonusFrase = b => b.tipo === 'stadio_contributo' ? 'ogni miglioramento dello stadio (fino a ' + b.target + ', entro l\'anno ' + b.anno_max + '): ' + String(b.importo).replace('.', ',') + 'M di contributo' : (['tifosi_pct', 'follower_pct', 'stadio_pct'].includes(b.tipo) ? '+' + b.target + '% ' + SP_BONUS_NOMI[b.tipo]
-  : b.tipo === 'fastfood' ? '+' + b.target + ' livelli fast food' : b.tipo === 'trofei' ? '+' + b.target + ' trofei' : (b.ogni_anno ? 'ogni anno ' : '') + 'primi ' + b.target + ' in campionato')
+const spBonusFrase = b => isContributo(b) ? 'ogni miglioramento ' + SP_CONTRIBUTI[b.tipo].nome + ' (fino a ' + b.target + ', entro l\'anno ' + b.anno_max + '): ' + String(b.importo).replace('.', ',') + 'M di contributo' : (['tifosi_pct', 'follower_pct', 'stadio_pct'].includes(b.tipo) ? '+' + b.target + '% ' + SP_BONUS_NOMI[b.tipo]
+  : b.tipo === 'fastfood' ? '+' + b.target + ' livelli fast food' : b.tipo === 'trofei' ? (b.ogni_anno ? 'ogni anno ' : '') + b.target + (b.target > 1 ? ' trofei' : ' trofeo') : b.tipo === 'piazzamento' ? (b.ogni_anno ? 'ogni anno ' : '') + 'primi ' + b.target + ' in campionato' : (b.ogni_anno ? 'ogni anno ' : '') + b.target + ' trofei')
   + (b.ogni_anno ? ' (per ognuno dei ' + b.anno_max + ' anni): ' : ' entro l\'anno ' + b.anno_max + ': ') + String(b.importo).replace('.', ',') + 'M';
 function vistaSponsor(sp){
   const aperta = (sp.round||0) > 0;
@@ -1113,7 +1129,7 @@ async function azioneBonus(c, sess, body){            // admin: accredita al bud
   if(st === 'pagato') throw new Errore('Bonus già pagato');
   if(st === 'scaduto') throw new Errore('Bonus scaduto: l\'anno limite è passato');
   if(st !== 'raggiunto' && st !== 'da_confermare') throw new Errore('Obiettivo non ancora raggiunto');
-  const usati = (b.usati || 0) + 1, ricorrente = b.tipo === 'stadio_contributo' || b.ogni_anno, quanti = b.ogni_anno ? b.anno_max : b.target;
+  const usati = (b.usati || 0) + 1, ricorrente = isContributo(b) || b.ogni_anno, quanti = b.ogni_anno ? b.anno_max : b.target;
   const nuovaLista = lista.map(x => x.id !== b.id ? x : (ricorrente ? {...x, usati, stato:usati >= quanti ? 'pagato' : 'aperto'} : {...x, stato:'pagato'}));
   await dbUpd('sponsor_contratti', {id:cc.id}, {bonus:nuovaLista});               // prima si segna pagato, poi si accredita
   try {

@@ -105,10 +105,10 @@ async function spAzzera(){
   spRender();
 }
 
-const SP_BONUS_NOMI = {stadio_contributo:'Stadio', tifosi_pct:'Tifosi', follower_pct:'Follower', stadio_pct:'Capienza stadio', fastfood:'Fast food', trofei:'Trofei', piazzamento:'Piazzamento'};
+const SP_BONUS_NOMI = {stadio_contributo:'Stadio', food_contributo:'Zona food', tifosi_pct:'Tifosi', follower_pct:'Follower', stadio_pct:'Capienza stadio', fastfood:'Fast food', trofei:'Trofei', piazzamento:'Piazzamento'};
 function spBonusTesto(b){
-  if(b.ogni_anno) return `Ogni anno: chiudere tra i primi ${b.target} in campionato`;
-  if(b.tipo==='stadio_contributo') return `Contributo dello sponsor per ogni miglioramento dello stadio (fino a ${b.target})`;
+  if(b.ogni_anno) return b.tipo==='trofei' ? `Ogni anno: vincere ${b.target} ${b.target>1?'trofei':'trofeo'}` : `Ogni anno: chiudere tra i primi ${b.target} in campionato`;
+  if(b.tipo==='stadio_contributo' || b.tipo==='food_contributo') return `Contributo dello sponsor per ogni miglioramento ${b.tipo==='food_contributo' ? 'della zona food' : 'dello stadio'} (fino a ${b.target})`;
   if(b.tipo==='tifosi_pct'||b.tipo==='follower_pct'||b.tipo==='stadio_pct') return `${SP_BONUS_NOMI[b.tipo]} +${b.target}% rispetto alla firma`;
   if(b.tipo==='fastfood') return `Fast food: +${b.target} ${b.target>1?'livelli':'livello'} rispetto alla firma`;
   if(b.tipo==='trofei') return `Vincere ${b.target} ${b.target>1?'trofei':'trofeo'} in più`;
@@ -118,7 +118,7 @@ function spBonusRiga(c, b){
   const stati = {pagato:'✅ pagato', scaduto:'⌛ scaduto', raggiunto:'🟢 raggiunto', da_confermare:'⏳ da confermare', aperto:'⚪ aperto'};
   const paga = adminLoggato && (b.stato==='raggiunto' || b.stato==='da_confermare')
     ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 ${b.stato==='da_confermare' ? 'Conferma e paga' : 'Paga'}</button>` : '';
-  if(b.tipo==='stadio_contributo'){
+  if(b.tipo==='stadio_contributo' || b.tipo==='food_contributo'){
     const incassa = adminLoggato && b.stato==='da_confermare' ? ` <button onclick="spPagaBonus('${c.id}','${b.id}')" style="font-size:11px;cursor:pointer">💰 Incassa miglioramento</button>` : '';
     return `<div style="margin-bottom:3px">• ${spBonusTesto(b)} · entro l'anno ${b.anno_max} · <b>${spFmt(b.importo)}</b> a miglioramento · usati ${b.usati||0}/${b.target} · ${stati[b.stato]||b.stato}${incassa}</div>`;
   }
