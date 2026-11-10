@@ -583,6 +583,7 @@ COME TRATTI
 14. Bonus: oltre alla cifra fissa puoi proporre, o accettare su richiesta del dirigente, clausole bonus concordate in chat: un obiettivo preciso, un anno limite (da 1 alla durata del contratto) e un importo fisso in milioni, pagato solo se l'obiettivo viene raggiunto. Tipi ammessi: tifosi_pct (aumento % dei tifosi), follower_pct (aumento % dei follower), stadio_pct (aumento % della capienza), fastfood (livelli in più), trofei (trofei in più), piazzamento (chiudere entro i primi N del campionato), stadio_contributo e food_contributo (contributo per OGNI miglioramento dello stadio o della zona food che il club realizza: "target" = quanti miglioramenti al massimo, "anno_max" = fino a quale anno vale, "importo" = quanto versi per ciascun miglioramento; un miglioramento dello stadio costa circa 3,5 milioni, uno della zona food circa 2, e di norma ne copri una quota piccola, che sale se la reputazione del dirigente è alta e scende se è bassa: il sistema la limita). Per i trofei e il piazzamento puoi concordare anche premi che si ripetono ogni anno ("ogni_anno": true, per esempio un trofeo ogni anno). Il premio deve essere proporzionato alla difficoltà dell'obiettivo: facile (primi 8 su 12, +5% tifosi) = poco, difficile (primi 3, trofei, +50% tifosi) = di più; un bonus una tantum non deve ripetere uno già concordato ogni anno sulla stessa soglia. Se il dirigente parla di ampliare o migliorare lo stadio con il tuo contributo, è la forma naturale: proponila o accettala, soprattutto se il tuo settore c'entra (edilizia, energia, impianti). Sono il modo per premiare un dirigente ambizioso senza alzare la cifra fissa: obiettivi facili valgono premi piccoli, obiettivi ambiziosi premi più grandi. Non sono mai nascosti: ciò che metti in "bonus" lo vedono tutti. Proponili solo dal secondo scambio, quando c'è già qualcosa da discutere (un dirigente che si dice sicuro dei propri obiettivi, un\'offerta fissa ferma al limite). In "bonus" metti SOLO i bonus nuovi o modificati in questo messaggio: quelli già sul tavolo restano finché non li togli mettendo il loro tipo in "togli_bonus" (non toglierli mai per dimenticanza). Rispetta ESATTAMENTE ciò che il dirigente chiede: stessa soglia (se chiede primi 10, "target" è 10, non 8) e stessa frequenza (se chiede "ogni anno che arrivo tra i primi 10", metti "ogni_anno": true: il premio si paga per ciascun anno del contratto, non una volta sola). Nel messaggio ripeti la stessa soglia e frequenza che metti in "bonus". Quando ne proponi o ne modifichi uno, dillo nel messaggio con le tue parole. Il sistema limita il totale dei bonus: non ti preoccupare di calcolarlo.
 15. Opzioni a scelta: se il dirigente ti propone più opzioni con prezzi diversi (es. un servizio a 2 milioni, uno migliore a 3, il migliore a 4) o ti dice di scegliere in base al tuo budget, scegli TU un\'opzione e dillo apertamente, con il motivo: la migliore che puoi permetterti entro il tuo tetto. Non pretendere l\'opzione più cara al prezzo di quella più economica. Se il tuo limite sta tra due opzioni, o prendi quella inferiore, o dici di quanto la cifra dovrebbe salire (senza rivelare il tetto), o proponi una versione ridotta della migliore. Se ti ha già detto di scegliere tu, non rispondere con altre domande: scegli subito.
 16. Importanza dell\'accordo: valuta quanto conta per te ciò che ti viene proposto: ritorno di visibilità e immagine, coerenza col tuo settore, esclusiva, durata, valore del servizio rispetto al prezzo. Un accordo molto vantaggioso per te (per esempio l\'opzione migliore con esclusiva) giustifica di spingerti verso il tuo tetto e di usare il margine extra: dai valore alto alle idee che lo meritano, anche se sei uno sponsor food o merchandising e non uno principale. Non trattare un contratto importante come uno qualsiasi. Resti comunque dentro i tuoi limiti di cifre.
+17. Proposte a prezzo fisso ("prendere o lasciare", "costa 4 milioni"): prima valuta il rapporto tra ciò che ricevi e ciò che ti viene chiesto, e confrontalo con il tuo tetto. (a) Se il prezzo rientra nel tuo tetto E la proposta è davvero vantaggiosa per te (idea di valore alto, coerente col tuo settore, esclusiva, forte ritorno di immagine), accetta SUBITO senza tirare sul prezzo per abitudine: azione "accordo" con quella cifra. (b) Se il prezzo rientra nel tuo tetto ma il servizio non vale quella cifra per te, non accettare per cortesia e non farti fregare: spiega con ragioni concrete perché per te vale meno e fai una controproposta più bassa e sensata. (c) Se il prezzo supera il tuo tetto non puoi accettarlo: dillo chiaramente, indica fino a dove puoi arrivare per quel servizio (se sei al tuo tetto è la tua offerta finale) e proponi una versione ridotta o un\'alternativa. In ogni caso rispondi in modo sensato a ciò che ha scritto il dirigente. Mai scrivere che accetti e poi offrire una cifra diversa: se fai una controproposta non scrivere "accetto", "accettiamo" o "affare fatto". Se dici che è la tua offerta finale, la cifra nell\'offerta deve essere esattamente quella.
 
 FORMATO: rispondi SOLO con un oggetto JSON, senza altro testo:
 {
@@ -738,10 +739,11 @@ function trovaProblemi(r, S, durata, contesto){
     if(a && r.azione !== 'ritira' && (r.offerta.soldi < a.soldi - 0.005 || r.offerta.tifosi < a.tifosi || r.offerta.follower < a.follower)) p.push('l\'offerta è scesa sotto quella già fatta');
   }
   const baseB = r.offerta || S.offerta_attuale || S.apertura || S.normale, limB = (baseB ? baseB.soldi : 0)*durata*SP_BONUS_QUOTA;
-  if((r.bonus || []).filter(b => !isContributo(b)).reduce((t, b) => t + b.importo*(b.ogni_anno ? durata : 1), 0) > limB + 0.005) p.push('il totale dei bonus supera il limite di ' + limB.toFixed(2) + ' milioni');
+  if((r.bonus || []).filter(b => !isContributo(b)).reduce((t, b) => t + b.importo*(b.ogni_anno ? durata : 1), 0) > limB + 0.005) p.push('§il totale dei bonus supera il limite di ' + limB.toFixed(2) + ' milioni');
+  if(r.azione === 'offerta' && /(?<!non )\b(accetto|accettiamo|affare fatto)\b/i.test(r.messaggio || '')) p.push('hai scritto che accetti ma stai facendo una controproposta: se accetti usa azione \"accordo\" con la loro cifra, altrimenti non scrivere che accetti');
   (r.bonus || []).forEach(b => {
-    if(isContributo(b)){ const t = spTettoContributo(b.tipo, S.reputazione); if(b.importo > t + 0.005) p.push('il contributo per ogni miglioramento ' + SP_CONTRIBUTI[b.tipo].nome + ' non può superare ' + t.toFixed(2) + ' milioni'); }
-    else { const t = spTettoBonus(b, baseB ? baseB.soldi : 0); if(b.importo > t + 0.005) p.push('un bonus ' + b.tipo + ' ' + b.target + (b.ogni_anno ? ' ogni anno' : '') + ' non può superare ' + t.toFixed(2) + ' milioni: il premio deve essere proporzionato alla difficoltà'); }
+    if(isContributo(b)){ const t = spTettoContributo(b.tipo, S.reputazione); if(b.importo > t + 0.005) p.push('§il contributo per ogni miglioramento ' + SP_CONTRIBUTI[b.tipo].nome + ' non può superare ' + t.toFixed(2) + ' milioni'); }
+    else { const t = spTettoBonus(b, baseB ? baseB.soldi : 0); if(b.importo > t + 0.005) p.push('§un bonus ' + b.tipo + ' ' + b.target + (b.ogni_anno ? ' ogni anno' : '') + ' non può superare ' + t.toFixed(2) + ' milioni: il premio deve essere proporzionato alla difficoltà'); }
   });
   if(r.messaggio && !cifreCoerenti(r.messaggio, r.offerta, S.offerta_attuale, durata, contesto)) p.push('le cifre nel messaggio non coincidono con l\'offerta');
   return p;
@@ -758,14 +760,14 @@ async function trattativa(ctx, storico, messaggio, chiama){
   const S = ctx.scheda, durata = ctx.sponsor.durata;
   const contesto = storico.map(m => m.t).concat(messaggio).join(' ');
   let r = null, problemi = [], tentativi = 0;
-  for(let i = 0; i < 2; i++){
+  for(let i = 0; i < 3; i++){
     tentativi++;
     let letta = null;
-    try { letta = leggiRisposta(estraiJson(await chiama(SYSTEM, promptTrattativa(ctx, storico, messaggio, i ? problemi.join('; ') : ''), {maxTokens:800, temp:0.6}))); }
+    try { letta = leggiRisposta(estraiJson(await chiama(SYSTEM, promptTrattativa(ctx, storico, messaggio, i ? problemi.map(x => x.replace(/^§/, '')).join('; ') : ''), {maxTokens:800, temp:0.6}))); }
     catch(e){ if(e.status) throw e; }                                     // errori del provider si propagano, JSON rotto = nuovo tentativo
-    if(!letta){ problemi = ['risposta non in formato JSON']; if(i === 1 && !r) throw new Error('risposta AI non valida'); continue; }
+    if(!letta){ problemi = ['risposta non in formato JSON']; if(i === 2 && !r) throw new Error('risposta AI non valida'); continue; }
     r = letta; problemi = trovaProblemi(r, S, durata, contesto + ' ' + r.bonus.map(b => b.importo + ' milioni').join(' '));
-    if(!problemi.length) break;
+    if(!problemi.length || (i >= 1 && problemi.every(x => x[0] === '§'))) break;      // con soli problemi sui massimi dei bonus basta un secondo tentativo
   }
   if(!r) throw new Error('risposta AI non valida');
   let azione = r.azione || 'parla', testo = r.messaggio;
@@ -795,7 +797,12 @@ async function trattativa(ctx, storico, messaggio, chiama){
     testo = (testo ? String(testo).trim() + ' ' : '') + 'Le metto intanto sul tavolo la nostra proposta di partenza.';
   }
   // se dopo il secondo tentativo qualcosa non torna, il messaggio lo scrive il sistema (le cifre le mostra la scheda offerta)
-  const corretta = problemi.length > 0;
+  const duri = problemi.filter(x => x[0] !== '§'), corretta = duri.length > 0;
+  if(!corretta && azione !== 'ritira'){
+    const note = r.bonus.map(b => { const f = bonus.find(x => chiave(x) === chiave(b)); return f && f.importo < b.importo - 0.004 ? 'su "' + spBonusFrase(f).replace(/: [\d,]+M.*$/, '') + '" il massimo che posso riconoscere è ' + String(f.importo).replace('.', ',') + 'M' : null; }).filter(Boolean);
+    if(note.length) testo = (testo ? String(testo).trim() + ' ' : '') + 'Sui bonus: ' + note.join('; ') + '.';
+  }
+  if(corretta) console.error('trattativa: testo sostituito dal sistema ->', duri.join(', '));
   if(corretta && azione === 'accordo') azione = 'offerta';                // un accordo fuori dai limiti diventa una controproposta
   if(corretta && azione !== 'ritira') testo = NEUTRO[azione];
   if(!testo) testo = NEUTRO[azione];
@@ -804,11 +811,11 @@ async function trattativa(ctx, storico, messaggio, chiama){
   const giocatore = azione === 'ritira' ? 'nessuna' : (r.giocatore === 'accetta_offerta' && !S.offerta_attuale ? 'nessuna' : r.giocatore);
   const dbg = `${azione} · pazienza ${S.pazienza}→${paz} · offerta ${off ? off.soldi + 'M/' + off.tifosi + '/' + off.follower : '—'}`
     + ` · tetto ${S.tetto.soldi}M · idee ${r.idee.length ? r.idee.map(i => i.titolo + ' ' + i.valore.toFixed(2)).join(', ') : '—'} · sbloccato ${u.extra_sbloccato}`
-    + (tentativi > 1 ? ' · secondo tentativo' : '') + (corretta ? ' · CORRETTA dal sistema: ' + problemi.join(', ') : '');
+    + (tentativi > 1 ? ' · secondo tentativo' : '') + (corretta ? ' · CORRETTA dal sistema: ' + duri.join(', ') : '');
   return {
     messaggio:testo, azione, giocatore, pazienza:Math.max(0, paz),
     offerta: off ? {fm:Math.round(off.soldi * 1e6), tifosi:off.tifosi, follower:off.follower} : null,
-    idee:u.idee, extra_sbloccato:u.extra_sbloccato, bonus, dbg, ai:AI_ULTIMA
+    idee:u.idee, extra_sbloccato:u.extra_sbloccato, bonus, dbg, ai:AI_ULTIMA, corretta
   };
 }
 
@@ -1054,7 +1061,7 @@ async function azioneChat(c, sess, body){
   if(bonusCambiati && sp.bonus.length && R.azione !== 'ritira') log.push({chi:'card', t:'🎯 Bonus sul tavolo: ' + sp.bonus.map(spBonusFrase).join(' · ')});
   sp.chat = log;
   await salvaTrattativa(c.sqId, c.stagione, sp);
-  return {sponsor_id:sp.id, chat:sp.chat, azione:R.azione, giocatore:R.giocatore, ...(sess.admin ? {ai:R.ai} : {})};   // solo l'admin vede quale AI ha risposto
+  return {sponsor_id:sp.id, chat:sp.chat, azione:R.azione, giocatore:R.giocatore, ...(sess.admin ? {ai:R.ai, corretta:!!R.corretta} : {})};   // solo l'admin vede quale AI ha risposto
 }
 
 async function azioneFirma(c, sess, body){
