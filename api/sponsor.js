@@ -388,6 +388,8 @@ function catena(){
     .forEach(m => lista.push({id:'openrouter:' + m, f:(s, u, o) => chiamaCompatibile('https://openrouter.ai/api/v1/chat/completions', 'OPENROUTER_API_KEY', m, s, u, o, false)}));
   if(haChiave('ANTHROPIC_API_KEY')) lista.push({id:'anthropic', f:chiamaAnthropic});   // a pagamento: solo come ultima risorsa
   return lista;
+    if(haChiave('NVIDIA_API_KEY')) modelli('NVIDIA_MODEL', ['meta/llama-3.3-70b-instruct', 'meta/llama-3.1-70b-instruct'])
+    .forEach(m => lista.push({id:'nvidia:' + m, f:(s, u, o) => chiamaCompatibile('https://integrate.api.nvidia.com/v1/chat/completions', 'NVIDIA_API_KEY', m, s, u, o, false)}));
 }
 let AI_ULTIMA = '';
 async function chiamaAI(system, user, o){
