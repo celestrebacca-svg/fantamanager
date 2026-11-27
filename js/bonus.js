@@ -348,7 +348,7 @@ async function inviaTrattativa(){
     percentuale_rivendita:parseFloat(document.getElementById('trat-rivendita').value)||null,
     giocatori_cambio_ids:giocatoriScambio,
     condizioni_obbligo:condizioniObbligo,
-    rate:usaRate?rateList.filter(r=>r.importo&&r.data).map(r=>({importo:parseFM(r.importo),data:r.data,pagata:false})):[],
+    rate:usaRate?rateList.filter(r=>r.importo&&r.data).map(r=>({importo:parseM(r.importo),data:r.data,pagata:false})):[],
     bonus_performance:bonusValidi.length>0?bonusValidi:null,
   };
 
@@ -402,6 +402,9 @@ async function inviaTrattativa(){
   }
   if(usaRate){
     dati.importo=parseM(document.getElementById('trat-importo-totale').value)||0;
+    // Acconto immediato: pagato subito all'approvazione (il resto va in rate)
+    const acconto=parseM(document.getElementById('trat-acconto-immediato')?.value)||0;
+    if(acconto>0) dati.acconto_immediato=acconto;
   }
   if(tipo.includes('Prestito')){
     dati.importo=parseM(document.getElementById('trat-cifra-prestito')?.value)||0;

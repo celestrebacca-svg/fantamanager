@@ -51,6 +51,17 @@ function renderTrattative(){
 // TRASFERIMENTO - usa sempre squadra_cedente_id
 // e squadra_acquirente_id che sono fissi nel DB
 // ══════════════════════════════════════════════
+// Quanto si paga SUBITO all'approvazione. Senza rate: tutto l'importo.
+// Con rate: solo l'acconto (se non c'è, importo totale meno la somma delle rate).
+function _importoImmediatoTrattativa(t){
+  const tot=parseFloat(t.importo)||0;
+  const rate=(Array.isArray(t.rate)?t.rate:[]).filter(r=>r&&parseFloat(r.importo)>0&&r.data);
+  if(!rate.length) return tot;
+  if(t.acconto_immediato!=null&&t.acconto_immediato!=='') return parseFloat(t.acconto_immediato)||0;
+  const somma=rate.reduce((x,r)=>x+(parseFloat(r.importo)||0),0);
+  return Math.max(0,tot-somma);
+}
+
 async function eseguiTrasferimento(t){
   const tipo = t.tipo||'';
   const isPrestito = tipo.toLowerCase().includes('prestito');
@@ -160,7 +171,7 @@ async function eseguiTrasferimento(t){
   }
 
   // ── BUDGET ──
-  const importo = parseFloat(t.importo)||0;
+  const importo = _importoImmediatoTrattativa(t);
   if(importo>0){
     const sqAcqDB = squadreDB.find(s=>s.id===sqAcquirente);
     const sqCedDB = squadreDB.find(s=>s.id===sqCedente);
@@ -174,6 +185,33 @@ async function eseguiTrasferimento(t){
         {squadra_id:sqCedente,importo:importo,tipo:'entrata',descrizione:`${t.tipo}: ${nomeG}`,saldo_prima:(sqCedDB?.budget||0)-importo,saldo_dopo:(sqCedDB?.budget||0)}
       ]);
     }catch(e){console.warn('Log budget:',e);}
+  }
+
+  // ── RATE FUTURE: diventano rate del bilancio in automatico ──
+  const rateT=(Array.isArray(t.rate)?t.rate:[]).filter(r=>r&&parseFloat(r.importo)>0&&r.data);
+  if(rateT.length){
+    const gR=giocatoriDB.find(x=>String(x.id)===String(t.giocatore_id));
+    const nomeR=gR?gR.nome:(t.tipo||'Trattativa');
+    const giaCreate=(typeof rateMercato!=='undefined'?rateMercato:[]).filter(x=>String(x.trattativa_id)===String(t.id));
+    if(!giaCreate.length){
+      const righe=rateT.map((r,i)=>({
+        descrizione:`Rata ${i+1}/${rateT.length}: ${nomeR}`,
+        squadra_debitrice_id:sqAcquirente, squadra_creditrice_id:sqCedente,
+        importo:parseFloat(r.importo), data_scadenza:r.data, pagata:false,
+        stagione:STAGIONE_CORRENTE, trattativa_id:String(t.id)
+      }));
+      let res=await sb.from('rate_mercato').insert(righe).select();
+      if(res.error){ // se manca la colonna trattativa_id riprova senza
+        res=await sb.from('rate_mercato').insert(righe.map(({trattativa_id,...r})=>r)).select();
+      }
+      if(res.error){
+        console.error('Rate non create:',res.error);
+        showToast('⚠️ Trasferimento eseguito ma rate NON create: aggiungile a mano dal bilancio','error');
+      } else {
+        (res.data||[]).forEach(x=>{ if(typeof rateMercato!=='undefined') rateMercato.push(x); });
+        showToast(`📅 ${(res.data||[]).length} rate create nel bilancio`);
+      }
+    }
   }
 
   return true;
@@ -226,12 +264,18 @@ async function annullaTrattativa(id){
       if(i>=0) giocatoriDB[i]={...giocatoriDB[i],...upd};
     }
 
-    if(t.importo&&t.importo>0){
+    const impImm=_importoImmediatoTrattativa(t);
+    if(impImm>0){
       const sqAcqDB=squadreDB.find(s=>s.id===sqAcquirente);
       const sqCedDB=squadreDB.find(s=>s.id===sqCedente);
-      if(sqAcqDB){sqAcqDB.budget=(sqAcqDB.budget||0)+t.importo;await sb.from('squadre').update({budget:sqAcqDB.budget}).eq('id',sqAcquirente);}
-      if(sqCedDB){sqCedDB.budget=(sqCedDB.budget||0)-t.importo;await sb.from('squadre').update({budget:sqCedDB.budget}).eq('id',sqCedente);}
+      if(sqAcqDB){sqAcqDB.budget=(sqAcqDB.budget||0)+impImm;await sb.from('squadre').update({budget:sqAcqDB.budget}).eq('id',sqAcquirente);}
+      if(sqCedDB){sqCedDB.budget=(sqCedDB.budget||0)-impImm;await sb.from('squadre').update({budget:sqCedDB.budget}).eq('id',sqCedente);}
     }
+    // Rate create da questa trattativa e non ancora pagate: vengono tolte (quelle già pagate restano)
+    try{
+      await sb.from('rate_mercato').delete().eq('trattativa_id',String(t.id)).eq('pagata',false);
+      if(typeof rateMercato!=='undefined') rateMercato=rateMercato.filter(x=>!(String(x.trattativa_id)===String(t.id)&&!x.pagata));
+    }catch(e){console.warn('Rate non rimosse:',e);}
 
     await sb.from('trattative').update({stato:'in_attesa'}).eq('id',id);
     const idx=trattativeDB.findIndex(x=>String(x.id)===String(id));

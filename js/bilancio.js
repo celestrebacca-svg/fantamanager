@@ -50,6 +50,7 @@ let bilSqSel = null;
 let bilMercatoSel = null;
 let bilArchivioAperto = false;
 let stipendiAnno = [];
+let eventiSponsor = [];
 let bilAnnoSel = null;
 
 function _bilEsc(t) {
@@ -74,6 +75,15 @@ async function caricaMovimentiBilancio() {
     if (r.error) r = await sb.from('movimenti_budget').select('*').limit(2000);
     movimentiBilancio = r.error ? [] : (r.data || []);
   } catch (e) { movimentiBilancio = []; }
+}
+
+// Incassi di giornata (stadio, sponsor settimanali...): stanno in sponsor_eventi, non in movimenti_budget
+async function caricaEventiSponsor() {
+  try {
+    let r = await sb.from('sponsor_eventi').select('*').order('created_at', { ascending: false }).limit(3000);
+    if (r.error) r = await sb.from('sponsor_eventi').select('*').limit(3000);
+    eventiSponsor = r.error ? [] : (r.data || []);
+  } catch (e) { eventiSponsor = []; }
 }
 
 // Registra un movimento (importo con segno) con saldo prima/dopo. Se fallisce non blocca nulla.
@@ -107,6 +117,7 @@ async function renderBilancio() {
   await caricaBilancioAdmin();
   await caricaMovimentiBilancio();
   await caricaStipendiAnno();
+  await caricaEventiSponsor();
   if (!bilSqSel || !squadreDB.find(s => s.id === bilSqSel)) {
     const mia = utenteLoggato ? squadreDB.find(s => s.id === utenteLoggato.id) : null;
     bilSqSel = mia ? mia.id : (squadreDB[0] ? squadreDB[0].id : null);
@@ -241,6 +252,9 @@ function disegnaBilancio() {
     movimentiBilancio.filter(m => String(m.squadra_id) === String(sq.id)).forEach(m => {
       mov.push({ d: new Date(m.created_at), t: m.descrizione, v: m.importo });
     });
+    eventiSponsor.filter(e => String(e.squadra_id) === String(sq.id) && e.soldi).forEach(e => {
+      mov.push({ d: new Date(e.created_at || Date.now()), t: (e.nome_sponsor || e.tipo_sponsor || 'Incasso') + (e.giornata ? ' · giornata ' + e.giornata : ''), v: e.soldi });
+    });
     mov.sort((a, b) => b.d - a.d);
     const limite = Date.now() - 30 * 86400000;
     const recenti = mov.filter(m => m.d.getTime() >= limite);
@@ -264,7 +278,7 @@ function disegnaBilancio() {
             <select onchange="bilSelMercato(this.value)" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:12px">
               ${chiavi.map(k => `<option value="${_bilEsc(k)}" ${k === bilMercatoSel ? 'selected' : ''}>Mercato ${_bilEsc(k)}</option>`).join('')}
             </select>
-            ${righeRate || '<div style="font-size:11px;color:var(--testo-dim)">Nessuna rata in questo mercato</div>'}
+            <div style="max-height:340px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:2px">${righeRate || '<div style="font-size:11px;color:var(--testo-dim)">Nessuna rata in questo mercato</div>'}</div>
           ` : '<div style="font-size:11px;color:var(--testo-dim)">Nessuna rata</div>'}
         </div>
 
@@ -278,9 +292,9 @@ function disegnaBilancio() {
             </div>
           </div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--testo-dim)">ULTIMI MOVIMENTI · 30 GIORNI</div>
-          ${recenti.length ? recenti.map(_bilRigaMov).join('') : '<div style="font-size:11px;color:var(--testo-dim);padding:8px 0">Nessun movimento nell\'ultimo mese</div>'}
+          <div style="max-height:260px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-right:2px">${recenti.length ? recenti.map(_bilRigaMov).join('') : '<div style="font-size:11px;color:var(--testo-dim);padding:8px 0">Nessun movimento nell\'ultimo mese</div>'}</div>
           <button onclick="bilToggleArchivio()" style="width:100%;margin-top:10px;background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">${bilArchivioAperto ? '✕ CHIUDI ARCHIVIO' : '📁 ARCHIVIO (' + vecchi.length + ')'}</button>
-          ${archivioHtml}
+          ${archivioHtml ? `<div style="max-height:260px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch">${archivioHtml}</div>` : ''}
         </div>
       </div>`;
 
@@ -514,6 +528,9 @@ async function apriNuovoBilancio() {
   let errori = 0;
   let ok = 0;
   const negativi = [];
+  // Alle rate si applicano solo quelle già scadute: le rate future (fino a 7 mercati) restano dov'erano
+  const limiteRate = new Date(); limiteRate.setHours(23, 59, 59, 999);
+  const rateScadute = r => !r.pagata && r.data_scadenza && new Date(r.data_scadenza) <= limiteRate;
 
   for (const sq of squadreDB) {
     try {
@@ -548,13 +565,13 @@ async function apriNuovoBilancio() {
       if (fmMuseo > 0) { registraMovimento(sq.id, 'Rendita museo', fmMuseo, nuovoBudget); nuovoBudget += fmMuseo; }
 
       // 4. Rate in entrata (pagate)
-      const rateIn = rateMercato.filter(r => r.squadra_creditrice_id === sq.id && !r.pagata);
+      const rateIn = rateMercato.filter(r => r.squadra_creditrice_id === sq.id && rateScadute(r));
       for (const r of rateIn) {
         nuovoBudget += r.importo;
       }
 
       // 5. Rate in uscita
-      const rateOut = rateMercato.filter(r => r.squadra_debitrice_id === sq.id && !r.pagata);
+      const rateOut = rateMercato.filter(r => r.squadra_debitrice_id === sq.id && rateScadute(r));
       for (const r of rateOut) {
         nuovoBudget -= r.importo;
       }
@@ -573,9 +590,8 @@ async function apriNuovoBilancio() {
 
   // Marca tutte le rate come pagate
   try {
-    // Paga solo le rate con scadenza <= 16 giugno 2027
-    const scadenzaBilancio = new Date('2027-06-16');
-    const rateDaPagare = rateMercato.filter(r => !r.pagata && new Date(r.data_scadenza) <= scadenzaBilancio);
+    // Segna come pagate solo le rate già scadute (le stesse appena applicate ai budget)
+    const rateDaPagare = rateMercato.filter(rateScadute);
     for (const r of rateDaPagare) {
       await sb.from('rate_mercato').update({ pagata: true, data_pagamento: new Date().toISOString() }).eq('id', r.id);
       r.pagata = true; r.data_pagamento = new Date().toISOString();
