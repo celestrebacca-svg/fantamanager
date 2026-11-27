@@ -44,72 +44,257 @@ async function controllaRateScadute(){
   }
 }
 
-// ===== RENDER SEZIONE BILANCIO (per utente) =====
+// ===== RENDER SEZIONE BILANCIO (visibile a tutti, per ogni squadra) =====
+let movimentiBilancio = [];
+let bilSqSel = null;
+let bilMercatoSel = null;
+let bilArchivioAperto = false;
+let stipendiAnno = [];
+let bilAnnoSel = null;
+
+function _bilEsc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function _bilFm(v) { return (v >= 0 ? '+' : '-') + fmtBudget(Math.abs(v)); }
+
+// Il mercato si ricava dalla data di scadenza: invernale dal 1 gennaio al 2 febbraio,
+// estivo dal 1 luglio al 1 settembre. Una data fuori dalle finestre va al mercato successivo.
+function _bilMercato(dataStr) {
+  if (!dataStr) return { k: 'Senza data', o: 0 };
+  const d = new Date(dataStr), m = d.getMonth() + 1, g = d.getDate(), y = d.getFullYear();
+  if (m === 1 || (m === 2 && g <= 2)) return { k: 'Inverno ' + y, o: y * 10 + 1 };
+  if (m <= 8 || (m === 9 && g <= 1)) return { k: 'Estate ' + y, o: y * 10 + 2 };
+  return { k: 'Inverno ' + (y + 1), o: (y + 1) * 10 + 1 };
+}
+
+// Registro movimenti: usa la tabella già esistente movimenti_budget (la stessa del riscatto)
+async function caricaMovimentiBilancio() {
+  try {
+    let r = await sb.from('movimenti_budget').select('*').order('created_at', { ascending: false }).limit(2000);
+    if (r.error) r = await sb.from('movimenti_budget').select('*').limit(2000);
+    movimentiBilancio = r.error ? [] : (r.data || []);
+  } catch (e) { movimentiBilancio = []; }
+}
+
+// Registra un movimento (importo con segno) con saldo prima/dopo. Se fallisce non blocca nulla.
+async function registraMovimento(squadraId, descrizione, importo, saldoPrima) {
+  try {
+    const { error } = await sb.from('movimenti_budget').insert({
+      squadra_id: squadraId, importo, tipo: importo >= 0 ? 'entrata' : 'uscita',
+      descrizione, saldo_prima: saldoPrima, saldo_dopo: saldoPrima + importo
+    });
+    if (error) console.warn('Movimento non registrato:', error.message);
+  } catch (e) { console.warn('Movimento non registrato:', e.message); }
+}
+
+// Stipendi: una "copia" della rosa con gli stipendi per ogni anno (tabella stipendi_anno, importi in FM)
+async function caricaStipendiAnno() {
+  try {
+    const { data, error } = await sb.from('stipendi_anno').select('*').limit(10000);
+    stipendiAnno = error ? [] : (data || []);
+  } catch (e) { stipendiAnno = []; }
+}
+// Anno in cui chiude la stagione corrente (2026/27 -> 2027)
+function _bilAnnoChiusura() {
+  const a = parseInt(String(STAGIONE_CORRENTE).split(/[\/\-]/)[0], 10);
+  return isNaN(a) ? new Date().getFullYear() : a + 1;
+}
+
 async function renderBilancio() {
   const container = document.getElementById('bilancio-content');
   if (!container) return;
   container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Caricamento...</div>';
   await caricaBilancioAdmin();
+  await caricaMovimentiBilancio();
+  await caricaStipendiAnno();
+  if (!bilSqSel || !squadreDB.find(s => s.id === bilSqSel)) {
+    const mia = utenteLoggato ? squadreDB.find(s => s.id === utenteLoggato.id) : null;
+    bilSqSel = mia ? mia.id : (squadreDB[0] ? squadreDB[0].id : null);
+  }
+  disegnaBilancio();
+}
 
-  const sqId = utenteLoggato ? utenteLoggato.id : null;
-  const sq = sqId ? squadreDB.find(s => s.id === sqId) : null;
+function bilSelSquadra(id) { bilSqSel = id; bilMercatoSel = null; bilArchivioAperto = false; disegnaBilancio(); }
+function bilSelMercato(k) { bilMercatoSel = k; disegnaBilancio(); }
+function bilSelAnno(v) { bilAnnoSel = parseInt(v, 10); disegnaBilancio(); }
+function bilToggleArchivio() { bilArchivioAperto = !bilArchivioAperto; disegnaBilancio(); }
+
+function _bilRigaMov(m) {
+  const col = m.v >= 0 ? 'var(--verde)' : 'var(--rosso)';
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;padding:8px 0;border-top:1px solid var(--grigio-chiaro)">
+      <div style="min-width:0">
+        <div style="font-size:11px;font-weight:600;line-height:1.3;word-break:break-word">${_bilEsc(m.t)}</div>
+        <div style="font-size:9px;color:var(--testo-dim);margin-top:2px">${m.d.toLocaleDateString('it-IT')}</div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${col};white-space:nowrap">${_bilFm(m.v)}</div>
+    </div>`;
+}
+
+function _bilStipendiHtml(sq) {
+  const chiusura = _bilAnnoChiusura();
+  const anni = Array.from(new Set(stipendiAnno.map(r => r.anno).concat([0, 1, 2, 3, 4].map(n => chiusura + n)))).sort((a, b) => a - b);
+  if (!bilAnnoSel || !anni.includes(bilAnnoSel)) bilAnnoSel = chiusura;
+  const righe = stipendiAnno.filter(r => String(r.squadra_id) === String(sq.id) && r.anno === bilAnnoSel);
+  const all = righe.filter(r => r.tipo === 'allenatore');
+  const cal = righe.filter(r => r.tipo !== 'allenatore').sort((a, b) => b.stipendio - a.stipendio);
+  const tot = righe.reduce((t, r) => t + (r.stipendio || 0), 0);
+  const pagati = righe.length > 0 && righe.every(r => r.pagato);
+  const ultimo = righe.reduce((m, r) => { const d = r.aggiornato_il ? new Date(r.aggiornato_il).getTime() : 0; return d > m ? d : m; }, 0);
+  const riga = r => `
+    <div style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--grigio-chiaro);font-size:13px">
+      <span style="min-width:0;word-break:break-word">${_bilEsc(r.nome)}</span>
+      <span style="font-family:'Space Mono',monospace;font-weight:700;white-space:nowrap">${fmtBudget(r.stipendio || 0)}</span>
+    </div>`;
+  return `
+    <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px">👥 STIPENDI</div>
+        ${righe.length ? (pagati
+          ? `<span style="font-size:10px;padding:3px 10px;border-radius:999px;background:rgba(0,255,135,0.12);color:var(--verde);border:1px solid rgba(0,255,135,0.3)">✓ GIÀ PAGATI</span>`
+          : `<span style="font-size:10px;padding:3px 10px;border-radius:999px;background:rgba(255,215,0,0.12);color:var(--oro);border:1px solid rgba(255,215,0,0.3)">DA PAGARE</span>`) : ''}
+      </div>
+      <div style="font-size:11px;color:var(--testo-dim);margin:4px 0 10px">Ultimo aggiornamento: ${ultimo ? new Date(ultimo).toLocaleDateString('it-IT') : 'mai'}</div>
+      <select onchange="bilSelAnno(this.value)" style="width:100%;padding:8px;border-radius:8px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:13px">
+        ${anni.map(a => `<option value="${a}" ${a === bilAnnoSel ? 'selected' : ''}>Rosa estate ${a}</option>`).join('')}
+      </select>
+      <div style="font-size:11px;color:var(--testo-dim);margin:6px 0 4px">Si pagano a fine stagione ${bilAnnoSel - 1}/${String(bilAnnoSel).slice(2)}, prima di aprire il nuovo bilancio.</div>
+      ${righe.length ? `
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--oro);margin-top:10px">⚽ ALLENATORE</div>
+        ${all.length ? all.map(riga).join('') : '<div style="font-size:12px;color:var(--testo-dim);padding:6px 0">Non inserito</div>'}
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--oro);margin-top:12px">👕 CALCIATORI (${cal.length})</div>
+        ${cal.map(riga).join('')}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:6px;border-top:2px solid var(--grigio-chiaro)">
+          <span style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px">TOTALE</span>
+          <span style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--rosso)">-${fmtBudget(tot)}</span>
+        </div>` : '<div style="font-size:12px;color:var(--testo-dim);padding:12px 0">Nessuno stipendio caricato per questo anno.</div>'}
+    </div>`;
+}
+
+function disegnaBilancio() {
+  const container = document.getElementById('bilancio-content');
+  if (!container) return;
+  const sq = squadreDB.find(s => s.id === bilSqSel);
 
   let html = `
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
       <div>
         <div class="page-title">💰 BILANCIO</div>
         <div class="page-sub">Stagione ${STAGIONE_CORRENTE}</div>
       </div>
       ${adminLoggato ? `<button onclick="apriAdminBilancio()" style="background:var(--oro);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:1px;padding:10px 20px;border-radius:8px;border:none;cursor:pointer">⚙️ ADMIN BILANCIO</button>` : ''}
+    </div>
+
+    <div style="display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;margin-bottom:4px;-webkit-overflow-scrolling:touch">
+      ${squadreDB.map(s => {
+        const sel = s.id === bilSqSel;
+        const ico = s.logo_url
+          ? `<img src="${s.logo_url}" style="width:20px;height:20px;object-fit:contain;border-radius:4px">`
+          : `<div style="width:20px;height:20px;border-radius:4px;background:${s.avatar_bg || '#333'};display:flex;align-items:center;justify-content:center;font-size:10px">${s.avatar || '⚽'}</div>`;
+        return `<button onclick="bilSelSquadra('${s.id}')" style="flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;white-space:nowrap;color:${sel ? 'var(--nero)' : 'var(--testo)'};background:${sel ? 'var(--oro)' : 'var(--grigio)'};border:1px solid ${sel ? 'var(--oro)' : 'var(--grigio-chiaro)'}">${ico}${_bilEsc(s.nome)}</button>`;
+      }).join('')}
     </div>`;
 
   if (sq) {
-    // Budget attuale
     const budget = sq.budget || 0;
     const budgetColor = budget >= 0 ? 'var(--verde)' : 'var(--rosso)';
-    html += `
-      <div style="background:linear-gradient(135deg,rgba(255,215,0,0.08),rgba(0,0,0,0));border:1px solid rgba(255,215,0,0.3);border-radius:14px;padding:20px;margin-bottom:20px">
-        <div style="font-size:12px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Budget Attuale</div>
-        <div style="font-family:'Space Mono',monospace;font-size:32px;font-weight:700;color:${budgetColor}">${fmtBudget(budget)}</div>
-        <div style="font-size:11px;color:var(--testo-dim);margin-top:4px">Scadenza bilancio: 15 giugno 2026</div>
-      </div>`;
 
-    // Rate in scadenza per questa squadra
-    const mieRate = rateMercato.filter(r => r.squadra_debitrice_id === sqId && !r.pagata);
-    if (mieRate.length > 0) {
-      html += `
-        <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:16px;margin-bottom:20px">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--rosso);letter-spacing:1px;margin-bottom:12px">⚠️ RATE DA PAGARE</div>
-          ${mieRate.map(r => {
-            const scad = new Date(r.data_scadenza);
-            const oggi = new Date();
-            const diff = Math.ceil((scad - oggi) / (1000*60*60*24));
-            const scadColor = diff < 0 ? 'var(--rosso)' : diff <= 7 ? 'var(--oro)' : 'var(--testo-dim)';
-            const sqCred = squadreDB.find(s => s.id === r.squadra_creditrice_id);
-            return `
-              <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--grigio-scuro);border-radius:10px;margin-bottom:8px;border-left:3px solid ${scadColor}">
-                <div style="flex:1">
-                  <div style="font-size:13px;font-weight:600;margin-bottom:3px">${r.descrizione || 'Rata mercato'}</div>
-                  <div style="font-size:11px;color:var(--testo-dim)">A: ${sqCred?.nome || '?'}</div>
-                  <div style="font-size:11px;color:${scadColor}">Scadenza: ${scad.toLocaleDateString('it-IT')} ${diff < 0 ? '(SCADUTA)' : diff === 0 ? '(OGGI)' : '(tra '+diff+' giorni)'}</div>
-                </div>
-                <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--rosso)">-${fmtBudget(r.importo)}</div>
-              </div>`;
-          }).join('')}
+    // ----- RATE (colonna sinistra) -----
+    const rateSq = rateMercato.filter(r => r.squadra_debitrice_id === sq.id || r.squadra_creditrice_id === sq.id);
+    const mercati = {};
+    rateSq.forEach(r => { const m = _bilMercato(r.data_scadenza); mercati[m.k] = m.o; });
+    const chiavi = Object.keys(mercati).sort((a, b) => mercati[a] - mercati[b]);
+    if (!bilMercatoSel || !chiavi.includes(bilMercatoSel)) {
+      bilMercatoSel = chiavi.find(k => rateSq.some(r => !r.pagata && _bilMercato(r.data_scadenza).k === k)) || chiavi[chiavi.length - 1] || null;
+    }
+    const rateMer = rateSq.filter(r => _bilMercato(r.data_scadenza).k === bilMercatoSel)
+      .sort((a, b) => new Date(a.data_scadenza) - new Date(b.data_scadenza));
+    const totDaRicevere = rateSq.filter(r => !r.pagata && r.squadra_creditrice_id === sq.id).reduce((s, r) => s + r.importo, 0);
+    const totDaPagare = rateSq.filter(r => !r.pagata && r.squadra_debitrice_id === sq.id).reduce((s, r) => s + r.importo, 0);
+
+    const righeRate = rateMer.map(r => {
+      const deb = r.squadra_debitrice_id === sq.id;
+      const ctrl = squadreDB.find(s => s.id === (deb ? r.squadra_creditrice_id : r.squadra_debitrice_id));
+      const col = deb ? 'var(--rosso)' : 'var(--verde)';
+      const scad = r.data_scadenza ? new Date(r.data_scadenza).toLocaleDateString('it-IT') : '—';
+      const badge = r.pagata
+        ? `<span style="font-size:9px;padding:2px 8px;border-radius:999px;background:rgba(0,255,135,0.12);color:var(--verde);border:1px solid rgba(0,255,135,0.3);white-space:nowrap">✓ GIÀ PAGATA</span>`
+        : `<span style="font-size:9px;padding:2px 8px;border-radius:999px;background:rgba(255,215,0,0.12);color:var(--oro);border:1px solid rgba(255,215,0,0.3);white-space:nowrap">${deb ? 'DA PAGARE' : 'DA RICEVERE'}</span>`;
+      return `
+        <div style="padding:10px;background:var(--grigio-scuro);border-radius:10px;margin-bottom:8px;border-left:3px solid ${r.pagata ? 'var(--grigio-chiaro)' : col};${r.pagata ? 'opacity:0.75' : ''}">
+          <div style="font-size:12px;font-weight:600;line-height:1.3;word-break:break-word">${_bilEsc(r.descrizione || 'Rata mercato')}</div>
+          <div style="font-size:10px;color:var(--testo-dim);margin-top:2px">${deb ? 'A' : 'Da'}: ${_bilEsc(ctrl ? ctrl.nome : '?')} · ${scad}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;flex-wrap:wrap">
+            <div style="font-family:'Space Mono',monospace;font-size:13px;font-weight:700;color:${col}">${deb ? '-' : '+'}${fmtBudget(r.importo)}</div>
+            ${badge}
+          </div>
         </div>`;
+    }).join('');
+
+    // ----- MOVIMENTI (colonna destra) -----
+    const mov = [];
+    rateSq.filter(r => r.pagata && r.data_pagamento).forEach(r => {
+      const deb = r.squadra_debitrice_id === sq.id;
+      const ctrl = squadreDB.find(s => s.id === (deb ? r.squadra_creditrice_id : r.squadra_debitrice_id));
+      mov.push({ d: new Date(r.data_pagamento), t: 'Rata: ' + (r.descrizione || 'Rata mercato') + (ctrl ? ' (' + (deb ? 'a ' : 'da ') + ctrl.nome + ')' : ''), v: deb ? -r.importo : r.importo });
+    });
+    movimentiBilancio.filter(m => String(m.squadra_id) === String(sq.id)).forEach(m => {
+      mov.push({ d: new Date(m.created_at), t: m.descrizione, v: m.importo });
+    });
+    mov.sort((a, b) => b.d - a.d);
+    const limite = Date.now() - 30 * 86400000;
+    const recenti = mov.filter(m => m.d.getTime() >= limite);
+    const vecchi = mov.filter(m => m.d.getTime() < limite);
+
+    let archivioHtml = '';
+    if (bilArchivioAperto) {
+      const gruppi = {};
+      vecchi.forEach(m => { const k = m.d.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }); (gruppi[k] = gruppi[k] || []).push(m); });
+      archivioHtml = Object.keys(gruppi).length
+        ? Object.keys(gruppi).map(k => `<div style="font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--oro);letter-spacing:1px;margin-top:12px;text-transform:uppercase">${k}</div>${gruppi[k].map(_bilRigaMov).join('')}`).join('')
+        : '<div style="font-size:11px;color:var(--testo-dim);padding:8px 0">Archivio vuoto</div>';
     }
 
-    // FM in arrivo (pending non erogati)
-    const mieiPending = bilancePending.filter(p => p.squadra_id === sqId && !p.erogato);
+    html += `
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-bottom:16px;align-items:start">
+
+        <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:12px;min-width:0">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;margin-bottom:8px">💳 RATE</div>
+          ${chiavi.length ? `
+            <select onchange="bilSelMercato(this.value)" style="width:100%;margin-bottom:10px;padding:8px;border-radius:8px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:12px">
+              ${chiavi.map(k => `<option value="${_bilEsc(k)}" ${k === bilMercatoSel ? 'selected' : ''}>Mercato ${_bilEsc(k)}</option>`).join('')}
+            </select>
+            ${righeRate || '<div style="font-size:11px;color:var(--testo-dim)">Nessuna rata in questo mercato</div>'}
+          ` : '<div style="font-size:11px;color:var(--testo-dim)">Nessuna rata</div>'}
+        </div>
+
+        <div style="background:var(--grigio);border:1px solid var(--grigio-chiaro);border-radius:14px;padding:12px;min-width:0">
+          <div style="background:linear-gradient(135deg,rgba(255,215,0,0.12),rgba(0,0,0,0));border:1px solid rgba(255,215,0,0.3);border-radius:10px;padding:10px;margin-bottom:12px">
+            <div style="font-size:10px;color:var(--testo-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Budget attuale</div>
+            <div style="font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:${budgetColor};word-break:break-word">${fmtBudget(budget)}</div>
+            <div style="font-size:10px;color:var(--testo-dim);margin-top:6px;line-height:1.5">
+              Da ricevere: <span style="color:var(--verde)">+${fmtBudget(totDaRicevere)}</span><br>
+              Da pagare: <span style="color:var(--rosso)">-${fmtBudget(totDaPagare)}</span>
+            </div>
+          </div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--testo-dim)">ULTIMI MOVIMENTI · 30 GIORNI</div>
+          ${recenti.length ? recenti.map(_bilRigaMov).join('') : '<div style="font-size:11px;color:var(--testo-dim);padding:8px 0">Nessun movimento nell\'ultimo mese</div>'}
+          <button onclick="bilToggleArchivio()" style="width:100%;margin-top:10px;background:var(--grigio-medio);color:var(--testo);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px;border-radius:8px;border:1px solid var(--grigio-chiaro);cursor:pointer">${bilArchivioAperto ? '✕ CHIUDI ARCHIVIO' : '📁 ARCHIVIO (' + vecchi.length + ')'}</button>
+          ${archivioHtml}
+        </div>
+      </div>`;
+
+    // FM in arrivo al nuovo bilancio (pending non erogati)
+    const mieiPending = bilancePending.filter(p => p.squadra_id === sq.id && !p.erogato);
     if (mieiPending.length > 0) {
       const totPending = mieiPending.reduce((s, p) => s + p.importo, 0);
       html += `
-        <div style="background:var(--grigio);border:1px solid rgba(0,255,135,0.2);border-radius:14px;padding:16px;margin-bottom:20px">
+        <div style="background:var(--grigio);border:1px solid rgba(0,255,135,0.2);border-radius:14px;padding:16px;margin-bottom:16px">
           <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--verde);letter-spacing:1px;margin-bottom:4px">📬 FM IN ARRIVO AL NUOVO BILANCIO</div>
-          <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Verranno accreditati il 16 giugno 2027 all'apertura del nuovo bilancio</div>
+          <div style="font-size:11px;color:var(--testo-dim);margin-bottom:12px">Verranno accreditati all'apertura del nuovo bilancio</div>
           ${mieiPending.map(p => `
-            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--grigio-scuro);border-radius:8px;margin-bottom:6px">
-              <div style="font-size:12px;color:var(--testo)">${p.descrizione}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;background:var(--grigio-scuro);border-radius:8px;margin-bottom:6px">
+              <div style="font-size:12px;color:var(--testo)">${_bilEsc(p.descrizione)}</div>
               <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--verde)">+${fmtBudget(p.importo)}</div>
             </div>`).join('')}
           <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--grigio-chiaro);margin-top:6px">
@@ -118,32 +303,9 @@ async function renderBilancio() {
           </div>
         </div>`;
     }
-
-    // Rate in entrata (crediti)
-    const mieRateCrediti = rateMercato.filter(r => r.squadra_creditrice_id === sqId && !r.pagata);
-    if (mieRateCrediti.length > 0) {
-      html += `
-        <div style="background:var(--grigio);border:1px solid rgba(0,255,135,0.15);border-radius:14px;padding:16px;margin-bottom:20px">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--verde);letter-spacing:1px;margin-bottom:12px">💵 RATE IN ENTRATA</div>
-          ${mieRateCrediti.map(r => {
-            const scad = new Date(r.data_scadenza);
-            const sqDeb = squadreDB.find(s => s.id === r.squadra_debitrice_id);
-            return `
-              <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--grigio-scuro);border-radius:10px;margin-bottom:8px">
-                <div style="flex:1">
-                  <div style="font-size:13px;font-weight:600;margin-bottom:3px">${r.descrizione || 'Rata mercato'}</div>
-                  <div style="font-size:11px;color:var(--testo-dim)">Da: ${sqDeb?.nome || '?'}</div>
-                  <div style="font-size:11px;color:var(--testo-dim)">Scadenza: ${scad.toLocaleDateString('it-IT')}</div>
-                </div>
-                <div style="font-family:'Space Mono',monospace;font-size:16px;font-weight:700;color:var(--verde)">+${fmtBudget(r.importo)}</div>
-              </div>`;
-          }).join('')}
-        </div>`;
-    }
   }
 
-  // Classifica budget tutte le squadre
-  html += renderClassificaBudget();
+  if (sq) html += _bilStipendiHtml(sq);
   container.innerHTML = html;
 }
 
@@ -256,7 +418,7 @@ async function renderTabNuovoBilancio(container) {
   container.innerHTML = `
     <div style="background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.2);border-radius:10px;padding:14px;margin-bottom:16px;font-size:12px;color:var(--testo-dim);line-height:1.7">
       ⚠️ <strong style="color:var(--oro)">Apertura Nuovo Bilancio (16 Giugno)</strong><br>
-      Questa operazione accredita a ogni squadra: <strong style="color:var(--testo)">50M fissi + FM competizioni + rendita museo + rate in entrata</strong> e addebita le rate in uscita. Avanza automaticamente anche la stagione (da ${STAGIONE_CORRENTE} a ${prossimaStagione(STAGIONE_CORRENTE)}), usata ovunque nell'app. L'operazione è irreversibile.
+      Questa operazione accredita a ogni squadra: <strong style="color:var(--testo)">FM competizioni + rendita museo + rate in entrata</strong> (i 50M arrivano con il nuovo mercato) e addebita le rate in uscita. Prima toglie gli stipendi dell'anno che chiude, se caricati. Avanza automaticamente anche la stagione (da ${STAGIONE_CORRENTE} a ${prossimaStagione(STAGIONE_CORRENTE)}), usata ovunque nell'app. L'operazione è irreversibile.
     </div>
 
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12px">
@@ -336,24 +498,46 @@ async function correggiStagioneManuale() {
 
 // Esegui apertura nuovo bilancio
 async function apriNuovoBilancio() {
-  if (!confirm(`⚠️ APERTURA NUOVO BILANCIO ${prossimaStagione(STAGIONE_CORRENTE)}\n\nQuesta operazione è IRREVERSIBILE.\nConfermi di voler procedere?`)) return;
+  await caricaStipendiAnno();
+  const annoChiusura = _bilAnnoChiusura();
+  const stipDaPagare = stipendiAnno.filter(r => r.anno === annoChiusura && !r.pagato);
+  const sqConStip = new Set(stipDaPagare.map(r => String(r.squadra_id))).size;
+  const totStip = stipDaPagare.reduce((t, r) => t + (r.stipendio || 0), 0);
+  const avvisoStip = stipDaPagare.length
+    ? `\n\n💼 Prima verranno tolti gli stipendi ${annoChiusura}: ${sqConStip} squadre su ${squadreDB.length}, totale ${fmtBudget(totStip)}.`
+    : `\n\n⚠️ ATTENZIONE: nessuno stipendio ${annoChiusura} caricato. Non verrà tolto niente.`;
+  if (!confirm(`⚠️ APERTURA NUOVO BILANCIO ${prossimaStagione(STAGIONE_CORRENTE)}\n\nQuesta operazione è IRREVERSIBILE.${avvisoStip}\n\nConfermi di voler procedere?`)) return;
 
   const body = document.getElementById('bilancio-admin-tab-content');
   body.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Apertura bilancio in corso...</div>';
 
   let errori = 0;
   let ok = 0;
+  const negativi = [];
 
   for (const sq of squadreDB) {
     try {
       let nuovoBudget = sq.budget || 0;
 
-      // 1. FM fissi
-      nuovoBudget += 50000000;
+      // 0. Stipendi dell'anno che chiude (si pagano prima di aprire il nuovo bilancio)
+      const stipSq = stipDaPagare.filter(r => String(r.squadra_id) === String(sq.id));
+      const totStipSq = stipSq.reduce((t, r) => t + (r.stipendio || 0), 0);
+      if (totStipSq > 0) {
+        await registraMovimento(sq.id, `Stipendi ${annoChiusura}`, -totStipSq, nuovoBudget);
+        nuovoBudget -= totStipSq;
+        const adesso = new Date().toISOString();
+        const { error: errSt } = await sb.from('stipendi_anno').update({ pagato: true, data_pagamento: adesso })
+          .eq('anno', annoChiusura).eq('squadra_id', sq.id).eq('pagato', false);
+        if (errSt) throw errSt;
+        stipSq.forEach(r => { r.pagato = true; r.data_pagamento = adesso; });
+      }
+
+      // (i 50M non si danno più qui: arrivano con il nuovo mercato)
 
       // 2. FM competizioni pending
       const pendingComp = bilancePending.filter(p => p.squadra_id === sq.id && !p.erogato);
       for (const p of pendingComp) {
+        registraMovimento(sq.id, p.descrizione || 'FM competizione', p.importo, nuovoBudget);
         nuovoBudget += p.importo;
         await sb.from('bilancio_pending').update({ erogato: true, data_erogazione: new Date().toISOString() }).eq('id', p.id);
         p.erogato = true;
@@ -361,7 +545,7 @@ async function apriNuovoBilancio() {
 
       // 3. Rendita museo
       const fmMuseo = calcolaRenditaMuseo(sq.trofei || []);
-      if (fmMuseo > 0) nuovoBudget += fmMuseo;
+      if (fmMuseo > 0) { registraMovimento(sq.id, 'Rendita museo', fmMuseo, nuovoBudget); nuovoBudget += fmMuseo; }
 
       // 4. Rate in entrata (pagate)
       const rateIn = rateMercato.filter(r => r.squadra_creditrice_id === sq.id && !r.pagata);
@@ -379,6 +563,7 @@ async function apriNuovoBilancio() {
       await sb.from('squadre').update({ budget: nuovoBudget }).eq('id', sq.id);
       const idx = squadreDB.findIndex(s => s.id === sq.id);
       if (idx >= 0) squadreDB[idx].budget = nuovoBudget;
+      if (nuovoBudget < 0) negativi.push(sq.nome + ': ' + fmtBudget(nuovoBudget));
       ok++;
     } catch(e) {
       console.error('Errore per squadra', sq.nome, e);
@@ -414,6 +599,7 @@ async function apriNuovoBilancio() {
     STAGIONE_CORRENTE = nuovaStagione;
   } catch(e) { console.error('Errore aggiornamento stagione:', e); }
 
+  if (negativi.length) alert('⚠️ Chiudono in negativo (penalità):\n\n' + negativi.join('\n'));
   showToast(`✅ Bilancio aperto! ${ok} squadre aggiornate${errori > 0 ? ' ('+errori+' errori)' : ''} • Stagione ${STAGIONE_CORRENTE}`);
   await renderAdminBilancio();
 }
@@ -660,6 +846,7 @@ async function salvaMovimentoManuale() {
       await sb.from('squadre').update({ budget: nuovoBudget }).eq('id', sqId);
       const idx = squadreDB.findIndex(s => s.id === sqId);
       if (idx >= 0) squadreDB[idx].budget = nuovoBudget;
+      registraMovimento(sqId, desc, delta, nuovoBudget - delta);
       showToast(`✅ ${delta>0?'+':''}${fmtBudget(delta)} applicato a ${sq.nome}`);
     } else {
       const { data, error } = await sb.from('bilancio_pending').insert({

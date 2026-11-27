@@ -18,7 +18,7 @@ function apriSquadra(id){
     </div>
     <div class="squadra-hero-body">
       <div class="squadra-hero-nome">${nomeDisplay}</div>
-      <div class="squadra-hero-all">⚽ All.: <span>${sq.allenatore||'—'}</span> &nbsp;|&nbsp; Stipendio: <span>${sq.stip_all||'—'}</span></div>
+      <div class="squadra-hero-all">⚽ All.: <span>${sq.allenatore||'—'}</span></div>
       <div class="presidenti-title">👑 PRESIDENZA</div>
       <div class="presidenti-row">${presidenti.length?presidenti.map(p=>`
         <div class="presidente-card">
