@@ -125,6 +125,11 @@ async function renderBilancio() {
   disegnaBilancio();
 }
 
+// Dalla pagina di una squadra: apre la pagina Bilancio già su quella squadra
+function vaiAlBilancio(id) {
+  bilSqSel = id; bilMercatoSel = null; bilArchivioAperto = false;
+  showSection('bilancio');
+}
 function bilSelSquadra(id) { bilSqSel = id; bilMercatoSel = null; bilArchivioAperto = false; disegnaBilancio(); }
 function bilSelMercato(k) { bilMercatoSel = k; disegnaBilancio(); }
 function bilSelAnno(v) { bilAnnoSel = parseInt(v, 10); disegnaBilancio(); }
@@ -140,6 +145,221 @@ function _bilRigaMov(m) {
       </div>
       <div style="font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:${col};white-space:nowrap">${_bilFm(m.v)}</div>
     </div>`;
+}
+
+// ===== LETTORE STIPENDI (screenshot di Capology) =====
+// Flusso: carichi gli screenshot -> l'AI (api/stipendi.js) legge nome e "tasso fisso netto annuo" ->
+// i nomi vengono abbinati ai giocatori (quelli già visti sono riconosciuti da soli) -> salvi lo stipendio
+// sui giocatori (giocatori.stipendio, in milioni) e rifai la finestra stipendi dell'anno scelto.
+let stipLetti = [];
+let stipFase = 'carica';
+let stipAlias = {};
+let stipMsg = '';
+
+function _stipNorm(s) {
+  return String(s || '').toLowerCase().replace(/ı/g, 'i').replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function caricaAliasStipendi() {
+  stipAlias = {};
+  try {
+    const { data, error } = await sb.from('alias_capology').select('*').limit(5000);
+    if (!error) (data || []).forEach(r => { stipAlias[r.nome_norm] = r.giocatore_id; });
+  } catch (e) { /* tabella non ancora creata: si va avanti senza memoria */ }
+}
+
+function _stipAbbina(nomeCap) {
+  const n = _stipNorm(nomeCap);
+  if (!n) return { gid: null, stato: 'no' };
+  const pool = giocatoriDB.map(g => ({ g, n: _stipNorm(g.nome) }));
+  if (stipAlias[n] && pool.some(p => String(p.g.id) === String(stipAlias[n]))) return { gid: stipAlias[n], stato: 'ok', mem: true };
+  let c = pool.filter(p => p.n === n);
+  if (c.length === 1) return { gid: c[0].g.id, stato: 'ok' };
+  // nome nell'app scritto come "P.Esposito": iniziale + cognome
+  c = pool.filter(p => { const m = p.n.match(/^([a-z]) (.+)$/); return m && n.startsWith(m[1]) && (n === m[2] || n.endsWith(' ' + m[2])); });
+  if (c.length === 1) return { gid: c[0].g.id, stato: 'ok' };
+  // nome nell'app = solo cognome
+  c = pool.filter(p => p.n.length >= 3 && n.endsWith(' ' + p.n));
+  if (c.length === 1) return { gid: c[0].g.id, stato: 'proposta' };
+  const cogn = n.split(' ').pop();
+  c = pool.filter(p => cogn.length >= 3 && p.n.split(' ').pop() === cogn);
+  if (c.length === 1) return { gid: c[0].g.id, stato: 'proposta' };
+  return { gid: null, stato: 'no' };
+}
+
+function _stipComprimi(file) {
+  return new Promise((ok, ko) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 2600 / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); ko(new Error('Immagine non leggibile')); };
+    img.src = url;
+  });
+}
+
+function apriLettoreStipendi() {
+  if (!adminLoggato) return;
+  let m = document.getElementById('modal-stipendi-lettore');
+  if (!m) {
+    m = document.createElement('div');
+    m.className = 'modal-overlay'; m.id = 'modal-stipendi-lettore';
+    m.setAttribute('onclick', "closeModal('modal-stipendi-lettore',event)");
+    m.innerHTML = `<div class="modal" style="border-color:var(--oro);max-width:520px">
+      <div class="modal-header"><div class="modal-title" style="color:var(--oro)">📸 CARICA STIPENDI</div>
+      <button class="modal-close" onclick="document.getElementById('modal-stipendi-lettore').classList.remove('open')">×</button></div>
+      <div style="padding:16px" id="stip-lettore-body"></div></div>`;
+    document.body.appendChild(m);
+  }
+  stipLetti = []; stipFase = 'carica'; stipMsg = '';
+  disegnaLettore();
+  m.classList.add('open');
+}
+
+function disegnaLettore() {
+  const b = document.getElementById('stip-lettore-body');
+  if (!b) return;
+  const bottone = 'width:100%;background:var(--oro);color:var(--nero);font-family:\'Bebas Neue\',sans-serif;font-size:18px;letter-spacing:1px;padding:12px;border-radius:10px;border:none;cursor:pointer';
+  const err = stipMsg ? `<div style="font-size:13px;color:${stipMsg.startsWith('❌') ? 'var(--rosso)' : 'var(--testo-dim)'};margin-bottom:10px">${_bilEsc(stipMsg)}</div>` : '';
+  if (stipFase === 'carica') {
+    b.innerHTML = `${err}
+      <div style="font-size:13px;color:var(--testo-dim);margin-bottom:10px;line-height:1.5">Carica gli screenshot di Capology (anche tanti insieme). Su Capology deve essere attivo <b>RETE</b>. Leggo solo il <b>tasso fisso netto annuo</b>.</div>
+      <input type="file" id="stip-files" accept="image/*" multiple style="width:100%;margin-bottom:12px">
+      <button onclick="stipLeggi()" style="${bottone}">LEGGI GLI STIPENDI</button>`;
+    return;
+  }
+  if (stipFase === 'lettura') {
+    b.innerHTML = `<div style="text-align:center;padding:24px 0;font-size:14px;color:var(--testo-dim)">${_bilEsc(stipMsg || 'Leggo...')}</div>`;
+    return;
+  }
+  const ok = stipLetti.map((x, i) => ({ x, i })).filter(o => o.x.stato === 'ok');
+  const prop = stipLetti.map((x, i) => ({ x, i })).filter(o => o.x.stato === 'proposta');
+  const no = stipLetti.map((x, i) => ({ x, i })).filter(o => o.x.stato === 'no');
+  const nomeG = gid => { const g = giocatoriDB.find(z => String(z.id) === String(gid)); return g ? g.nome : '?'; };
+  const riga = (o, extra) => `<div style="padding:9px 0;border-top:1px solid var(--grigio-chiaro);font-size:13px">
+      <div style="display:flex;justify-content:space-between;gap:8px"><span style="min-width:0;word-break:break-word">${_bilEsc(o.x.nomeCap)}${o.x.gid ? ' <span style="color:var(--testo-dim)">→ ' + _bilEsc(nomeG(o.x.gid)) + '</span>' : ''}</span>
+      <span style="font-family:'Space Mono',monospace;font-weight:700;white-space:nowrap">${fmtBudget(o.x.eur)}</span></div>${extra || ''}</div>`;
+  const cerca = i => `<input type="text" placeholder="Cerca il giocatore per nome..." oninput="stipCerca(${i},this.value)" style="width:100%;margin-top:6px;padding:8px;border-radius:8px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:13px"><div id="stip-res-${i}"></div>`;
+  b.innerHTML = `${err}
+    <div style="font-size:13px;color:var(--testo-dim);margin-bottom:10px">Letti ${stipLetti.length} giocatori · ✅ ${ok.length} riconosciuti · 💡 ${prop.length} da confermare · ❓ ${no.length} non trovati</div>
+    ${prop.length ? `<div style="font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--oro);letter-spacing:1px">💡 DA CONFERMARE (${prop.length})</div>
+      ${prop.map(o => riga(o, `<div style="display:flex;gap:6px;margin-top:6px"><button onclick="stipConferma(${o.i})" style="flex:1;background:rgba(0,255,135,0.1);color:var(--verde);border:1px solid rgba(0,255,135,0.3);padding:6px;border-radius:6px;cursor:pointer">✓ È lui</button><button onclick="stipAnnulla(${o.i})" style="flex:1;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);padding:6px;border-radius:6px;cursor:pointer">Cerca altro</button></div>`)).join('')}` : ''}
+    <details style="margin-top:10px"><summary style="cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--verde);letter-spacing:1px">✅ RICONOSCIUTI (${ok.length})</summary>
+      ${ok.map(o => riga(o, `<div style="text-align:right"><button onclick="stipAnnulla(${o.i})" style="background:none;border:none;color:var(--testo-dim);font-size:11px;cursor:pointer">togli</button></div>`)).join('')}</details>
+    <details style="margin-top:10px" ${no.length && !prop.length && !ok.length ? 'open' : ''}><summary style="cursor:pointer;font-family:'Bebas Neue',sans-serif;font-size:15px;color:var(--testo-dim);letter-spacing:1px">❓ NON TROVATI (${no.length}) — se non sono nel gioco, lasciali così</summary>
+      ${no.map(o => riga(o, cerca(o.i))).join('')}</details>
+    <label style="display:flex;gap:8px;align-items:center;margin:14px 0 10px;font-size:13px"><input type="checkbox" id="stip-agg-anno" checked> Rifai la finestra stipendi dell'anno ${bilAnnoSel} di tutte le squadre</label>
+    <button onclick="stipSalva()" id="stip-salva-btn" style="${bottone}">SALVA ${ok.length} STIPENDI</button>`;
+}
+
+async function stipLeggi() {
+  const inp = document.getElementById('stip-files');
+  const files = Array.from((inp && inp.files) || []);
+  if (!files.length) { stipMsg = '❌ Scegli almeno uno screenshot'; disegnaLettore(); return; }
+  const righe = new Map();
+  stipFase = 'lettura';
+  for (let i = 0; i < files.length; i++) {
+    stipMsg = `Leggo lo screenshot ${i + 1} di ${files.length}...`; disegnaLettore();
+    try {
+      const img = await _stipComprimi(files[i]);
+      const r = await fetch('/api/stipendi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (typeof SESSIONE_TOKEN !== 'undefined' && SESSIONE_TOKEN ? SESSIONE_TOKEN : '') },
+        body: JSON.stringify({ immagine: img })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || ('Errore ' + r.status));
+      if (j.modo === 'lordo') throw new Error('Lo screenshot ' + (i + 1) + ' mostra gli stipendi LORDI: su Capology attiva RETE e rifai lo screenshot');
+      if (j.valuta && j.valuta !== 'EUR') throw new Error('Lo screenshot ' + (i + 1) + ' non è in EUR: su Capology scegli EUR');
+      (j.righe || []).forEach(x => righe.set(_stipNorm(x.nome), { nomeCap: x.nome, eur: x.stipendio }));
+    } catch (e) { stipFase = 'carica'; stipMsg = '❌ ' + e.message; disegnaLettore(); return; }
+  }
+  await caricaAliasStipendi();
+  stipLetti = Array.from(righe.values()).map(x => ({ ...x, ..._stipAbbina(x.nomeCap) }));
+  stipFase = 'revisione'; stipMsg = '';
+  disegnaLettore();
+}
+
+function stipConferma(i) { stipLetti[i].stato = 'ok'; stipLetti[i].mem = false; disegnaLettore(); }
+function stipAnnulla(i) { stipLetti[i].stato = 'no'; stipLetti[i].gid = null; stipLetti[i].mem = false; disegnaLettore(); }
+function stipScegli(i, gid) { stipLetti[i].gid = gid; stipLetti[i].stato = 'ok'; stipLetti[i].mem = false; disegnaLettore(); }
+function stipCerca(i, q) {
+  const box = document.getElementById('stip-res-' + i);
+  if (!box) return;
+  const n = _stipNorm(q);
+  if (n.length < 2) { box.innerHTML = ''; return; }
+  const trovati = giocatoriDB.filter(g => _stipNorm(g.nome).includes(n)).slice(0, 6);
+  box.innerHTML = trovati.length ? trovati.map(g => {
+    const sq = squadreDB.find(s => String(s.id) === String(g.squadra_id));
+    return `<button onclick="stipScegli(${i},'${g.id}')" style="display:block;width:100%;text-align:left;margin-top:4px;padding:8px;border-radius:6px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:13px;cursor:pointer">${_bilEsc(g.nome)} <span style="color:var(--testo-dim)">· ${_bilEsc(sq ? sq.nome : 'senza squadra')}</span></button>`;
+  }).join('') : '<div style="font-size:12px;color:var(--testo-dim);padding:6px 0">Nessun giocatore trovato</div>';
+}
+
+async function stipSalva() {
+  const ok = stipLetti.filter(x => x.stato === 'ok' && x.gid);
+  if (!ok.length) { stipMsg = '❌ Non c\'è niente da salvare'; disegnaLettore(); return; }
+  const aggiorna = !!(document.getElementById('stip-agg-anno') || {}).checked;
+  const btn = document.getElementById('stip-salva-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'SALVO...'; }
+  let errori = 0;
+  for (let k = 0; k < ok.length; k += 10) {
+    await Promise.all(ok.slice(k, k + 10).map(async x => {
+      const m = Math.round(x.eur / 1e4) / 100;          // milioni, 2 decimali (6.000.000 -> 6)
+      const { error } = await sb.from('giocatori').update({ stipendio: m }).eq('id', x.gid);
+      if (error) { errori++; return; }
+      const i = giocatoriDB.findIndex(g => String(g.id) === String(x.gid));
+      if (i >= 0) giocatoriDB[i] = { ...giocatoriDB[i], stipendio: m };
+    }));
+  }
+  const nuovi = ok.filter(x => !x.mem).map(x => ({ nome_norm: _stipNorm(x.nomeCap), giocatore_id: String(x.gid) }));
+  let aliasKo = false;
+  if (nuovi.length) {
+    try { const { error } = await sb.from('alias_capology').upsert(nuovi, { onConflict: 'nome_norm' }); if (error) aliasKo = true; } catch (e) { aliasKo = true; }
+  }
+  showToast(errori ? `⚠️ ${ok.length - errori} salvati, ${errori} non riusciti` : `✅ ${ok.length} stipendi salvati${aliasKo ? ' (nomi non memorizzati: manca la tabella alias_capology)' : ''}`);
+  document.getElementById('modal-stipendi-lettore').classList.remove('open');
+  if (aggiorna) await aggiornaStipendiAnno(bilAnnoSel, true);
+  else renderBilancio();
+}
+
+// Rifà la finestra stipendi di un anno per tutte le squadre, partendo dalle rose di adesso.
+// Regole: Primavera = 0, promosso = 0, il prestito secco lo paga chi ha il giocatore in rosa,
+// allenatore intero. (Gennaio 50%: non ancora calcolato.) Le squadre con stipendi già pagati non si toccano.
+async function aggiornaStipendiAnno(anno, senzaConferma) {
+  if (!adminLoggato) return;
+  await caricaStipendiAnno();
+  const rows = [], senza = [], totali = [];
+  const bloccate = new Set(stipendiAnno.filter(r => r.anno === anno && r.pagato).map(r => String(r.squadra_id)));
+  squadreDB.forEach(sq => {
+    if (bloccate.has(String(sq.id))) return;
+    let tot = 0;
+    giocatoriDB.filter(g => String(g.squadra_id) === String(sq.id) && g.lista !== 'primavera' && !g.promosso).forEach(g => {
+      const st = Math.round((parseFloat(g.stipendio) || 0) * 1e6);
+      if (!st) { senza.push(g.nome + ' (' + sq.nome + ')'); return; }
+      rows.push({ anno, squadra_id: String(sq.id), tipo: 'calciatore', giocatore_id: String(g.id), nome: g.nome, stipendio: st, pagato: false });
+      tot += st;
+    });
+    const all = parseM(sq.stip_all);
+    if (all > 0) { rows.push({ anno, squadra_id: String(sq.id), tipo: 'allenatore', giocatore_id: null, nome: sq.allenatore || 'Allenatore', stipendio: all, pagato: false }); tot += all; }
+    totali.push(sq.nome + ': ' + fmtBudget(tot));
+  });
+  if (!senzaConferma && !confirm(`Rifaccio la finestra stipendi ${anno} di tutte le squadre dalle rose di adesso.\n${rows.length} stipendi (${bloccate.size ? bloccate.size + ' squadre già pagate non si toccano' : 'nessuna squadra già pagata'}).\n\nProcedo?`)) return;
+  const { error: eDel } = await sb.from('stipendi_anno').delete().eq('anno', anno).eq('pagato', false);
+  if (eDel) { showToast('❌ ' + eDel.message, 'error'); return; }
+  for (let k = 0; k < rows.length; k += 200) {
+    const { error } = await sb.from('stipendi_anno').insert(rows.slice(k, k + 200));
+    if (error) { showToast('❌ Salvataggio non riuscito: ' + error.message, 'error'); await renderBilancio(); return; }
+  }
+  await renderBilancio();
+  let msg = `✅ Finestra stipendi ${anno} aggiornata: ${rows.length} stipendi.\n\n` + totali.join('\n');
+  if (senza.length) msg += `\n\n⚠️ Senza stipendio (${senza.length}), non contati:\n` + senza.slice(0, 15).join('\n') + (senza.length > 15 ? '\n...' : '');
+  msg += '\n\nRicorda: la regola di gennaio (50%) non è ancora calcolata.';
+  alert(msg);
 }
 
 function _bilStipendiHtml(sq) {
@@ -169,6 +389,10 @@ function _bilStipendiHtml(sq) {
       <select onchange="bilSelAnno(this.value)" style="width:100%;padding:8px;border-radius:8px;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-size:13px">
         ${anni.map(a => `<option value="${a}" ${a === bilAnnoSel ? 'selected' : ''}>Rosa estate ${a}</option>`).join('')}
       </select>
+      ${adminLoggato ? `<div style="display:flex;gap:8px;margin:8px 0">
+        <button onclick="apriLettoreStipendi()" style="flex:1;background:rgba(255,215,0,0.1);color:var(--oro);border:1px solid rgba(255,215,0,0.3);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px;border-radius:8px;cursor:pointer">📸 CARICA STIPENDI</button>
+        <button onclick="aggiornaStipendiAnno(bilAnnoSel)" style="flex:1;background:var(--grigio-scuro);color:var(--testo);border:1px solid var(--grigio-chiaro);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px;border-radius:8px;cursor:pointer">🔄 RIFAI ${bilAnnoSel}</button>
+      </div>` : ''}
       <div style="font-size:11px;color:var(--testo-dim);margin:6px 0 4px">Si pagano a fine stagione ${bilAnnoSel - 1}/${String(bilAnnoSel).slice(2)}, prima di aprire il nuovo bilancio.</div>
       ${righe.length ? `
         <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;color:var(--oro);margin-top:10px">⚽ ALLENATORE</div>
@@ -677,6 +901,7 @@ function renderTabRate(container) {
       <div style="font-family:'Bebas Neue',sans-serif;font-size:14px;color:var(--testo-dim);letter-spacing:1px">RATE IN SOSPESO (${nonPagate.length})</div>
       <button onclick="apriAdminBilancioRate()" style="background:var(--verde);color:var(--nero);font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:1px;padding:6px 14px;border-radius:8px;border:none;cursor:pointer">+ NUOVA RATA</button>
     </div>
+    ${adminLoggato ? `<button onclick="importaVecchieRate()" style="width:100%;margin-bottom:12px;background:rgba(255,215,0,0.1);color:var(--oro);border:1px solid rgba(255,215,0,0.3);font-family:'Bebas Neue',sans-serif;font-size:14px;letter-spacing:1px;padding:8px;border-radius:8px;cursor:pointer">📥 IMPORTA VECCHIE RATE (dalle trattative)</button>` : ''}
     <div id="form-nuova-rata" style="display:none;background:var(--grigio-scuro);border-radius:10px;padding:14px;margin-bottom:14px"></div>
 
     ${nonPagate.length === 0 ? '<div style="color:var(--testo-dim);font-size:13px;margin-bottom:16px">Nessuna rata in sospeso</div>' :
@@ -714,6 +939,51 @@ function renderTabRate(container) {
           <div style="font-size:12px;color:var(--verde)">${fmtBudget(r.importo)} ✅</div>
         </div>`;
     }).join('')}`;
+}
+
+// Una volta sola: copia nel nuovo bilancio le rate NON pagate rimaste dentro le vecchie trattative.
+// Salta da sola quelle già presenti e mostra l'elenco prima di fare qualsiasi cosa.
+async function importaVecchieRate() {
+  if (!adminLoggato) return;
+  const { data: tr, error } = await sb.from('trattative').select('*');
+  if (error) { showToast('❌ ' + error.message, 'error'); return; }
+  const daImportare = [], giaPresenti = [], daFareAMano = [];
+  const stessa = (a, b) => String(a.squadra_debitrice_id) === String(b.squadra_debitrice_id) && String(a.squadra_creditrice_id) === String(b.squadra_creditrice_id) && Number(a.importo) === Number(b.importo) && String(a.data_scadenza).slice(0, 10) === String(b.data_scadenza).slice(0, 10);
+  (tr || []).forEach(t => {
+    if (t.stato === 'rifiutata' || !Array.isArray(t.rate)) return;
+    const paga = t.squadra_offerente_id || t.squadra_cedente_id;
+    const incassa = t.squadra_ricevente_id || t.squadra_acquirente_id;
+    const g = giocatoriDB.find(x => String(x.id) === String(t.giocatore_id));
+    const nome = (g && g.nome) || t.giocatore_nome || t.tipo || 'Trattativa';
+    t.rate.forEach((r, i) => {
+      const imp = parseFloat(r.importo);
+      if (r.pagata || r.importata || !r.data || !(imp > 0)) return;
+      if (!paga || !incassa) { daFareAMano.push(`${nome} (${r.data}, ${fmtBudget(imp)})`); return; }
+      const riga = { descrizione: `Rata: ${nome}`, squadra_debitrice_id: paga, squadra_creditrice_id: incassa, importo: imp, data_scadenza: r.data, pagata: false, stagione: STAGIONE_CORRENTE, trattativa_id: String(t.id) };
+      if (rateMercato.some(x => !x.pagata && stessa(x, riga)) || daImportare.some(x => stessa(x.riga, riga))) giaPresenti.push(riga);
+      else daImportare.push({ riga, tid: t.id, idx: i });
+    });
+  });
+  const nomeSq = id => (squadreDB.find(s => String(s.id) === String(id)) || {}).nome || '?';
+  let msg = `Rate da importare: ${daImportare.length}\nGià presenti nel bilancio (saltate): ${giaPresenti.length}`;
+  if (daImportare.length) msg += '\n\n' + daImportare.map(x => `• ${x.riga.descrizione}: ${nomeSq(x.riga.squadra_debitrice_id)} → ${nomeSq(x.riga.squadra_creditrice_id)}, ${fmtBudget(x.riga.importo)}, ${x.riga.data_scadenza}`).join('\n');
+  if (daFareAMano.length) msg += '\n\nDa inserire a mano (manca una squadra):\n' + daFareAMano.map(x => '• ' + x).join('\n');
+  if (!daImportare.length) { alert(msg); return; }
+  if (!confirm(msg + '\n\nImporto?')) return;
+  let res = await sb.from('rate_mercato').insert(daImportare.map(x => x.riga)).select();
+  if (res.error) res = await sb.from('rate_mercato').insert(daImportare.map(x => { const { trattativa_id, ...r } = x.riga; return r; })).select();
+  if (res.error) { showToast('❌ Importazione non riuscita: ' + res.error.message, 'error'); return; }
+  (res.data || []).forEach(x => rateMercato.push(x));
+  // segna le rate vecchie come importate, così non si ripetono
+  const perT = {};
+  daImportare.forEach(x => { (perT[x.tid] = perT[x.tid] || []).push(x.idx); });
+  for (const tid of Object.keys(perT)) {
+    const t = (tr || []).find(z => String(z.id) === String(tid));
+    const nuove = t.rate.map((r, i) => perT[tid].includes(i) ? { ...r, importata: true } : r);
+    await sb.from('trattative').update({ rate: nuove }).eq('id', t.id);
+  }
+  showToast(`✅ ${(res.data || []).length} rate importate`);
+  renderAdminBilancio();
 }
 
 function apriNuovaRata() {

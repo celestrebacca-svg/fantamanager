@@ -56,13 +56,14 @@ function apriSquadra(id){
     renderFormazione(id, false);
   }
 
-  // Bilancio: tutti lo vedono, ma lo storico solo al proprietario/admin
+  // Bilancio: ora c'è una sola pagina Bilancio (bilancio.js). Qui resta solo il bottone per andarci.
   const bilancioDiv=document.getElementById('bilancio-squadra-inline');
   if(bilancioDiv){
     bilancioDiv.style.display='block';
-    bilancioSquadraAttiva=id;
-    const isProprietario=(utenteLoggato&&utenteLoggato.id===id)||adminLoggato;
-    renderBilancioSquadra(id, isProprietario);
+    bilancioDiv.innerHTML=`
+      <button onclick="vaiAlBilancio('${id}')" style="width:100%;background:var(--grigio);border:1px solid var(--oro);color:var(--oro);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;padding:14px;border-radius:12px;cursor:pointer">
+        💰 BILANCIO, RATE E STIPENDI
+      </button>`;
   }
 
   // Museo squadra inline
@@ -77,79 +78,6 @@ function apriSquadra(id){
   }
 
   window.scrollTo(0,0);
-}
-
-function apriModificaBudget(sqId){
-  if(!adminLoggato) return;
-  const sq=squadreDB.find(s=>s.id===sqId);
-  if(!sq) return;
-  let m=document.getElementById('modal-modifica-budget');
-  if(!m){
-    m=document.createElement('div');
-    m.id='modal-modifica-budget';
-    m.className='modal-overlay';
-    m.innerHTML=`<div class="modal-content" style="max-width:380px">
-      <div class="modal-header">
-        <h2 class="modal-title">💰 MODIFICA BUDGET</h2>
-        <button class="modal-close" onclick="document.getElementById('modal-modifica-budget').classList.remove('open')">✕</button>
-      </div>
-      <div class="modal-body" id="modifica-budget-body"></div>
-    </div>`;
-    document.body.appendChild(m);
-  }
-  document.getElementById('modifica-budget-body').innerHTML=`
-    <div class="form-group">
-      <label class="form-label">Squadra</label>
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--oro)">${sq.nome_squadra||sq.nome}</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Budget attuale</label>
-      <div style="font-family:'Space Mono',monospace;font-size:18px;color:var(--verde)">${fmtBudget(sq.budget)}</div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Tipo modifica</label>
-      <select class="form-select" id="mod-budget-tipo">
-        <option value="aggiungi">➕ Aggiungi FM</option>
-        <option value="rimuovi">➖ Rimuovi FM</option>
-        <option value="imposta">🎯 Imposta valore esatto</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Importo (es. 5M, 500K)</label>
-      <input class="form-input" type="text" id="mod-budget-valore" placeholder="Es. 10M">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Motivo</label>
-      <input class="form-input" type="text" id="mod-budget-motivo" placeholder="Es. Premio campionato...">
-    </div>
-    <button onclick="salvaBudget('${sqId}')" class="btn-primary" style="width:100%;margin-top:8px">💾 SALVA</button>
-  `;
-  m.classList.add('open');
-}
-
-async function salvaBudget(sqId){
-  const sq=squadreDB.find(s=>s.id===sqId);
-  const tipo=document.getElementById('mod-budget-tipo').value;
-  const valoreRaw=document.getElementById('mod-budget-valore').value;
-  const valore=parseFM(valoreRaw);
-  if(!valore){showToast('❌ Inserisci un importo valido','error');return;}
-  
-  const budgetAttuale=sq.budget||0;
-  let nuovoBudget=budgetAttuale;
-  if(tipo==='aggiungi') nuovoBudget=budgetAttuale+valore;
-  else if(tipo==='rimuovi') nuovoBudget=budgetAttuale-valore;
-  else if(tipo==='imposta') nuovoBudget=valore;
-
-  try{
-    const{error}=await sb.from('squadre').update({budget:nuovoBudget}).eq('id',sqId);
-    if(error) throw error;
-    const idx=squadreDB.findIndex(s=>s.id===sqId);
-    if(idx>=0) squadreDB[idx].budget=nuovoBudget;
-    if(utenteLoggato&&utenteLoggato.id===sqId) utenteLoggato.budget=nuovoBudget;
-    document.getElementById('modal-modifica-budget').classList.remove('open');
-    showToast(`✅ Budget aggiornato: ${fmtBudget(nuovoBudget)}`);
-    apriSquadra(sqId);
-  }catch(e){showToast('❌ Errore: '+e.message,'error');}
 }
 
 function tornaLista(){
